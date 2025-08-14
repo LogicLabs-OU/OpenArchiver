@@ -65,11 +65,12 @@ Here is a complete list of environment variables available for configuration:
 
 #### Application Settings
 
-| Variable        | Description                        | Default Value |
-| --------------- | ---------------------------------- | ------------- |
-| `NODE_ENV`      | The application environment.       | `development` |
-| `PORT_BACKEND`  | The port for the backend service.  | `4000`        |
-| `PORT_FRONTEND` | The port for the frontend service. | `3000`        |
+| Variable         | Description                                                                                           | Default Value |
+| ---------------- | ----------------------------------------------------------------------------------------------------- | ------------- |
+| `NODE_ENV`       | The application environment.                                                                          | `development` |
+| `PORT_BACKEND`   | The port for the backend service.                                                                     | `4000`        |
+| `PORT_FRONTEND`  | The port for the frontend service.                                                                    | `3000`        |
+| `SYNC_FREQUENCY` | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details. | `* * * * *`   |
 
 #### Docker Compose Service Configuration
 
@@ -90,16 +91,17 @@ These variables are used by `docker-compose.yml` to configure the services.
 
 #### Storage Settings
 
-| Variable                       | Description                                                                           | Default Value             |
-| ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------- |
-| `STORAGE_TYPE`                 | The storage backend to use (`local` or `s3`).                                         | `local`                   |
-| `STORAGE_LOCAL_ROOT_PATH`      | The root path for local file storage.                                                 | `/var/data/open-archiver` |
-| `STORAGE_S3_ENDPOINT`          | The endpoint for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).          |                           |
-| `STORAGE_S3_BUCKET`            | The bucket name for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).       |                           |
-| `STORAGE_S3_ACCESS_KEY_ID`     | The access key ID for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).     |                           |
-| `STORAGE_S3_SECRET_ACCESS_KEY` | The secret access key for S3-compatible storage (required if `STORAGE_TYPE` is `s3`). |                           |
-| `STORAGE_S3_REGION`            | The region for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).            |                           |
-| `STORAGE_S3_FORCE_PATH_STYLE`  | Force path-style addressing for S3 (optional).                                        | `false`                   |
+| Variable                       | Description                                                                                                 | Default Value             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `STORAGE_TYPE`                 | The storage backend to use (`local` or `s3`).                                                               | `local`                   |
+| `BODY_SIZE_LIMIT`              | The maximum request body size for uploads. Can be a number in bytes or a string with a unit (e.g., `100M`). | `100M`                    |
+| `STORAGE_LOCAL_ROOT_PATH`      | The root path for local file storage.                                                                       | `/var/data/open-archiver` |
+| `STORAGE_S3_ENDPOINT`          | The endpoint for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                                |                           |
+| `STORAGE_S3_BUCKET`            | The bucket name for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                             |                           |
+| `STORAGE_S3_ACCESS_KEY_ID`     | The access key ID for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                           |                           |
+| `STORAGE_S3_SECRET_ACCESS_KEY` | The secret access key for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                       |                           |
+| `STORAGE_S3_REGION`            | The region for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                                  |                           |
+| `STORAGE_S3_FORCE_PATH_STYLE`  | Force path-style addressing for S3 (optional).                                                              | `false`                   |
 
 #### Security & Authentication
 
