@@ -2,11 +2,13 @@
 
 ARG BASE_IMAGE=node:22-alpine
 
+# 0. Base Stage: Define all common dependencies and setup
 FROM ${BASE_IMAGE} AS base
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN --mount=type=cache,target=/root/.npm \
+    npm install -g pnpm
 
 # Copy manifests and lockfile
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
@@ -19,7 +21,9 @@ FROM base AS build
 COPY packages/frontend/svelte.config.js ./packages/frontend/
 
 # Install all dependencies. Use --shamefully-hoist to create a flat node_modules structure
-RUN pnpm install --shamefully-hoist --frozen-lockfile --prod=false
+ENV PNPM_HOME="/pnpm"
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --shamefully-hoist --frozen-lockfile --prod=false
 
 # Copy the rest of the source code
 COPY . .
