@@ -42,7 +42,6 @@ COPY --from=build /app/packages/backend/src/database/migrations ./packages/backe
 
 # Copy the entrypoint script and make it executable
 COPY docker/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose the port the app runs on
 EXPOSE 4000
