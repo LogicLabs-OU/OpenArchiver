@@ -2,8 +2,7 @@
 
 ARG BASE_IMAGE=node:22-alpine
 
-# 1. Build Stage: Install all dependencies and build the project
-FROM ${BASE_IMAGE} AS build
+FROM ${BASE_IMAGE} AS base
 WORKDIR /app
 
 # Install pnpm
@@ -14,6 +13,9 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/types/package.json ./packages/types/
+
+# 1. Build Stage: Install all dependencies and build the project
+FROM base AS build
 COPY packages/frontend/svelte.config.js ./packages/frontend/
 
 # Install all dependencies. Use --shamefully-hoist to create a flat node_modules structure
@@ -26,17 +28,7 @@ COPY . .
 RUN pnpm build
 
 # 2. Production Stage: Install only production dependencies and copy built artifacts
-FROM ${BASE_IMAGE} AS production
-WORKDIR /app
-
-# Install pnpm
-RUN npm install -g pnpm
-
-# Copy manifests and lockfile
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
-COPY packages/backend/package.json ./packages/backend/
-COPY packages/frontend/package.json ./packages/frontend/
-COPY packages/types/package.json ./packages/types/
+FROM base AS production
 
 # Install production dependencies
 # RUN pnpm install --shamefully-hoist --frozen-lockfile --prod=true
