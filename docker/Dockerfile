@@ -1,7 +1,9 @@
 # Dockerfile for Open Archiver
 
+ARG BASE_IMAGE=node:22-alpine
+
 # 1. Build Stage: Install all dependencies and build the project
-FROM node:22-alpine AS build
+FROM ${BASE_IMAGE} AS build
 WORKDIR /app
 
 # Install pnpm
@@ -24,7 +26,7 @@ COPY . .
 RUN pnpm build
 
 # 2. Production Stage: Install only production dependencies and copy built artifacts
-FROM node:22-alpine AS production
+FROM ${BASE_IMAGE} AS production
 WORKDIR /app
 
 # Install pnpm
