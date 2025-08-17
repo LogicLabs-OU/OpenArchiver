@@ -230,7 +230,7 @@ export class MicrosoftConnector implements IEmailConnector {
 			try {
 				const response = await this.graphClient
 					.api(requestUrl)
-					.select('id,conversationId,@removed')
+					.select('id,conversationId')
 					.get();
 
 				for (const message of response.value) {

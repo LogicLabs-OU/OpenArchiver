@@ -51,3 +51,13 @@ This project and everyone participating in it is governed by the [Open Archiver 
 - Follow the existing code style.
 - Use TypeScript's strict mode.
 - Avoid using `any` as a type. Define clear interfaces and types in the `packages/types` directory.
+
+### Formatting
+
+We use Prettier for code formatting. Before you commit new code, it is necessary to check code format by running this command from the root folder:
+
+`pnpm run lint`
+
+If there are any format issues, you can use the following command to fix them
+
+`pnpm run format`
