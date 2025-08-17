@@ -31,7 +31,8 @@
 	>
 		{#snippet tooltip()}
 			<Chart.Tooltip
-				formatter={({ value, name }) => `${name}: ${formatBytes(Number(value))}`}
+				formatter={({ value, item }) =>
+					`${item.payload.name}: ${formatBytes(Number(value))}`}
 			/>
 		{/snippet}
 	</PieChart>
