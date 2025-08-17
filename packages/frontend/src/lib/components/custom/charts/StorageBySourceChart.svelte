@@ -30,10 +30,11 @@
 		]}
 	>
 		{#snippet tooltip()}
-			<Chart.Tooltip
-				formatter={({ value, item }) =>
-					`${item.payload.name}: ${formatBytes(Number(value))}`}
-			/>
+			<Chart.Tooltip>
+				{#snippet formatter({ value, item })}
+					{item.payload.name}: {formatBytes(value as number)}
+				{/snippet}
+			</Chart.Tooltip>
 		{/snippet}
 	</PieChart>
 </Chart.Container>
