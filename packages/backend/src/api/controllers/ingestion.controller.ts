@@ -33,13 +33,10 @@ export class IngestionController {
 		} catch (error: any) {
 			logger.error({ err: error }, 'Create ingestion source error');
 			// Return a 400 Bad Request for connection errors
-			return res
-				.status(400)
-				.json({
-					message:
-						error.message ||
-						'Failed to create ingestion source due to a connection error.',
-				});
+			return res.status(400).json({
+				message:
+					error.message || 'Failed to create ingestion source due to a connection error.',
+			});
 		}
 	};
 
