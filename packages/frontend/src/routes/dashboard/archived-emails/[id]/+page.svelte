@@ -128,7 +128,9 @@
 											class="flex items-center justify-between rounded-md border p-2"
 										>
 											<span
-												>{attachment.filename} ({attachment.sizeBytes} bytes)</span
+												>{attachment.filename} ({formatBytes(
+													attachment.sizeBytes
+												)})</span
 											>
 											<Button
 												variant="outline"

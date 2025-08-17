@@ -111,7 +111,7 @@
 				<div class=" lg:col-span-1">
 					<Card.Root class="h-full">
 						<Card.Header>
-							<Card.Title>Storage by Ingestion Source (Bytes)</Card.Title>
+							<Card.Title>Storage by Ingestion Source</Card.Title>
 						</Card.Header>
 						<Card.Content class="h-full">
 							{#if data.ingestionSources && data.ingestionSources.length > 0}
