@@ -107,11 +107,11 @@
 				>
 					{#if formatter && item.value !== undefined}
 						{@render formatter({
-								value: item.value,
-								name: item.name,
-								item,
-								index: i,
-								payload: tooltipCtx.payload,
+							value: item.value,
+							name: item.name,
+							item,
+							index: i,
+							payload: tooltipCtx.payload,
 						})}
 					{:else}
 						{#if itemConfig?.icon}
