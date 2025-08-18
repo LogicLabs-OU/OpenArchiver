@@ -1,0 +1,7 @@
+[
+	{
+		"Effect": "Allow",
+		"Action": ["ingestion:*"],
+		"Resource": ["ingestion-source/*"]
+	}
+]

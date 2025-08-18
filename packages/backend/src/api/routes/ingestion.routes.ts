@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { IngestionController } from '../controllers/ingestion.controller';
 import { requireAuth } from '../middleware/requireAuth';
+import { requirePermission } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const createIngestionRouter = (
@@ -12,21 +13,49 @@ export const createIngestionRouter = (
 	// Secure all routes in this module
 	router.use(requireAuth(authService));
 
-	router.post('/', ingestionController.create);
+	router.post(
+		'/',
+		requirePermission('ingestion:createSource', 'ingestion-source/*'),
+		ingestionController.create
+	);
 
 	router.get('/', ingestionController.findAll);
 
-	router.get('/:id', ingestionController.findById);
+	router.get(
+		'/:id',
+		requirePermission('ingestion:readSource', 'ingestion-source/{sourceId}'),
+		ingestionController.findById
+	);
 
-	router.put('/:id', ingestionController.update);
+	router.put(
+		'/:id',
+		requirePermission('ingestion:updateSource', 'ingestion-source/{sourceId}'),
+		ingestionController.update
+	);
 
-	router.delete('/:id', ingestionController.delete);
+	router.delete(
+		'/:id',
+		requirePermission('ingestion:deleteSource', 'ingestion-source/{sourceId}'),
+		ingestionController.delete
+	);
 
-	router.post('/:id/import', ingestionController.triggerInitialImport);
+	router.post(
+		'/:id/import',
+		requirePermission('ingestion:manageSync', 'ingestion-source/{sourceId}'),
+		ingestionController.triggerInitialImport
+	);
 
-	router.post('/:id/pause', ingestionController.pause);
+	router.post(
+		'/:id/pause',
+		requirePermission('ingestion:manageSync', 'ingestion-source/{sourceId}'),
+		ingestionController.pause
+	);
 
-	router.post('/:id/sync', ingestionController.triggerForceSync);
+	router.post(
+		'/:id/sync',
+		requirePermission('ingestion:manageSync', 'ingestion-source/{sourceId}'),
+		ingestionController.triggerForceSync
+	);
 
 	return router;
 };

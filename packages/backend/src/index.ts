@@ -58,7 +58,7 @@ const archivedEmailRouter = createArchivedEmailRouter(archivedEmailController, a
 const storageRouter = createStorageRouter(storageController, authService);
 const searchRouter = createSearchRouter(searchController, authService);
 const dashboardRouter = createDashboardRouter(authService);
-const iamRouter = createIamRouter(iamController);
+const iamRouter = createIamRouter(iamController, authService);
 const uploadRouter = createUploadRouter(authService);
 // upload route is added before middleware because it doesn't use the json middleware.
 app.use('/v1/upload', uploadRouter);

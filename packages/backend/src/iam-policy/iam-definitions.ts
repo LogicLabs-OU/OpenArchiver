@@ -48,6 +48,7 @@ const INGESTION_ACTIONS = {
 const INGESTION_RESOURCES = {
 	ALL: 'ingestion-source/*',
 	SOURCE: 'ingestion-source/{sourceId}',
+	USER_OWNED: 'ingestion-source/user/{userId}',
 } as const;
 
 // ===================================================================================
@@ -62,6 +63,7 @@ const SYSTEM_ACTIONS = {
 	UPDATE_USER: 'system:updateUser',
 	DELETE_USER: 'system:deleteUser',
 	ASSIGN_ROLE: 'system:assignRole',
+	DELETE_ROLE: 'system:deleteRole',
 } as const;
 
 const SYSTEM_RESOURCES = {
@@ -110,7 +112,7 @@ export const ValidActions: Set<string> = new Set([
  */
 export const ValidResourcePatterns = {
 	archive: /^archive\/(all|ingestion-source\/[^\/]+|mailbox\/[^\/]+|custodian\/[^\/]+)$/,
-	ingestion: /^ingestion-source\/(\*|[^\/]+)$/,
+	ingestion: /^ingestion-source\/(\*|[^\/]+|user\/[^\/]+)$/,
 	system: /^system\/(settings|users|user\/[^\/]+)$/,
 	dashboard: /^dashboard\/\*$/,
 };

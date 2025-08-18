@@ -25,6 +25,7 @@ import { IndexingService } from './IndexingService';
 import { SearchService } from './SearchService';
 import { DatabaseService } from './DatabaseService';
 import { config } from '../config/index';
+import { FilterBuilder } from './FilterBuilder';
 
 export class IngestionService {
 	private static decryptSource(
@@ -81,11 +82,22 @@ export class IngestionService {
 		}
 	}
 
-	public static async findAll(): Promise<IngestionSource[]> {
-		const sources = await db
-			.select()
-			.from(ingestionSources)
-			.orderBy(desc(ingestionSources.createdAt));
+	public static async findAll(userId: string): Promise<IngestionSource[]> {
+		const filterBuilder = await FilterBuilder.create(
+			userId,
+			ingestionSources,
+			'ingestion-source',
+			'ingestion:readSource'
+		);
+		const where = filterBuilder.build();
+
+		const query = db.select().from(ingestionSources);
+
+		if (where) {
+			query.where(where);
+		}
+
+		const sources = await query.orderBy(desc(ingestionSources.createdAt));
 		return sources.flatMap((source) => {
 			const decrypted = this.decryptSource(source);
 			return decrypted ? [decrypted] : [];

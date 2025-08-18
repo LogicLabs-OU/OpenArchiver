@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { SearchController } from '../controllers/search.controller';
 import { requireAuth } from '../middleware/requireAuth';
+import { requirePermission } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const createSearchRouter = (
@@ -11,7 +12,7 @@ export const createSearchRouter = (
 
 	router.use(requireAuth(authService));
 
-	router.get('/', searchController.search);
+	router.get('/', requirePermission('archive:search', 'archive/all'), searchController.search);
 
 	return router;
 };

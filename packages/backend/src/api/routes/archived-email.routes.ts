@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ArchivedEmailController } from '../controllers/archived-email.controller';
 import { requireAuth } from '../middleware/requireAuth';
+import { requirePermission } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const createArchivedEmailRouter = (
@@ -14,9 +15,17 @@ export const createArchivedEmailRouter = (
 
 	router.get('/ingestion-source/:ingestionSourceId', archivedEmailController.getArchivedEmails);
 
-	router.get('/:id', archivedEmailController.getArchivedEmailById);
+	router.get(
+		'/:id',
+		requirePermission('archive:read', 'archive/all'),
+		archivedEmailController.getArchivedEmailById
+	);
 
-	router.delete('/:id', archivedEmailController.deleteArchivedEmail);
+	router.delete(
+		'/:id',
+		requirePermission('archive:write', 'archive/all'),
+		archivedEmailController.deleteArchivedEmail
+	);
 
 	return router;
 };

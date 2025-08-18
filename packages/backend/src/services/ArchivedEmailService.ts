@@ -1,6 +1,7 @@
 import { count, desc, eq, asc, and } from 'drizzle-orm';
 import { db } from '../database';
 import { archivedEmails, attachments, emailAttachments } from '../database/schema';
+import { FilterBuilder } from './FilterBuilder';
 import type {
 	PaginatedArchivedEmails,
 	ArchivedEmail,
@@ -41,21 +42,32 @@ export class ArchivedEmailService {
 	public static async getArchivedEmails(
 		ingestionSourceId: string,
 		page: number,
-		limit: number
+		limit: number,
+		userId: string
 	): Promise<PaginatedArchivedEmails> {
 		const offset = (page - 1) * limit;
+		const filterBuilder = await FilterBuilder.create(
+			userId,
+			archivedEmails,
+			'archive',
+			'archive:read'
+		);
+		const where = and(
+			eq(archivedEmails.ingestionSourceId, ingestionSourceId),
+			filterBuilder.build()
+		);
 
 		const [total] = await db
 			.select({
 				count: count(archivedEmails.id),
 			})
 			.from(archivedEmails)
-			.where(eq(archivedEmails.ingestionSourceId, ingestionSourceId));
+			.where(where);
 
 		const items = await db
 			.select()
 			.from(archivedEmails)
-			.where(eq(archivedEmails.ingestionSourceId, ingestionSourceId))
+			.where(where)
 			.orderBy(desc(archivedEmails.sentAt))
 			.limit(limit)
 			.offset(offset);

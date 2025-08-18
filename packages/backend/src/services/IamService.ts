@@ -1,9 +1,23 @@
 import { db } from '../database';
-import { roles } from '../database/schema/users';
+import { roles, userRoles } from '../database/schema/users';
 import type { Role, PolicyStatement } from '@open-archiver/types';
 import { eq } from 'drizzle-orm';
 
 export class IamService {
+	/**
+	 * Retrieves all roles associated with a given user.
+	 * @param userId The ID of the user.
+	 * @returns A promise that resolves to an array of Role objects.
+	 */
+	public async getRolesForUser(userId: string): Promise<Role[]> {
+		const userRolesResult = await db
+			.select()
+			.from(userRoles)
+			.where(eq(userRoles.userId, userId))
+			.leftJoin(roles, eq(userRoles.roleId, roles.id));
+
+		return userRolesResult.map((r) => r.roles).filter((r): r is Role => r !== null);
+	}
 	public async getRoles(): Promise<Role[]> {
 		return db.select().from(roles);
 	}

@@ -1,4 +1,6 @@
 import { jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { users } from './users';
+import { relations } from 'drizzle-orm';
 
 export const ingestionProviderEnum = pgEnum('ingestion_provider', [
 	'google_workspace',
@@ -21,6 +23,7 @@ export const ingestionStatusEnum = pgEnum('ingestion_status', [
 
 export const ingestionSources = pgTable('ingestion_sources', {
 	id: uuid('id').primaryKey().defaultRandom(),
+	userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
 	name: text('name').notNull(),
 	provider: ingestionProviderEnum('provider').notNull(),
 	credentials: text('credentials'),
@@ -32,3 +35,10 @@ export const ingestionSources = pgTable('ingestion_sources', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const ingestionSourcesRelations = relations(ingestionSources, ({ one }) => ({
+	user: one(users, {
+		fields: [ingestionSources.userId],
+		references: [users.id],
+	}),
+}));

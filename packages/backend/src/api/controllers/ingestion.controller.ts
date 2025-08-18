@@ -42,7 +42,11 @@ export class IngestionController {
 
 	public findAll = async (req: Request, res: Response): Promise<Response> => {
 		try {
-			const sources = await IngestionService.findAll();
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: 'Unauthorized' });
+			}
+			const sources = await IngestionService.findAll(userId);
 			const safeSources = sources.map(this.toSafeIngestionSource);
 			return res.status(200).json(safeSources);
 		} catch (error) {

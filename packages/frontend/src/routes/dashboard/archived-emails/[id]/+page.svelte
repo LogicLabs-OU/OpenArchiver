@@ -9,6 +9,7 @@
 	import { formatBytes } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 
 	let { data }: { data: PageData } = $props();
 	let email = $derived(data.email);
@@ -51,7 +52,13 @@
 				const errorData = await response.json().catch(() => null);
 				const message = errorData?.message || 'Failed to delete email';
 				console.error('Delete failed:', message);
-				alert(message);
+				setAlert({
+					type: 'error',
+					title: 'Failed to delete archived email',
+					message: message,
+					duration: 5000,
+					show: true,
+				});
 				return;
 			}
 			await goto('/dashboard/archived-emails', { invalidateAll: true });
