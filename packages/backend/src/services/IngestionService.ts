@@ -50,11 +50,15 @@ export class IngestionService {
 		return ['pst_import', 'eml_import'];
 	}
 
-	public static async create(dto: CreateIngestionSourceDto): Promise<IngestionSource> {
+	public static async create(
+		dto: CreateIngestionSourceDto,
+		userId: string
+	): Promise<IngestionSource> {
 		const { providerConfig, ...rest } = dto;
 		const encryptedCredentials = CryptoService.encryptObject(providerConfig);
 
 		const valuesToInsert = {
+			userId,
 			...rest,
 			status: 'pending_auth' as const,
 			credentials: encryptedCredentials,
@@ -90,11 +94,10 @@ export class IngestionService {
 			'ingestion:readSource'
 		);
 		const where = filterBuilder.build();
-
-		const query = db.select().from(ingestionSources);
+		let query = db.select().from(ingestionSources).$dynamic();
 
 		if (where) {
-			query.where(where);
+			query = query.where(where);
 		}
 
 		const sources = await query.orderBy(desc(ingestionSources.createdAt));

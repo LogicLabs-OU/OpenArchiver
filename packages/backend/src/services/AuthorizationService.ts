@@ -23,17 +23,13 @@ export class AuthorizationService {
 
         // 2. If not denied, check for an explicit ALLOW policy.
         for (const policy of allPolicies) {
-            if (
-                policy.Effect === 'Allow' &&
-                this.matches(action, policy.Action) &&
-                this.matches(resource, policy.Resource)
-            ) {
-                if (policy.Condition?.owner) {
-                    if (await this.isOwner(userId, resource)) {
-                        return true;
-                    }
-                } else {
+            if (policy.Effect === 'Allow' && this.matches(action, policy.Action)) {
+                if (action.includes('create')) {
                     return true;
+                }
+
+                if (this.matches(resource, policy.Resource)) {
+                    return true
                 }
             }
         }
@@ -59,6 +55,7 @@ export class AuthorizationService {
         const resourceId = resourceParts[1];
 
         if (service === 'ingestion-source' && resourceId) {
+            if (resourceId === 'own') return true;
             const [source] = await db
                 .select()
                 .from(ingestionSources)

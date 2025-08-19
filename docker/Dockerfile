@@ -36,8 +36,6 @@ COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/types/package.json ./packages/types/
 
-# Install production dependencies
-# RUN pnpm install --shamefully-hoist --frozen-lockfile --prod=true
 
 # Copy built application from build stage
 COPY --from=build /app/packages/backend/dist ./packages/backend/dist

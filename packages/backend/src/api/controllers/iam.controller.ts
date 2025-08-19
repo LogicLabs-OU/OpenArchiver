@@ -15,7 +15,7 @@ export class IamController {
 			const roles = await this.#iamService.getRoles();
 			res.status(200).json(roles);
 		} catch (error) {
-			res.status(500).json({ error: 'Failed to get roles.' });
+			res.status(500).json({ message: 'Failed to get roles.' });
 		}
 	};
 
@@ -27,34 +27,35 @@ export class IamController {
 			if (role) {
 				res.status(200).json(role);
 			} else {
-				res.status(404).json({ error: 'Role not found.' });
+				res.status(404).json({ message: 'Role not found.' });
 			}
 		} catch (error) {
-			res.status(500).json({ error: 'Failed to get role.' });
+			res.status(500).json({ message: 'Failed to get role.' });
 		}
 	};
 
 	public createRole = async (req: Request, res: Response): Promise<void> => {
-		const { name, policy } = req.body;
+		const { name, policies } = req.body;
 
-		if (!name || !policy) {
-			res.status(400).json({ error: 'Missing required fields: name and policy.' });
+		if (!name || !policies) {
+			res.status(400).json({ message: 'Missing required fields: name and policy.' });
 			return;
 		}
 
-		for (const statement of policy) {
+		for (const statement of policies) {
 			const { valid, reason } = PolicyValidator.isValid(statement as PolicyStatement);
 			if (!valid) {
-				res.status(400).json({ error: `Invalid policy statement: ${reason}` });
+				res.status(400).json({ message: `Invalid policy statement: ${reason}` });
 				return;
 			}
 		}
 
 		try {
-			const role = await this.#iamService.createRole(name, policy);
+			const role = await this.#iamService.createRole(name, policies);
 			res.status(201).json(role);
 		} catch (error) {
-			res.status(500).json({ error: 'Failed to create role.' });
+			console.log(error)
+			res.status(500).json({ message: 'Failed to create role.' });
 		}
 	};
 
@@ -65,7 +66,34 @@ export class IamController {
 			await this.#iamService.deleteRole(id);
 			res.status(204).send();
 		} catch (error) {
-			res.status(500).json({ error: 'Failed to delete role.' });
+			res.status(500).json({ message: 'Failed to delete role.' });
+		}
+	};
+
+	public updateRole = async (req: Request, res: Response): Promise<void> => {
+		const { id } = req.params;
+		const { name, policies } = req.body;
+
+		if (!name && !policies) {
+			res.status(400).json({ message: 'Missing fields to update: name or policies.' });
+			return;
+		}
+
+		if (policies) {
+			for (const statement of policies) {
+				const { valid, reason } = PolicyValidator.isValid(statement as PolicyStatement);
+				if (!valid) {
+					res.status(400).json({ message: `Invalid policy statement: ${reason}` });
+					return;
+				}
+			}
+		}
+
+		try {
+			const role = await this.#iamService.updateRole(id, { name, policies });
+			res.status(200).json(role);
+		} catch (error) {
+			res.status(500).json({ message: 'Failed to update role.' });
 		}
 	};
 }

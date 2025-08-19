@@ -27,7 +27,11 @@ export class IngestionController {
 		}
 		try {
 			const dto: CreateIngestionSourceDto = req.body;
-			const newSource = await IngestionService.create(dto);
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: 'Unauthorized' });
+			}
+			const newSource = await IngestionService.create(dto, userId);
 			const safeSource = this.toSafeIngestionSource(newSource);
 			return res.status(201).json(safeSource);
 		} catch (error: any) {

@@ -15,7 +15,7 @@ export const createIngestionRouter = (
 
 	router.post(
 		'/',
-		requirePermission('ingestion:createSource', 'ingestion-source/*'),
+		requirePermission('ingestion:create', 'ingestion-source/*'),
 		ingestionController.create
 	);
 
@@ -23,37 +23,37 @@ export const createIngestionRouter = (
 
 	router.get(
 		'/:id',
-		requirePermission('ingestion:readSource', 'ingestion-source/{sourceId}'),
+		requirePermission('ingestion:read', 'ingestion-source/{sourceId}'),
 		ingestionController.findById
 	);
 
 	router.put(
 		'/:id',
-		requirePermission('ingestion:updateSource', 'ingestion-source/{sourceId}'),
+		requirePermission('ingestion:update', 'ingestion-source/{sourceId}'),
 		ingestionController.update
 	);
 
 	router.delete(
 		'/:id',
-		requirePermission('ingestion:deleteSource', 'ingestion-source/{sourceId}'),
+		requirePermission('ingestion:delete', 'ingestion-source/{sourceId}'),
 		ingestionController.delete
 	);
 
 	router.post(
 		'/:id/import',
-		requirePermission('ingestion:manageSync', 'ingestion-source/{sourceId}'),
+		requirePermission('ingestion:manage', 'ingestion-source/{sourceId}'),
 		ingestionController.triggerInitialImport
 	);
 
 	router.post(
 		'/:id/pause',
-		requirePermission('ingestion:manageSync', 'ingestion-source/{sourceId}'),
+		requirePermission('ingestion:manage', 'ingestion-source/{sourceId}'),
 		ingestionController.pause
 	);
 
 	router.post(
 		'/:id/sync',
-		requirePermission('ingestion:manageSync', 'ingestion-source/{sourceId}'),
+		requirePermission('ingestion:manage', 'ingestion-source/{sourceId}'),
 		ingestionController.triggerForceSync
 	);
 

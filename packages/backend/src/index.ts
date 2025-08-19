@@ -15,6 +15,7 @@ import { createStorageRouter } from './api/routes/storage.routes';
 import { createSearchRouter } from './api/routes/search.routes';
 import { createDashboardRouter } from './api/routes/dashboard.routes';
 import { createUploadRouter } from './api/routes/upload.routes';
+import { createUserRouter } from './api/routes/user.routes';
 import testRouter from './api/routes/test.routes';
 import { AuthService } from './services/AuthService';
 import { UserService } from './services/UserService';
@@ -60,6 +61,7 @@ const searchRouter = createSearchRouter(searchController, authService);
 const dashboardRouter = createDashboardRouter(authService);
 const iamRouter = createIamRouter(iamController, authService);
 const uploadRouter = createUploadRouter(authService);
+const userRouter = createUserRouter(authService);
 // upload route is added before middleware because it doesn't use the json middleware.
 app.use('/v1/upload', uploadRouter);
 
@@ -74,6 +76,7 @@ app.use('/v1/archived-emails', archivedEmailRouter);
 app.use('/v1/storage', storageRouter);
 app.use('/v1/search', searchRouter);
 app.use('/v1/dashboard', dashboardRouter);
+app.use('/v1/users', userRouter);
 app.use('/v1/test', testRouter);
 
 // Example of a protected route

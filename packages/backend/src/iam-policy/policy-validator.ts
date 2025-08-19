@@ -87,20 +87,17 @@ export class PolicyValidator {
 	 * @returns {{valid: boolean; reason?: string}} - An object indicating validity and a reason for failure.
 	 */
 	private static isResourceValid(resource: string): { valid: boolean; reason: string } {
-		const service = resource.split('/')[0];
-		if (service === '*') {
+		if (resource === '*') {
 			return { valid: true, reason: 'valid' };
 		}
-		if (service in ValidResourcePatterns) {
+
+		for (const service in ValidResourcePatterns) {
 			const pattern = ValidResourcePatterns[service as keyof typeof ValidResourcePatterns];
 			if (pattern.test(resource)) {
 				return { valid: true, reason: 'valid' };
 			}
-			return {
-				valid: false,
-				reason: `Resource '${resource}' does not match the expected format for the '${service}' service.`,
-			};
 		}
-		return { valid: false, reason: `Invalid service '${service}' in resource '${resource}'.` };
+
+		return { valid: false, reason: `Resource '${resource}' does not match any valid resource format.` };
 	}
 }

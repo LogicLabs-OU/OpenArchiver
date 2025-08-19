@@ -10,7 +10,7 @@ A policy is a JSON object that consists of one or more statements. Each statemen
 {
 	"Effect": "Allow",
 	"Action": ["archive:read", "archive:search"],
-	"Resource": ["archive/all"]
+	"Resource": ["archive/*"]
 }
 ```
 
@@ -68,7 +68,7 @@ The `archive` service pertains to all actions related to accessing and managing 
 
 | Resource                              | Description                                                                              |
 | :------------------------------------ | :--------------------------------------------------------------------------------------- |
-| `archive/all`                         | Represents the entire email archive.                                                     |
+| `archive/*`                           | Represents the entire email archive.                                                     |
 | `archive/ingestion-source/{sourceId}` | Scopes the action to emails from a specific ingestion source.                            |
 | `archive/mailbox/{email}`             | Scopes the action to a single, specific mailbox, usually identified by an email address. |
 | `archive/custodian/{custodianId}`     | Scopes the action to emails belonging to a specific custodian.                           |

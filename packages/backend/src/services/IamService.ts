@@ -35,4 +35,16 @@ export class IamService {
 	public async deleteRole(id: string): Promise<void> {
 		await db.delete(roles).where(eq(roles.id, id));
 	}
+
+	public async updateRole(
+		id: string,
+		{ name, policies }: Partial<Pick<Role, 'name' | 'policies'>>
+	): Promise<Role> {
+		const [role] = await db
+			.update(roles)
+			.set({ name, policies })
+			.where(eq(roles.id, id))
+			.returning();
+		return role;
+	}
 }

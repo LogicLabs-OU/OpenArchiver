@@ -1,7 +1,7 @@
 import { AuthorizationService } from '../../services/AuthorizationService';
 import type { Request, Response, NextFunction } from 'express';
 
-export const requirePermission = (action: string, resourceTemplate: string) => {
+export const requirePermission = (action: string, resource: string) => {
     return async (req: Request, res: Response, next: NextFunction) => {
         const userId = req.user?.sub;
 
@@ -9,7 +9,7 @@ export const requirePermission = (action: string, resourceTemplate: string) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        const resource = resourceTemplate.replace('{sourceId}', req.params.id);
+        resource = resource.replace('{sourceId}', req.params.id)
 
         const hasPermission = await AuthorizationService.can(userId, action, resource);
 

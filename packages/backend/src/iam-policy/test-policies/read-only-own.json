@@ -1,20 +1,16 @@
 [
 	{
 		"Effect": "Allow",
-		"Action": ["ingestion:readSource", "archive:read", "archive:search", "dashboard:read"],
+		"Action": [
+			"ingestion:readSource",
+			"archive:read",
+			"archive:search",
+			"dashboard:read",
+			"ingestion:createSource"
+		],
 		"Resource": ["ingestion-source/*", "archive/*", "dashboard/*"],
 		"Condition": {
 			"owner": true
 		}
-	},
-	{
-		"Effect": "Deny",
-		"Action": [
-			"ingestion:createSource",
-			"ingestion:updateSource",
-			"ingestion:deleteSource",
-			"system:*"
-		],
-		"Resource": ["*"]
 	}
 ]
