@@ -1,67 +1,41 @@
-import { SQL, or, and, eq, inArray, sql } from 'drizzle-orm';
-import { PgTableWithColumns } from 'drizzle-orm/pg-core';
+import { SQL, sql } from 'drizzle-orm';
 import { IamService } from './IamService';
+import { rulesToQuery } from '@casl/ability/extra';
+import { mongoToDrizzle } from '../helpers/mongoToDrizzle';
+import { AppActions, AppSubjects } from '@open-archiver/types';
 
 export class FilterBuilder {
-    private constructor(
-        private userId: string,
-        private table: PgTableWithColumns<any>,
-        private policies: any[],
-        private resourceType: string,
-        private readAction: string
-    ) { }
+	public static async create(
+		userId: string,
+		resourceType: AppSubjects,
+		action: AppActions
+	): Promise<{
+		drizzleFilter: SQL | undefined;
+		mongoFilter: Record<string, any> | null;
+	}> {
+		const iamService = new IamService();
+		const ability = await iamService.getAbilityForUser(userId);
 
-    public static async create(
-        userId: string,
-        table: PgTableWithColumns<any>,
-        resourceType: string,
-        readAction: string
-    ): Promise<FilterBuilder> {
-        const iamService = new IamService();
-        const userRoles = await iamService.getRolesForUser(userId);
-        const allPolicies = userRoles.flatMap((role) => role.policies || []);
-        return new FilterBuilder(userId, table, allPolicies, resourceType, readAction);
-    }
+		// If the user can perform the action on any instance of the resource type
+		// without any specific conditions, they have full access.
+		if (ability.can(action, resourceType)) {
+			const rules = ability.rulesFor(action, resourceType);
+			const hasUnconditionalRule = rules.some((rule) => !rule.conditions);
+			if (hasUnconditionalRule) {
+				return { drizzleFilter: undefined, mongoFilter: null }; // Full access
+			}
+		}
 
-    public build(): SQL | undefined {
-        const canReadAll = this.policies.some(
-            (policy) =>
-                policy.Effect === 'Allow' &&
-                (policy.Action.includes(this.readAction) || policy.Action.includes('*')) &&
-                (policy.Resource.includes(`${this.resourceType}/*`) ||
-                    policy.Resource.includes('*'))
-        );
+		const query = rulesToQuery(ability, action, resourceType, (rule) => rule.conditions);
 
-        if (canReadAll) {
-            return undefined;
-        }
+		if (query === null) {
+			return { drizzleFilter: undefined, mongoFilter: null }; // Full access
+		}
 
-        const allowedResources = this.policies
-            .filter(
-                (policy) =>
-                    policy.Effect === 'Allow' &&
-                    (policy.Action.includes(this.readAction) || policy.Action.includes('*'))
-            )
-            .flatMap((policy) => policy.Resource)
-            .filter((resource) => resource.startsWith(`${this.resourceType}/`));
+		if (Object.keys(query).length === 0) {
+			return { drizzleFilter: sql`1=0`, mongoFilter: {} }; // No access
+		}
 
-        const canReadOwn = allowedResources.some((resource) => resource.endsWith('/own'));
-        const sourceIds = allowedResources
-            .map((resource) => resource.split('/')[1])
-            .filter((id) => id !== 'own');
-
-        const conditions: SQL[] = [];
-        if (canReadOwn) {
-            conditions.push(eq(this.table.userId, this.userId));
-        }
-        if (sourceIds.length > 0) {
-            conditions.push(inArray(this.table.id, sourceIds));
-        }
-
-        if (conditions.length === 0) {
-            return eq(this.table.id, sql`NULL`);
-        }
-
-        return or(...conditions);
-    }
+		return { drizzleFilter: mongoToDrizzle(query), mongoFilter: query };
+	}
 }

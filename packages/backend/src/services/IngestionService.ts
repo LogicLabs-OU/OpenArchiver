@@ -87,17 +87,11 @@ export class IngestionService {
 	}
 
 	public static async findAll(userId: string): Promise<IngestionSource[]> {
-		const filterBuilder = await FilterBuilder.create(
-			userId,
-			ingestionSources,
-			'ingestion-source',
-			'ingestion:readSource'
-		);
-		const where = filterBuilder.build();
+		const { drizzleFilter } = await FilterBuilder.create(userId, 'ingestion', 'read');
 		let query = db.select().from(ingestionSources).$dynamic();
 
-		if (where) {
-			query = query.where(where);
+		if (drizzleFilter) {
+			query = query.where(drizzleFilter);
 		}
 
 		const sources = await query.orderBy(desc(ingestionSources.createdAt));

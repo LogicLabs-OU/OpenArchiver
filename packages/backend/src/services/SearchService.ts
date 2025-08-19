@@ -1,6 +1,8 @@
 import { Index, MeiliSearch, SearchParams } from 'meilisearch';
 import { config } from '../config';
 import type { SearchQuery, SearchResult, EmailDocument, TopSender } from '@open-archiver/types';
+import { FilterBuilder } from './FilterBuilder';
+import { mongoToMeli } from '../helpers/mongoToMeli';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -47,7 +49,7 @@ export class SearchService {
 		return index.deleteDocuments({ filter });
 	}
 
-	public async searchEmails(dto: SearchQuery): Promise<SearchResult> {
+	public async searchEmails(dto: SearchQuery, userId: string): Promise<SearchResult> {
 		const { query, filters, page = 1, limit = 10, matchingStrategy = 'last' } = dto;
 		const index = await this.getIndex<EmailDocument>('emails');
 
@@ -68,6 +70,21 @@ export class SearchService {
 				return `${key} = ${value}`;
 			});
 			searchParams.filter = filterStrings.join(' AND ');
+		}
+
+		// Create a filter based on the user's permissions.
+		// This ensures that the user can only search for emails they are allowed to see.
+		const { mongoFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+		if (mongoFilter) {
+			// Convert the MongoDB-style filter from CASL to a MeiliSearch filter string.
+			const meliFilter = mongoToMeli(mongoFilter);
+			if (searchParams.filter) {
+				// If there are existing filters, append the access control filter.
+				searchParams.filter = `${searchParams.filter} AND ${meliFilter}`;
+			} else {
+				// Otherwise, just use the access control filter.
+				searchParams.filter = meliFilter;
+			}
 		}
 
 		const searchResults = await index.search(query, searchParams);

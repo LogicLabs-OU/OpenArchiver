@@ -1,22 +1,36 @@
 import { AuthorizationService } from '../../services/AuthorizationService';
 import type { Request, Response, NextFunction } from 'express';
+import { AppActions, AppSubjects } from '@open-archiver/types';
 
-export const requirePermission = (action: string, resource: string) => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-        const userId = req.user?.sub;
+export const requirePermission = (
+	action: AppActions,
+	subjectName: AppSubjects,
+	rejectMessage?: string
+) => {
+	return async (req: Request, res: Response, next: NextFunction) => {
+		const userId = req.user?.sub;
 
-        if (!userId) {
-            return res.status(401).json({ message: 'Unauthorized' });
-        }
+		if (!userId) {
+			return res.status(401).json({ message: 'Unauthorized' });
+		}
 
-        resource = resource.replace('{sourceId}', req.params.id)
+		let resourceObject = undefined;
+		// Logic to fetch resourceObject if needed for condition-based checks...
+		const authorizationService = new AuthorizationService();
+		const hasPermission = await authorizationService.can(
+			userId,
+			action,
+			subjectName,
+			resourceObject
+		);
 
-        const hasPermission = await AuthorizationService.can(userId, action, resource);
+		if (!hasPermission) {
+			return res.status(403).json({
+				message:
+					rejectMessage || `You don't have the permission to perform the current action.`,
+			});
+		}
 
-        if (!hasPermission) {
-            return res.status(403).json({ message: 'You are not allowed to perform this operation with your current role.' });
-        }
-
-        next();
-    };
+		next();
+	};
 };

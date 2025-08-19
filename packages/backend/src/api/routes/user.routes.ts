@@ -5,39 +5,19 @@ import { requirePermission } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const createUserRouter = (authService: AuthService): Router => {
-    const router = Router();
+	const router = Router();
 
-    router.use(requireAuth(authService));
+	router.use(requireAuth(authService));
 
-    router.get(
-        '/',
-        requirePermission('system:readUsers', 'system/users'),
-        userController.getUsers
-    );
+	router.get('/', requirePermission('read', 'users'), userController.getUsers);
 
-    router.get(
-        '/:id',
-        requirePermission('system:readUsers', 'system/user/{userId}'),
-        userController.getUser
-    );
+	router.get('/:id', requirePermission('read', 'users'), userController.getUser);
 
-    router.post(
-        '/',
-        requirePermission('system:createUser', 'system/users'),
-        userController.createUser
-    );
+	router.post('/', requirePermission('create', 'users'), userController.createUser);
 
-    router.put(
-        '/:id',
-        requirePermission('system:updateUser', 'system/user/{userId}'),
-        userController.updateUser
-    );
+	router.put('/:id', requirePermission('update', 'users'), userController.updateUser);
 
-    router.delete(
-        '/:id',
-        requirePermission('system:deleteUser', 'system/user/{userId}'),
-        userController.deleteUser
-    );
+	router.delete('/:id', requirePermission('delete', 'users'), userController.deleteUser);
 
-    return router;
+	return router;
 };

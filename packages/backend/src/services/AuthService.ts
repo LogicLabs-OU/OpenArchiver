@@ -64,10 +64,11 @@ export class AuthService {
 		});
 
 		return {
-			accessToken, user: {
+			accessToken,
+			user: {
 				...userWithoutPassword,
-				role: null
-			}
+				role: null,
+			},
 		};
 	}
 

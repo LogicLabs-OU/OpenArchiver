@@ -13,17 +13,21 @@ export const createArchivedEmailRouter = (
 	// Secure all routes in this module
 	router.use(requireAuth(authService));
 
-	router.get('/ingestion-source/:ingestionSourceId', archivedEmailController.getArchivedEmails);
+	router.get(
+		'/ingestion-source/:ingestionSourceId',
+		requirePermission('read', 'archive'),
+		archivedEmailController.getArchivedEmails
+	);
 
 	router.get(
 		'/:id',
-		requirePermission('archive:read', 'archive/all'),
+		requirePermission('read', 'archive'),
 		archivedEmailController.getArchivedEmailById
 	);
 
 	router.delete(
 		'/:id',
-		requirePermission('archive:write', 'archive/all'),
+		requirePermission('delete', 'archive'),
 		archivedEmailController.deleteArchivedEmail
 	);
 

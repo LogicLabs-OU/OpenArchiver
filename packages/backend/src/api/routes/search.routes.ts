@@ -12,7 +12,7 @@ export const createSearchRouter = (
 
 	router.use(requireAuth(authService));
 
-	router.get('/', requirePermission('archive:search', 'archive/all'), searchController.search);
+	router.get('/', requirePermission('search', 'archive'), searchController.search);
 
 	return router;
 };

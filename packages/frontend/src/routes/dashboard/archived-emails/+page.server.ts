@@ -1,4 +1,5 @@
 import { api } from '$lib/server/api';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type { IngestionSource, PaginatedArchivedEmails } from '@open-archiver/types';
 
@@ -29,10 +30,11 @@ export const load: PageServerLoad = async (event) => {
 				`/archived-emails/ingestion-source/${selectedIngestionSourceId}?page=${page}&limit=${limit}`,
 				event
 			);
+			const responseText = await emailsResponse.json()
 			if (!emailsResponse.ok) {
-				throw new Error(`Failed to fetch archived emails: ${emailsResponse.statusText}`);
+				return error(emailsResponse.status, responseText.message || 'You do not have access to the requested resource.')
 			}
-			archivedEmails = await emailsResponse.json();
+			archivedEmails = responseText;
 		}
 
 		return {
@@ -40,17 +42,18 @@ export const load: PageServerLoad = async (event) => {
 			archivedEmails,
 			selectedIngestionSourceId,
 		};
-	} catch (error) {
-		console.error('Failed to load archived emails page:', error);
-		return {
-			ingestionSources: [],
-			archivedEmails: {
-				items: [],
-				total: 0,
-				page: 1,
-				limit: 10,
-			},
-			error: 'Failed to load data',
-		};
+	} catch (e) {
+		// console.error('Failed to load archived emails page:', error);
+		// return {
+		// 	ingestionSources: [],
+		// 	archivedEmails: {
+		// 		items: [],
+		// 		total: 0,
+		// 		page: 1,
+		// 		limit: 10,
+		// 	},
+		// 	error: 'Failed to load data',
+		// };
+		return error(599, 'Failed to load data')
 	}
 };

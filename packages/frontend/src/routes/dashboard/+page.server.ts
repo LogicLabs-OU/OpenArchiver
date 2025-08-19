@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { api } from '$lib/server/api';
+import { error } from '@sveltejs/kit';
 import type {
 	DashboardStats,
 	IngestionHistory,
@@ -10,58 +11,57 @@ import type {
 
 export const load: PageServerLoad = async (event) => {
 	const fetchStats = async (): Promise<DashboardStats | null> => {
-		try {
-			const response = await api('/dashboard/stats', event);
-			if (!response.ok) throw new Error('Failed to fetch stats');
-			return await response.json();
-		} catch (error) {
-			console.error('Dashboard Stats Error:', error);
-			return null;
+		const response = await api('/dashboard/stats', event);
+		const responseText = await response.json();
+		if (!response.ok) {
+			throw error(response.status, responseText.message || 'Failed to fetch data');
 		}
+		return responseText;
 	};
 
 	const fetchIngestionHistory = async (): Promise<IngestionHistory | null> => {
-		try {
-			const response = await api('/dashboard/ingestion-history', event);
-			if (!response.ok) throw new Error('Failed to fetch ingestion history');
-			return await response.json();
-		} catch (error) {
-			console.error('Ingestion History Error:', error);
-			return null;
+		const response = await api('/dashboard/ingestion-history', event);
+		const responseText = await response.json();
+		if (!response.ok) {
+			return error(
+				response.status,
+				responseText.message || 'Failed to fetch ingestion history'
+			);
 		}
+		return responseText;
 	};
 
 	const fetchIngestionSources = async (): Promise<IngestionSourceStats[] | null> => {
-		try {
-			const response = await api('/dashboard/ingestion-sources', event);
-			if (!response.ok) throw new Error('Failed to fetch ingestion sources');
-			return await response.json();
-		} catch (error) {
-			console.error('Ingestion Sources Error:', error);
-			return null;
+		const response = await api('/dashboard/ingestion-sources', event);
+		const responseText = await response.json();
+		if (!response.ok) {
+			return error(
+				response.status,
+				responseText.message || 'Failed to fetch ingestion sources'
+			);
 		}
+		return responseText;
 	};
 
 	const fetchRecentSyncs = async (): Promise<RecentSync[] | null> => {
-		try {
-			const response = await api('/dashboard/recent-syncs', event);
-			if (!response.ok) throw new Error('Failed to fetch recent syncs');
-			return await response.json();
-		} catch (error) {
-			console.error('Recent Syncs Error:', error);
-			return null;
+		const response = await api('/dashboard/recent-syncs', event);
+		const responseText = await response.json();
+		if (!response.ok) {
+			return error(response.status, responseText.message || 'Failed to fetch recent syncs');
 		}
+		return responseText;
 	};
 
 	const fetchIndexedInsights = async (): Promise<IndexedInsights | null> => {
-		try {
-			const response = await api('/dashboard/indexed-insights', event);
-			if (!response.ok) throw new Error('Failed to fetch indexed insights');
-			return await response.json();
-		} catch (error) {
-			console.error('Indexed Insights Error:', error);
-			return null;
+		const response = await api('/dashboard/indexed-insights', event);
+		const responseText = await response.json();
+		if (!response.ok) {
+			return error(
+				response.status,
+				responseText.message || 'Failed to fetch indexed insights'
+			);
 		}
+		return responseText;
 	};
 
 	const [stats, ingestionHistory, ingestionSources, recentSyncs, indexedInsights] =

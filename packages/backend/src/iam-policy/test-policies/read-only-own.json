@@ -1,16 +1,6 @@
 [
 	{
-		"Effect": "Allow",
-		"Action": [
-			"ingestion:readSource",
-			"archive:read",
-			"archive:search",
-			"dashboard:read",
-			"ingestion:createSource"
-		],
-		"Resource": ["ingestion-source/*", "archive/*", "dashboard/*"],
-		"Condition": {
-			"owner": true
-		}
+		"action": "read",
+		"subject": "all"
 	}
 ]

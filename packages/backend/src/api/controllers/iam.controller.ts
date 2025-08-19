@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { IamService } from '../../services/IamService';
 import { PolicyValidator } from '../../iam-policy/policy-validator';
-import type { PolicyStatement } from '@open-archiver/types';
+import type { CaslPolicy } from '@open-archiver/types';
 
 export class IamController {
 	#iamService: IamService;
@@ -43,7 +43,7 @@ export class IamController {
 		}
 
 		for (const statement of policies) {
-			const { valid, reason } = PolicyValidator.isValid(statement as PolicyStatement);
+			const { valid, reason } = PolicyValidator.isValid(statement as CaslPolicy);
 			if (!valid) {
 				res.status(400).json({ message: `Invalid policy statement: ${reason}` });
 				return;
@@ -54,7 +54,7 @@ export class IamController {
 			const role = await this.#iamService.createRole(name, policies);
 			res.status(201).json(role);
 		} catch (error) {
-			console.log(error)
+			console.log(error);
 			res.status(500).json({ message: 'Failed to create role.' });
 		}
 	};
@@ -81,7 +81,7 @@ export class IamController {
 
 		if (policies) {
 			for (const statement of policies) {
-				const { valid, reason } = PolicyValidator.isValid(statement as PolicyStatement);
+				const { valid, reason } = PolicyValidator.isValid(statement as CaslPolicy);
 				if (!valid) {
 					res.status(400).json({ message: `Invalid policy statement: ${reason}` });
 					return;

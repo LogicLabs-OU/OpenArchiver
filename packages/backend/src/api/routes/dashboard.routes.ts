@@ -9,25 +9,49 @@ export const createDashboardRouter = (authService: AuthService): Router => {
 
 	router.use(requireAuth(authService));
 
-	router.get('/stats', requirePermission('dashboard:read', 'dashboard/*'), dashboardController.getStats);
+	router.get(
+		'/stats',
+		requirePermission(
+			'read',
+			'dashboard',
+			'You need the dashboard read permission to view dashboard stats.'
+		),
+		dashboardController.getStats
+	);
 	router.get(
 		'/ingestion-history',
-		requirePermission('dashboard:read', 'dashboard/*'),
+		requirePermission(
+			'read',
+			'dashboard',
+			'You need the dashboard read permission to view dashboard data.'
+		),
 		dashboardController.getIngestionHistory
 	);
 	router.get(
 		'/ingestion-sources',
-		requirePermission('dashboard:read', 'dashboard/*'),
+		requirePermission(
+			'read',
+			'dashboard',
+			'You need the dashboard read permission to view dashboard data.'
+		),
 		dashboardController.getIngestionSources
 	);
 	router.get(
 		'/recent-syncs',
-		requirePermission('dashboard:read', 'dashboard/*'),
+		requirePermission(
+			'read',
+			'dashboard',
+			'You need the dashboard read permission to view dashboard data.'
+		),
 		dashboardController.getRecentSyncs
 	);
 	router.get(
 		'/indexed-insights',
-		requirePermission('dashboard:read', 'dashboard/*'),
+		requirePermission(
+			'read',
+			'dashboard',
+			'You need the dashboard read permission to view dashboard data.'
+		),
 		dashboardController.getIndexedInsights
 	);
 

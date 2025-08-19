@@ -30,7 +30,13 @@ export class ArchivedEmailController {
 	public getArchivedEmailById = async (req: Request, res: Response): Promise<Response> => {
 		try {
 			const { id } = req.params;
-			const email = await ArchivedEmailService.getArchivedEmailById(id);
+			const userId = req.user?.sub;
+
+			if (!userId) {
+				return res.status(401).json({ message: 'Unauthorized' });
+			}
+
+			const email = await ArchivedEmailService.getArchivedEmailById(id, userId);
 			if (!email) {
 				return res.status(404).json({ message: 'Archived email not found' });
 			}

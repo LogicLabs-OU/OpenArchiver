@@ -1,12 +1,16 @@
 [
 	{
-		"Effect": "Allow",
-		"Action": ["ingestion:readSource", "archive:read", "archive:search"],
-		"Resource": [
-			"ingestion-source/INGESTION_SOURCE_ID_1",
-			"ingestion-source/INGESTION_SOURCE_ID_2",
-			"archive/ingestion-source/INGESTION_SOURCE_ID_1",
-			"archive/ingestion-source/INGESTION_SOURCE_ID_2"
-		]
+		"action": ["read", "search"],
+		"subject": "ingestion",
+		"conditions": {
+			"id": { "$in": ["INGESTION_SOURCE_ID_1", "INGESTION_SOURCE_ID_2"] }
+		}
+	},
+	{
+		"action": ["read", "search"],
+		"subject": "archive",
+		"conditions": {
+			"ingestionSourceId": { "$in": ["INGESTION_SOURCE_ID_1", "INGESTION_SOURCE_ID_2"] }
+		}
 	}
 ]

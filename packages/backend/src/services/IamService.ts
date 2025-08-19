@@ -1,7 +1,8 @@
 import { db } from '../database';
-import { roles, userRoles } from '../database/schema/users';
-import type { Role, PolicyStatement } from '@open-archiver/types';
+import { roles, userRoles, users } from '../database/schema/users';
+import type { Role, CaslPolicy, User } from '@open-archiver/types';
 import { eq } from 'drizzle-orm';
+import { createAbilityFor, AppAbility } from '../iam-policy/ability';
 
 export class IamService {
 	/**
@@ -27,7 +28,7 @@ export class IamService {
 		return role;
 	}
 
-	public async createRole(name: string, policy: PolicyStatement[]): Promise<Role> {
+	public async createRole(name: string, policy: CaslPolicy[]): Promise<Role> {
 		const [role] = await db.insert(roles).values({ name, policies: policy }).returning();
 		return role;
 	}
@@ -46,5 +47,33 @@ export class IamService {
 			.where(eq(roles.id, id))
 			.returning();
 		return role;
+	}
+
+	public async getAbilityForUser(userId: string): Promise<AppAbility> {
+		const user = await db.query.users.findFirst({
+			where: eq(users.id, userId),
+		});
+
+		if (!user) {
+			// Or handle this case as you see fit, maybe return an ability with no permissions
+			throw new Error('User not found');
+		}
+
+		const userRoles = await this.getRolesForUser(userId);
+		const allPolicies = userRoles.flatMap((role) => role.policies || []);
+
+		// Interpolate policies
+		const interpolatedPolicies = this.interpolatePolicies(allPolicies, {
+			...user,
+			role: null,
+		} as User);
+
+		return createAbilityFor(interpolatedPolicies);
+	}
+
+	private interpolatePolicies(policies: CaslPolicy[], user: User): CaslPolicy[] {
+		const userPoliciesString = JSON.stringify(policies);
+		const interpolatedPoliciesString = userPoliciesString.replace(/\$\{user\.id\}/g, user.id);
+		return JSON.parse(interpolatedPoliciesString);
 	}
 }

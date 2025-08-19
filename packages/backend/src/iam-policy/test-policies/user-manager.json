@@ -1,13 +1,10 @@
 [
 	{
-		"Effect": "Allow",
-		"Action": [
-			"system:readUsers",
-			"system:createUser",
-			"system:updateUser",
-			"system:deleteUser",
-			"system:assignRole"
-		],
-		"Resource": ["system/users", "system/user/*"]
+		"action": "all",
+		"subject": "users"
+	},
+	{
+		"action": "read",
+		"subject": "roles"
 	}
 ]

@@ -1,0 +1,17 @@
+[
+	{
+		"action": "create",
+		"subject": "ingestion"
+	},
+	{
+		"action": "read",
+		"subject": "dashboard"
+	},
+	{
+		"action": "manage",
+		"subject": "ingestion",
+		"conditions": {
+			"userId": "${user.id}"
+		}
+	}
+]

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Role, PolicyStatement } from '@open-archiver/types';
+	import type { Role, CaslPolicy } from '@open-archiver/types';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
@@ -13,7 +13,7 @@
 
 	const handleSubmit = () => {
 		try {
-			const parsedPolicies: PolicyStatement[] = JSON.parse(policies);
+			const parsedPolicies: CaslPolicy[] = JSON.parse(policies);
 			onSubmit({ name, policies: parsedPolicies });
 		} catch (error) {
 			alert('Invalid JSON format for policies.');

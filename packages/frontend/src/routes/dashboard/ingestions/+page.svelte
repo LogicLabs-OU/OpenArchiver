@@ -103,12 +103,22 @@
 				throw Error('This operation is not allowed in demo mode.');
 			}
 			if (newStatus === 'paused') {
-				await api(`/ingestion-sources/${source.id}/pause`, { method: 'POST' });
+				const response = await api(`/ingestion-sources/${source.id}/pause`, {
+					method: 'POST',
+				});
+				const responseText = await response.json();
+				if (!response.ok) {
+					throw Error(responseText.message || 'Operation failed');
+				}
 			} else {
-				await api(`/ingestion-sources/${source.id}`, {
+				const response = await api(`/ingestion-sources/${source.id}`, {
 					method: 'PUT',
 					body: JSON.stringify({ status: 'active' }),
 				});
+				const responseText = await response.json();
+				if (!response.ok) {
+					throw Error(responseText.message || 'Operation failed');
+				}
 			}
 
 			ingestionSources = ingestionSources.map((s) => {

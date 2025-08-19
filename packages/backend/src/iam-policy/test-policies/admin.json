@@ -1,7 +1,6 @@
 [
 	{
-		"Effect": "Allow",
-		"Action": ["*"],
-		"Resource": ["*"]
+		"action": "all",
+		"subject": "all"
 	}
 ]

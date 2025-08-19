@@ -1,4 +1,4 @@
-import { PolicyStatement } from './iam.types';
+import { CaslPolicy } from './iam.types';
 
 /**
  * Represents a user account in the system.
@@ -30,7 +30,7 @@ export interface Session {
 export interface Role {
 	id: string;
 	name: string;
-	policies: PolicyStatement[];
+	policies: CaslPolicy[];
 	createdAt: Date;
 	updatedAt: Date;
 }

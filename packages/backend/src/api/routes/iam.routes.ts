@@ -14,37 +14,14 @@ export const createIamRouter = (iamController: IamController, authService: AuthS
 	 * @description Gets all roles.
 	 * @access Private
 	 */
-	router.get(
-		'/roles',
-		requirePermission('system:readUsers', 'system/users'),
-		iamController.getRoles
-	);
+	router.get('/roles', requirePermission('read', 'roles'), iamController.getRoles);
 
+	router.get('/roles/:id', requirePermission('read', 'roles'), iamController.getRoleById);
 
-	router.get(
-		'/roles/:id',
-		requirePermission('system:readUsers', 'system/users'),
-		iamController.getRoleById
-	);
+	router.post('/roles', requirePermission('create', 'roles'), iamController.createRole);
 
+	router.delete('/roles/:id', requirePermission('delete', 'roles'), iamController.deleteRole);
 
-	router.post(
-		'/roles',
-		requirePermission('system:assignRole', 'system/users'),
-		iamController.createRole
-	);
-
-
-	router.delete(
-		'/roles/:id',
-		requirePermission('system:deleteRole', 'system/users'),
-		iamController.deleteRole
-	);
-
-	router.put(
-		'/roles/:id',
-		requirePermission('system:updateUser', 'system/users'),
-		iamController.updateRole
-	);
+	router.put('/roles/:id', requirePermission('update', 'roles'), iamController.updateRole);
 	return router;
 };

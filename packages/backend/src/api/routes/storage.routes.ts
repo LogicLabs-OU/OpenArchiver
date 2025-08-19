@@ -13,11 +13,7 @@ export const createStorageRouter = (
 	// Secure all routes in this module
 	router.use(requireAuth(authService));
 
-	router.get(
-		'/download',
-		requirePermission('archive:read', 'archive/all'),
-		storageController.downloadFile
-	);
+	router.get('/download', requirePermission('read', 'archive'), storageController.downloadFile);
 
 	return router;
 };

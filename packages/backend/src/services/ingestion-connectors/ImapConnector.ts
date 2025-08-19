@@ -193,7 +193,6 @@ export class ImapConnector implements IEmailConnector {
 				// Initialize with last synced UID, not the maximum UID in mailbox
 				this.newMaxUids[mailboxPath] = lastUid || 0;
 
-
 				// Only fetch if the mailbox has messages, to avoid errors on empty mailboxes with some IMAP servers.
 				if (mailbox.exists > 0) {
 					const BATCH_SIZE = 250; // A configurable batch size

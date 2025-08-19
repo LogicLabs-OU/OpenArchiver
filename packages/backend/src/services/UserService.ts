@@ -2,7 +2,7 @@ import { db } from '../database';
 import * as schema from '../database/schema';
 import { eq, sql } from 'drizzle-orm';
 import { hash } from 'bcryptjs';
-import type { PolicyStatement, User } from '@open-archiver/types';
+import type { CaslPolicy, User } from '@open-archiver/types';
 
 export class UserService {
 	/**
@@ -28,16 +28,16 @@ export class UserService {
 			with: {
 				userRoles: {
 					with: {
-						role: true
-					}
-				}
-			}
+						role: true,
+					},
+				},
+			},
 		});
 		if (!user) return null;
 
 		return {
 			...user,
-			role: user.userRoles[0]?.role || null
+			role: user.userRoles[0]?.role || null,
 		};
 	}
 
@@ -46,15 +46,15 @@ export class UserService {
 			with: {
 				userRoles: {
 					with: {
-						role: true
-					}
-				}
-			}
+						role: true,
+					},
+				},
+			},
 		});
 
 		return users.map((u) => ({
 			...u,
-			role: u.userRoles[0]?.role || null
+			role: u.userRoles[0]?.role || null,
 		}));
 	}
 
@@ -151,11 +151,10 @@ export class UserService {
 		});
 
 		if (!superAdminRole) {
-			const suerAdminPolicies: PolicyStatement[] = [
+			const suerAdminPolicies: CaslPolicy[] = [
 				{
-					Effect: 'Allow',
-					Action: ['*'],
-					Resource: ['*'],
+					action: 'manage',
+					subject: 'all',
 				},
 			];
 			superAdminRole = (
