@@ -3,6 +3,7 @@
 	import { PieChart } from 'layerchart';
 	import type { IngestionSourceStats } from '@open-archiver/types';
 	import type { ChartConfig } from '$lib/components/ui/chart';
+	import { formatBytes } from '$lib/utils';
 
 	export let data: IngestionSourceStats[];
 
@@ -29,7 +30,11 @@
 		]}
 	>
 		{#snippet tooltip()}
-			<Chart.Tooltip></Chart.Tooltip>
+			<Chart.Tooltip>
+				{#snippet formatter({ value, item })}
+					{item.payload.name}: {formatBytes(value as number)}
+				{/snippet}
+			</Chart.Tooltip>
 		{/snippet}
 	</PieChart>
 </Chart.Container>

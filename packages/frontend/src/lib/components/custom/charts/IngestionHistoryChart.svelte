@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import { AreaChart } from 'layerchart';
-	import { curveCatmullRom } from 'd3-shape';
+	import { curveMonotoneX } from 'd3-shape';
 	import type { ChartConfig } from '$lib/components/ui/chart';
 
 	export let data: { date: Date; count: number }[];
@@ -39,16 +39,24 @@
 		props={{
 			xAxis: {
 				format: (d) =>
-					new Date(d).toLocaleDateString('en-US', {
+					new Date(d).toLocaleDateString(undefined, {
 						month: 'short',
 						day: 'numeric',
 					}),
 			},
-			area: { curve: curveCatmullRom },
+			area: { curve: curveMonotoneX },
 		}}
 	>
 		{#snippet tooltip()}
-			<Chart.Tooltip />
+			<Chart.Tooltip
+				labelFormatter={(value) =>
+					(value instanceof Date ? value : new Date(value)).toLocaleString(undefined, {
+						month: 'short',
+						day: 'numeric',
+						hour: '2-digit',
+						minute: '2-digit',
+					})}
+			/>
 		{/snippet}
 	</AreaChart>
 </Chart.Container>
