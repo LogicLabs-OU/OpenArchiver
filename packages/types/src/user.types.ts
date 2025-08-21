@@ -29,6 +29,7 @@ export interface Session {
  */
 export interface Role {
 	id: string;
+	slug: string | null;
 	name: string;
 	policies: CaslPolicy[];
 	createdAt: Date;

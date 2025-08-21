@@ -9,7 +9,6 @@ const validActions: Set<AppActions> = new Set([
 	'delete',
 	'search',
 	'export',
-	'assign',
 	'sync',
 ]);
 

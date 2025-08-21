@@ -5,7 +5,7 @@ const camelToSnakeCase = (str: string) =>
 
 const relationToTableMap: Record<string, string> = {
 	ingestionSource: 'ingestion_sources',
-	// Add other relations here as needed
+	// TBD: Add other relations here as needed
 };
 
 function getDrizzleColumn(key: string): SQL {

@@ -1,11 +1,6 @@
 [
 	{
 		"action": ["read", "search"],
-		"subject": ["ingestion", "archive", "dashboard"]
-	},
-	{
-		"inverted": true,
-		"action": ["create", "update", "delete"],
-		"subject": ["ingestion", "users", "roles"]
+		"subject": ["ingestion", "archive", "dashboard", "users", "roles"]
 	}
 ]

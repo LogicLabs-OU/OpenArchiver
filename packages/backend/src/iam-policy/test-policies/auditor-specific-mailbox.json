@@ -1,0 +1,17 @@
+[
+	{
+		"action": ["read", "search"],
+		"subject": "ingestion",
+		"conditions": {
+			"id": "f16b7ed2-4e54-4283-9556-c633726f9405"
+		}
+	},
+	{
+		"inverted": true,
+		"action": ["read", "search"],
+		"subject": "archive",
+		"conditions": {
+			"userEmail": "dev@openarchiver.com"
+		}
+	}
+]

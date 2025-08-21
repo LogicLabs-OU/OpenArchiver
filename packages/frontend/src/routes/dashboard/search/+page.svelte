@@ -14,6 +14,8 @@
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import type { MatchingStrategy } from '@open-archiver/types';
+	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
+	import * as Alert from '$lib/components/ui/alert/index.js';
 
 	let { data }: { data: PageData } = $props();
 	let searchResult = $derived(data.searchResult);
@@ -208,7 +210,11 @@
 	</form>
 
 	{#if error}
-		<p class="text-red-500">{error}</p>
+		<Alert.Root variant="destructive">
+			<CircleAlertIcon class="size-4" />
+			<Alert.Title>Error</Alert.Title>
+			<Alert.Description>{error}</Alert.Description>
+		</Alert.Root>
 	{/if}
 
 	{#if searchResult}

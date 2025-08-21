@@ -68,18 +68,40 @@ function translateIngestionConditionsToArchive(
 function expandPolicies(policies: CaslPolicy[]): CaslPolicy[] {
 	const expandedPolicies: CaslPolicy[] = JSON.parse(JSON.stringify(policies));
 
-	policies.forEach((policy) => {
-		if (policy.subject === 'ingestion') {
+	// Create a set of all actions that are already explicitly defined for the 'archive' subject.
+	const existingArchiveActions = new Set<string>();
+	policies.forEach((p) => {
+		if (p.subject === 'archive') {
+			const actions = Array.isArray(p.action) ? p.action : [p.action];
+			actions.forEach((a) => existingArchiveActions.add(a));
+		}
+		// Only expand `can` rules for the 'ingestion' subject.
+		if (p.subject === 'ingestion' && !p.inverted) {
+			const policyActions = Array.isArray(p.action) ? p.action : [p.action];
+
+			// Check if any action in the current ingestion policy already has an explicit archive policy.
+			const hasExplicitArchiveRule = policyActions.some(
+				(a) => existingArchiveActions.has(a) || existingArchiveActions.has('manage')
+			);
+
+			// If a more specific rule for 'archive' already exists, do not expand this ingestion rule,
+			// as it would create a conflicting, overly permissive rule.
+			if (hasExplicitArchiveRule) {
+				return;
+			}
+
 			const archivePolicy: CaslPolicy = {
-				...JSON.parse(JSON.stringify(policy)),
+				...JSON.parse(JSON.stringify(p)),
 				subject: 'archive',
 			};
-			if (policy.conditions) {
-				archivePolicy.conditions = translateIngestionConditionsToArchive(policy.conditions);
+			if (p.conditions) {
+				archivePolicy.conditions = translateIngestionConditionsToArchive(p.conditions);
 			}
 			expandedPolicies.push(archivePolicy);
 		}
 	});
+
+	policies.forEach((policy) => {});
 
 	return expandedPolicies;
 }

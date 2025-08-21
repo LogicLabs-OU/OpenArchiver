@@ -1,6 +1,11 @@
 import { count, desc, eq, asc, and } from 'drizzle-orm';
 import { db } from '../database';
-import { archivedEmails, attachments, emailAttachments, ingestionSources } from '../database/schema';
+import {
+	archivedEmails,
+	attachments,
+	emailAttachments,
+	ingestionSources,
+} from '../database/schema';
 import { FilterBuilder } from './FilterBuilder';
 import { AuthorizationService } from './AuthorizationService';
 import type {
@@ -48,10 +53,7 @@ export class ArchivedEmailService {
 	): Promise<PaginatedArchivedEmails> {
 		const offset = (page - 1) * limit;
 		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
-		const where = and(
-			eq(archivedEmails.ingestionSourceId, ingestionSourceId),
-			drizzleFilter
-		);
+		const where = and(eq(archivedEmails.ingestionSourceId, ingestionSourceId), drizzleFilter);
 
 		const countQuery = db
 			.select({

@@ -7,9 +7,12 @@ export const load: PageServerLoad = async (event) => {
 	try {
 		const { id } = event.params;
 		const response = await api(`/archived-emails/${id}`, event);
-		const responseText = await response.json()
+		const responseText = await response.json();
 		if (!response.ok) {
-			return error(response.status, responseText.message || 'You do not have permission to read this email.')
+			return error(
+				response.status,
+				responseText.message || 'You do not have permission to read this email.'
+			);
 		}
 		const email: ArchivedEmail = responseText;
 		return {

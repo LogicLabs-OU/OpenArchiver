@@ -43,6 +43,7 @@ export const roles = pgTable('roles', {
 		.$type<CaslPolicy[]>()
 		.notNull()
 		.default(sql`'[]'::jsonb`),
+	slug: text('slug').unique(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

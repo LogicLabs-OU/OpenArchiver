@@ -407,6 +407,8 @@ export class IngestionService {
 				searchService,
 				storageService
 			);
+			//assign userEmail
+			email.userEmail = userEmail
 			await indexingService.indexByEmail(email, source.id, archivedEmail.id);
 		} catch (error) {
 			logger.error({

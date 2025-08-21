@@ -28,8 +28,15 @@ export class IamService {
 		return role;
 	}
 
-	public async createRole(name: string, policy: CaslPolicy[]): Promise<Role> {
-		const [role] = await db.insert(roles).values({ name, policies: policy }).returning();
+	public async createRole(name: string, policy: CaslPolicy[], slug?: string): Promise<Role> {
+		const [role] = await db
+			.insert(roles)
+			.values({
+				name: name,
+				slug: slug || name.toLocaleLowerCase().replaceAll('', '_'),
+				policies: policy,
+			})
+			.returning();
 		return role;
 	}
 
@@ -61,13 +68,11 @@ export class IamService {
 
 		const userRoles = await this.getRolesForUser(userId);
 		const allPolicies = userRoles.flatMap((role) => role.policies || []);
-
 		// Interpolate policies
 		const interpolatedPolicies = this.interpolatePolicies(allPolicies, {
 			...user,
 			role: null,
 		} as User);
-
 		return createAbilityFor(interpolatedPolicies);
 	}
 

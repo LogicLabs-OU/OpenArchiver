@@ -7,7 +7,6 @@ export type AppActions =
 	| 'delete'
 	| 'search'
 	| 'export'
-	| 'assign'
 	| 'sync';
 
 export type AppSubjects =

@@ -2,7 +2,6 @@ import { Index, MeiliSearch, SearchParams } from 'meilisearch';
 import { config } from '../config';
 import type { SearchQuery, SearchResult, EmailDocument, TopSender } from '@open-archiver/types';
 import { FilterBuilder } from './FilterBuilder';
-import { mongoToMeli } from '../helpers/mongoToMeli';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -74,19 +73,18 @@ export class SearchService {
 
 		// Create a filter based on the user's permissions.
 		// This ensures that the user can only search for emails they are allowed to see.
-		const { mongoFilter } = await FilterBuilder.create(userId, 'archive', 'read');
-		if (mongoFilter) {
+		const { searchFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+		if (searchFilter) {
 			// Convert the MongoDB-style filter from CASL to a MeiliSearch filter string.
-			const meliFilter = mongoToMeli(mongoFilter);
 			if (searchParams.filter) {
 				// If there are existing filters, append the access control filter.
-				searchParams.filter = `${searchParams.filter} AND ${meliFilter}`;
+				searchParams.filter = `${searchParams.filter} AND ${searchFilter}`;
 			} else {
 				// Otherwise, just use the access control filter.
-				searchParams.filter = meliFilter;
+				searchParams.filter = searchFilter;
 			}
 		}
-
+		console.log('searchParams', searchParams);
 		const searchResults = await index.search(query, searchParams);
 
 		return {
@@ -133,8 +131,17 @@ export class SearchService {
 				'bcc',
 				'attachments.filename',
 				'attachments.content',
+				'userEmail',
 			],
-			filterableAttributes: ['from', 'to', 'cc', 'bcc', 'timestamp', 'ingestionSourceId'],
+			filterableAttributes: [
+				'from',
+				'to',
+				'cc',
+				'bcc',
+				'timestamp',
+				'ingestionSourceId',
+				'userEmail',
+			],
 			sortableAttributes: ['timestamp'],
 		});
 	}

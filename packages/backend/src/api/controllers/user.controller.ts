@@ -21,6 +21,7 @@ export const getUser = async (req: Request, res: Response) => {
 
 export const createUser = async (req: Request, res: Response) => {
 	const { email, first_name, last_name, password, roleId } = req.body;
+
 	const newUser = await userService.createUser(
 		{ email, first_name, last_name, password },
 		roleId

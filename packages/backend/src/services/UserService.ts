@@ -162,6 +162,7 @@ export class UserService {
 					.insert(schema.roles)
 					.values({
 						name: 'Super Admin',
+						slug: 'predefined_super_admin',
 						policies: suerAdminPolicies,
 					})
 					.returning()

@@ -188,7 +188,9 @@
 				Viewing policy for role: {selectedRole?.name}
 			</Dialog.Description>
 		</Dialog.Header>
-		<div class="rounded-md bg-gray-900 p-2 text-white">
+		<div
+			class=" max-h-98 overflow-x-auto overflow-y-auto rounded-md bg-gray-900 p-2 text-white"
+		>
 			<pre>{JSON.stringify(selectedRole?.policies, null, 2)}</pre>
 		</div>
 	</Dialog.Content>

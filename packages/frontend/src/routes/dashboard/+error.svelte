@@ -1,19 +1,22 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
+	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
+	import * as Alert from '$lib/components/ui/alert/index.js';
 </script>
 
-<div class="flex h-full w-full flex-col items-center justify-center">
-	<div class="bg-card space-y-4 rounded-lg border p-10 text-center shadow-sm">
-		<h1 class="text-destructive text-4xl font-bold">{page.status}</h1>
-		<p class="text-muted-foreground mt-4 text-lg">Oops! Something went wrong.</p>
-		<p class=" bg-muted mt-2 rounded-md p-4 font-mono text-base">
-			{page.error?.message}
-		</p>
-		<div>
-			<a href="/dashboard" class="mt-6">
-				<Button>Go to Dashboard</Button>
-			</a>
-		</div>
-	</div>
+<div class="flex h-full w-full flex-col items-center justify-center space-y-4">
+	<Alert.Root variant="destructive">
+		<CircleAlertIcon class="size-4" />
+		<Alert.Title>
+			<h1 class=" font-bold">Error: {page.status}</h1>
+		</Alert.Title>
+		<Alert.Description>
+			<div class=" space-y-2">
+				<div>
+					{page.error?.message}
+				</div>
+			</div>
+		</Alert.Description>
+	</Alert.Root>
 </div>

@@ -66,7 +66,7 @@ export class IndexingService {
 				.where(eq(emailAttachments.emailId, emailId));
 		}
 
-		const document = await this.createEmailDocument(email, emailAttachmentsResult);
+		const document = await this.createEmailDocument(email, emailAttachmentsResult, email.userEmail);
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
@@ -92,8 +92,10 @@ export class IndexingService {
 			email,
 			attachments,
 			ingestionSourceId,
-			archivedEmailId
+			archivedEmailId,
+			email.userEmail || ''
 		);
+		console.log(document)
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
@@ -104,7 +106,8 @@ export class IndexingService {
 		email: EmailObject,
 		attachments: AttachmentsType,
 		ingestionSourceId: string,
-		archivedEmailId: string
+		archivedEmailId: string,
+		userEmail: string //the owner of the email inbox 
 	): Promise<EmailDocument> {
 		const extractedAttachments = [];
 		for (const attachment of attachments) {
@@ -122,8 +125,10 @@ export class IndexingService {
 				//  skip attachment or fail the job
 			}
 		}
+		console.log('email.userEmail', userEmail)
 		return {
 			id: archivedEmailId,
+			userEmail: userEmail,
 			from: email.from[0]?.address,
 			to: email.to.map((i: EmailAddress) => i.address) || [],
 			cc: email.cc?.map((i: EmailAddress) => i.address) || [],
@@ -141,7 +146,8 @@ export class IndexingService {
 	 */
 	private async createEmailDocument(
 		email: typeof archivedEmails.$inferSelect,
-		attachments: Attachment[]
+		attachments: Attachment[],
+		userEmail: string,//the owner of the email inbox 
 	): Promise<EmailDocument> {
 		const attachmentContents = await this.extractAttachmentContents(attachments);
 
@@ -155,9 +161,10 @@ export class IndexingService {
 			'';
 
 		const recipients = email.recipients as DbRecipients;
-
+		console.log('email.userEmail', email.userEmail)
 		return {
 			id: email.id,
+			userEmail: userEmail,
 			from: email.senderEmail,
 			to: recipients.to?.map((r) => r.address) || [],
 			cc: recipients.cc?.map((r) => r.address) || [],

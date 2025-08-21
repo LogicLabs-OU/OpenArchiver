@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { IamService } from '../../services/IamService';
 import { PolicyValidator } from '../../iam-policy/policy-validator';
 import type { CaslPolicy } from '@open-archiver/types';
+import { logger } from '../../config/logger';
 
 export class IamController {
 	#iamService: IamService;
@@ -12,7 +13,12 @@ export class IamController {
 
 	public getRoles = async (req: Request, res: Response): Promise<void> => {
 		try {
-			const roles = await this.#iamService.getRoles();
+			let roles = await this.#iamService.getRoles();
+			if (!roles.some((r) => r.slug?.includes('predefined_'))) {
+				// create pre defined roles
+				logger.info({}, 'Creating predefined roles');
+				await this.createDefaultRoles();
+			}
 			res.status(200).json(roles);
 		} catch (error) {
 			res.status(500).json({ message: 'Failed to get roles.' });
@@ -94,6 +100,46 @@ export class IamController {
 			res.status(200).json(role);
 		} catch (error) {
 			res.status(500).json({ message: 'Failed to update role.' });
+		}
+	};
+
+	private createDefaultRoles = async () => {
+		try {
+			// end user who can manage its own data, and create new ingestions.
+			await this.#iamService.createRole(
+				'End user',
+				[
+					{
+						action: 'create',
+						subject: 'ingestion',
+					},
+					{
+						action: 'read',
+						subject: 'dashboard',
+					},
+					{
+						action: 'manage',
+						subject: 'ingestion',
+						conditions: {
+							userId: '${user.id}',
+						},
+					},
+				],
+				'predefined_end_user'
+			);
+			// read only
+			await this.#iamService.createRole(
+				'Read only',
+				[
+					{
+						action: ['read', 'search'],
+						subject: ['ingestion', 'archive', 'dashboard', 'users', 'roles'],
+					},
+				],
+				'predefined_read_only_user'
+			);
+		} catch (error) {
+			logger.error({}, 'Failed to create default roles');
 		}
 	};
 }

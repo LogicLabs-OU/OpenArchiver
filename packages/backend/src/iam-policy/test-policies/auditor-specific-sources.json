@@ -3,14 +3,12 @@
 		"action": ["read", "search"],
 		"subject": "ingestion",
 		"conditions": {
-			"id": { "$in": ["INGESTION_SOURCE_ID_1", "INGESTION_SOURCE_ID_2"] }
-		}
-	},
-	{
-		"action": ["read", "search"],
-		"subject": "archive",
-		"conditions": {
-			"ingestionSourceId": { "$in": ["INGESTION_SOURCE_ID_1", "INGESTION_SOURCE_ID_2"] }
+			"id": {
+				"$in": [
+					"aeafbe44-d41c-4015-ac27-504f6e0c511a",
+					"f16b7ed2-4e54-4283-9556-c633726f9405"
+				]
+			}
 		}
 	}
 ]

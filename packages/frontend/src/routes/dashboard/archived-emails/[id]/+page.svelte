@@ -71,6 +71,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{email?.subject} | Archived emails - OpenArchiver</title>
+</svelte:head>
+
 {#if email}
 	<div class="grid grid-cols-3 gap-6">
 		<div class="col-span-3 md:col-span-2">

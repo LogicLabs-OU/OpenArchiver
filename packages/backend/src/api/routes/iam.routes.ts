@@ -18,10 +18,25 @@ export const createIamRouter = (iamController: IamController, authService: AuthS
 
 	router.get('/roles/:id', requirePermission('read', 'roles'), iamController.getRoleById);
 
-	router.post('/roles', requirePermission('create', 'roles'), iamController.createRole);
+	/**
+	 * Only super admin has the ability to modify existing roles or create new roles.
+	 */
+	router.post(
+		'/roles',
+		requirePermission('manage', 'all', 'Super Admin role is required to manage roles.'),
+		iamController.createRole
+	);
 
-	router.delete('/roles/:id', requirePermission('delete', 'roles'), iamController.deleteRole);
+	router.delete(
+		'/roles/:id',
+		requirePermission('manage', 'all', 'Super Admin role is required to manage roles.'),
+		iamController.deleteRole
+	);
 
-	router.put('/roles/:id', requirePermission('update', 'roles'), iamController.updateRole);
+	router.put(
+		'/roles/:id',
+		requirePermission('manage', 'all', 'Super Admin role is required to manage roles.'),
+		iamController.updateRole
+	);
 	return router;
 };

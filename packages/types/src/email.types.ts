@@ -58,6 +58,7 @@ export interface EmailObject {
 // Define the structure of the document to be indexed in Meilisearch
 export interface EmailDocument {
 	id: string; // The unique ID of the email
+	userEmail: string;
 	from: string;
 	to: string[];
 	cc: string[];

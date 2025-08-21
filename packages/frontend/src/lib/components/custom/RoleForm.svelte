@@ -34,7 +34,12 @@
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
 		<Label for="policies" class="text-right">Policies (JSON)</Label>
-		<Textarea id="policies" bind:value={policies} class="col-span-3" rows={10} />
+		<Textarea
+			id="policies"
+			bind:value={policies}
+			class="col-span-3 max-h-96 overflow-y-auto"
+			rows={10}
+		/>
 	</div>
 	<div class="flex justify-end">
 		<Button type="submit">Save</Button>
