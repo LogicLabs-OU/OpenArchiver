@@ -145,6 +145,17 @@ export class UserService {
 			})
 			.returning();
 
+		const superAdminRole = await this.createAdminRole()
+
+		await db.insert(schema.userRoles).values({
+			userId: newUser[0].id,
+			roleId: superAdminRole.id,
+		});
+
+		return newUser[0];
+	}
+
+	public async createAdminRole() {
 		// find super admin role
 		let superAdminRole = await db.query.roles.findFirst({
 			where: eq(schema.roles.name, 'Super Admin'),
@@ -168,12 +179,6 @@ export class UserService {
 					.returning()
 			)[0];
 		}
-
-		await db.insert(schema.userRoles).values({
-			userId: newUser[0].id,
-			roleId: superAdminRole.id,
-		});
-
-		return newUser[0];
+		return superAdminRole
 	}
 }

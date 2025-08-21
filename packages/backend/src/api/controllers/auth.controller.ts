@@ -1,10 +1,13 @@
 import type { Request, Response } from 'express';
 import { AuthService } from '../../services/AuthService';
 import { UserService } from '../../services/UserService';
+import { IamService } from '../../services/IamService';
 import { db } from '../../database';
 import * as schema from '../../database/schema';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import 'dotenv/config';
+import { AuthorizationService } from '../../services/AuthorizationService';
+import { CaslPolicy } from '@open-archiver/types';
 
 export class AuthController {
 	#authService: AuthService;
@@ -72,13 +75,37 @@ export class AuthController {
 
 	public status = async (req: Request, res: Response): Promise<Response> => {
 		try {
-			const userCountResult = await db
-				.select({ count: sql<number>`count(*)` })
+			const users = await db
+				.select()
 				.from(schema.users);
-			const userCount = Number(userCountResult[0].count);
-			const needsSetup = userCount === 0;
+
+			/**
+			 * Check the situation where the only user has "Super Admin" role, but they don't actually have Super Admin permission because the role was set up in an earlier version, we need to change that "Super Admin" role to a the one used in the current version.
+			 */
+			if (users.length === 1) {
+				const iamService = new IamService()
+				const userRoles = await iamService.getRolesForUser(users[0].id)
+				if (userRoles.some(r => r.name === 'Super Admin')) {
+					const authorizationService = new AuthorizationService();
+					const hasAdminPermission = await authorizationService.can(
+						users[0].id,
+						'manage',
+						'all'
+					);
+					if (!hasAdminPermission) {
+						const suerAdminPolicies: CaslPolicy[] = [
+							{
+								action: 'manage',
+								subject: 'all',
+							},
+						];
+						await db.update(schema.roles).set({ policies: suerAdminPolicies }).where(eq(schema.roles.name, 'Super Admin'))
+					}
+				}
+			}
 			// in case user uses older version with admin user variables, we will create the admin user using those variables.
-			if (needsSetup && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+			const needsSetupUser = users.length === 0
+			if (needsSetupUser && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
 				await this.#userService.createAdminUser(
 					{
 						email: process.env.ADMIN_EMAIL,
@@ -90,7 +117,7 @@ export class AuthController {
 				);
 				return res.status(200).json({ needsSetup: false });
 			}
-			return res.status(200).json({ needsSetup });
+			return res.status(200).json({ needsSetupUser });
 		} catch (error) {
 			console.error('Status check error:', error);
 			return res.status(500).json({ message: 'An internal server error occurred' });
