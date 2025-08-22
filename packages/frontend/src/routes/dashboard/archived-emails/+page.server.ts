@@ -14,7 +14,7 @@ export const load: PageServerLoad = async (event) => {
 	let ingestionSources: IngestionSource[] = sourcesResponseText;
 	if (!sourcesResponse.ok) {
 		if (sourcesResponse.status === 403) {
-			ingestionSources = []
+			ingestionSources = [];
 		} else {
 			return error(
 				sourcesResponse.status,
@@ -22,7 +22,6 @@ export const load: PageServerLoad = async (event) => {
 			);
 		}
 	}
-
 
 	let archivedEmails: PaginatedArchivedEmails = {
 		items: [],

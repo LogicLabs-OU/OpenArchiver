@@ -18,8 +18,6 @@ export type SubjectObject =
 	| InferSelectModel<typeof roles>
 	| AppSubjects;
 
-
-
 // Function to create an ability instance from policies stored in the database
 export function createAbilityFor(policies: CaslPolicy[]) {
 	// We will not expand policies, if a role needs access to ingestion X and its archived emails, the policy should also grant access to archives belonging to ingestion X
@@ -27,7 +25,6 @@ export function createAbilityFor(policies: CaslPolicy[]) {
 
 	return createMongoAbility<AppAbility>(policies as AppRawRule[]);
 }
-
 
 /**
  * @deprecated This function should not be used since we don't need the inheritable behavior anymore.
@@ -70,7 +67,6 @@ function translateIngestionConditionsToArchive(
 	}
 	return translated;
 }
-
 
 /**
  * @deprecated This function should not be used since we don't need the inheritable behavior anymore.
@@ -116,7 +112,7 @@ function expandPolicies(policies: CaslPolicy[]): CaslPolicy[] {
 		}
 	});
 
-	policies.forEach((policy) => { });
+	policies.forEach((policy) => {});
 
 	return expandedPolicies;
 }

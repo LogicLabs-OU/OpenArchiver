@@ -52,7 +52,6 @@ export class IamController {
 			return;
 		}
 
-
 		try {
 			for (const statement of policies) {
 				const { valid, reason } = PolicyValidator.isValid(statement as CaslPolicy);
@@ -120,27 +119,27 @@ export class IamController {
 				'End user',
 				[
 					{
-						"action": "read",
-						"subject": "dashboard"
+						action: 'read',
+						subject: 'dashboard',
 					},
 					{
-						"action": "create",
-						"subject": "ingestion"
+						action: 'create',
+						subject: 'ingestion',
 					},
 					{
-						"action": "manage",
-						"subject": "ingestion",
-						"conditions": {
-							"userId": "${user.id}"
-						}
+						action: 'manage',
+						subject: 'ingestion',
+						conditions: {
+							userId: '${user.id}',
+						},
 					},
 					{
-						"action": "manage",
-						"subject": "archive",
-						"conditions": {
-							"ingestionSource.userId": "${user.id}"
-						}
-					}
+						action: 'manage',
+						subject: 'archive',
+						conditions: {
+							'ingestionSource.userId': '${user.id}',
+						},
+					},
 				],
 				'predefined_end_user'
 			);
