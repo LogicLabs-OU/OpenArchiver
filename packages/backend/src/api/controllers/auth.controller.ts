@@ -75,17 +75,15 @@ export class AuthController {
 
 	public status = async (req: Request, res: Response): Promise<Response> => {
 		try {
-			const users = await db
-				.select()
-				.from(schema.users);
+			const users = await db.select().from(schema.users);
 
 			/**
-			 * Check the situation where the only user has "Super Admin" role, but they don't actually have Super Admin permission because the role was set up in an earlier version, we need to change that "Super Admin" role to a the one used in the current version.
+			 * Check the situation where the only user has "Super Admin" role, but they don't actually have Super Admin permission because the role was set up in an earlier version, we need to change that "Super Admin" role to the one used in the current version.
 			 */
 			if (users.length === 1) {
-				const iamService = new IamService()
-				const userRoles = await iamService.getRolesForUser(users[0].id)
-				if (userRoles.some(r => r.name === 'Super Admin')) {
+				const iamService = new IamService();
+				const userRoles = await iamService.getRolesForUser(users[0].id);
+				if (userRoles.some((r) => r.name === 'Super Admin')) {
 					const authorizationService = new AuthorizationService();
 					const hasAdminPermission = await authorizationService.can(
 						users[0].id,
@@ -99,12 +97,18 @@ export class AuthController {
 								subject: 'all',
 							},
 						];
-						await db.update(schema.roles).set({ policies: suerAdminPolicies }).where(eq(schema.roles.name, 'Super Admin'))
+						await db
+							.update(schema.roles)
+							.set({
+								policies: suerAdminPolicies,
+								slug: 'predefined_super_admin',
+							})
+							.where(eq(schema.roles.name, 'Super Admin'));
 					}
 				}
 			}
 			// in case user uses older version with admin user variables, we will create the admin user using those variables.
-			const needsSetupUser = users.length === 0
+			const needsSetupUser = users.length === 0;
 			if (needsSetupUser && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
 				await this.#userService.createAdminUser(
 					{

@@ -145,7 +145,7 @@ export class UserService {
 			})
 			.returning();
 
-		const superAdminRole = await this.createAdminRole()
+		const superAdminRole = await this.createAdminRole();
 
 		await db.insert(schema.userRoles).values({
 			userId: newUser[0].id,
@@ -179,6 +179,6 @@ export class UserService {
 					.returning()
 			)[0];
 		}
-		return superAdminRole
+		return superAdminRole;
 	}
 }

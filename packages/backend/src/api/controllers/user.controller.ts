@@ -3,6 +3,7 @@ import { UserService } from '../../services/UserService';
 import * as schema from '../../database/schema';
 import { sql } from 'drizzle-orm';
 import { db } from '../../database';
+import { config } from '../../config';
 
 const userService = new UserService();
 
@@ -20,6 +21,9 @@ export const getUser = async (req: Request, res: Response) => {
 };
 
 export const createUser = async (req: Request, res: Response) => {
+	if (config.app.isDemo) {
+		return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+	}
 	const { email, first_name, last_name, password, roleId } = req.body;
 
 	const newUser = await userService.createUser(
@@ -30,6 +34,9 @@ export const createUser = async (req: Request, res: Response) => {
 };
 
 export const updateUser = async (req: Request, res: Response) => {
+	if (config.app.isDemo) {
+		return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+	}
 	const { email, first_name, last_name, roleId } = req.body;
 	const updatedUser = await userService.updateUser(
 		req.params.id,
@@ -43,6 +50,9 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 export const deleteUser = async (req: Request, res: Response) => {
+	if (config.app.isDemo) {
+		return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+	}
 	const userCountResult = await db.select({ count: sql<number>`count(*)` }).from(schema.users);
 	console.log('iusercount,', userCountResult[0].count);
 	const isOnlyUser = Number(userCountResult[0].count) === 1;

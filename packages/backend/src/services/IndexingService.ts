@@ -66,7 +66,11 @@ export class IndexingService {
 				.where(eq(emailAttachments.emailId, emailId));
 		}
 
-		const document = await this.createEmailDocument(email, emailAttachmentsResult, email.userEmail);
+		const document = await this.createEmailDocument(
+			email,
+			emailAttachmentsResult,
+			email.userEmail
+		);
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
@@ -95,7 +99,7 @@ export class IndexingService {
 			archivedEmailId,
 			email.userEmail || ''
 		);
-		console.log(document)
+		console.log(document);
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
@@ -107,7 +111,7 @@ export class IndexingService {
 		attachments: AttachmentsType,
 		ingestionSourceId: string,
 		archivedEmailId: string,
-		userEmail: string //the owner of the email inbox 
+		userEmail: string //the owner of the email inbox
 	): Promise<EmailDocument> {
 		const extractedAttachments = [];
 		for (const attachment of attachments) {
@@ -125,7 +129,7 @@ export class IndexingService {
 				//  skip attachment or fail the job
 			}
 		}
-		console.log('email.userEmail', userEmail)
+		console.log('email.userEmail', userEmail);
 		return {
 			id: archivedEmailId,
 			userEmail: userEmail,
@@ -147,7 +151,7 @@ export class IndexingService {
 	private async createEmailDocument(
 		email: typeof archivedEmails.$inferSelect,
 		attachments: Attachment[],
-		userEmail: string,//the owner of the email inbox 
+		userEmail: string //the owner of the email inbox
 	): Promise<EmailDocument> {
 		const attachmentContents = await this.extractAttachmentContents(attachments);
 
@@ -161,7 +165,7 @@ export class IndexingService {
 			'';
 
 		const recipients = email.recipients as DbRecipients;
-		console.log('email.userEmail', email.userEmail)
+		console.log('email.userEmail', email.userEmail);
 		return {
 			id: email.id,
 			userEmail: userEmail,

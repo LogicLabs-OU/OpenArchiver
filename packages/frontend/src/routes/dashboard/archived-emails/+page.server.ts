@@ -11,13 +11,18 @@ export const load: PageServerLoad = async (event) => {
 
 	const sourcesResponse = await api('/ingestion-sources', event);
 	const sourcesResponseText = await sourcesResponse.json();
+	let ingestionSources: IngestionSource[] = sourcesResponseText;
 	if (!sourcesResponse.ok) {
-		return error(
-			sourcesResponseText.status,
-			sourcesResponseText.message || 'Failed to load ingestion source.'
-		);
+		if (sourcesResponse.status === 403) {
+			ingestionSources = []
+		} else {
+			return error(
+				sourcesResponse.status,
+				sourcesResponseText.message || 'Failed to load ingestion source.'
+			);
+		}
 	}
-	const ingestionSources: IngestionSource[] = sourcesResponseText;
+
 
 	let archivedEmails: PaginatedArchivedEmails = {
 		items: [],

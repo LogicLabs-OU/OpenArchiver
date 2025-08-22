@@ -3,6 +3,7 @@ import { IamService } from '../../services/IamService';
 import { PolicyValidator } from '../../iam-policy/policy-validator';
 import type { CaslPolicy } from '@open-archiver/types';
 import { logger } from '../../config/logger';
+import { config } from '../../config';
 
 export class IamController {
 	#iamService: IamService;
@@ -40,7 +41,10 @@ export class IamController {
 		}
 	};
 
-	public createRole = async (req: Request, res: Response): Promise<void> => {
+	public createRole = async (req: Request, res: Response) => {
+		if (config.app.isDemo) {
+			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+		}
 		const { name, policies } = req.body;
 
 		if (!name || !policies) {
@@ -48,15 +52,15 @@ export class IamController {
 			return;
 		}
 
-		for (const statement of policies) {
-			const { valid, reason } = PolicyValidator.isValid(statement as CaslPolicy);
-			if (!valid) {
-				res.status(400).json({ message: `Invalid policy statement: ${reason}` });
-				return;
-			}
-		}
 
 		try {
+			for (const statement of policies) {
+				const { valid, reason } = PolicyValidator.isValid(statement as CaslPolicy);
+				if (!valid) {
+					res.status(400).json({ message: `Invalid policy statement: ${reason}` });
+					return;
+				}
+			}
 			const role = await this.#iamService.createRole(name, policies);
 			res.status(201).json(role);
 		} catch (error) {
@@ -65,7 +69,10 @@ export class IamController {
 		}
 	};
 
-	public deleteRole = async (req: Request, res: Response): Promise<void> => {
+	public deleteRole = async (req: Request, res: Response) => {
+		if (config.app.isDemo) {
+			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+		}
 		const { id } = req.params;
 
 		try {
@@ -76,7 +83,10 @@ export class IamController {
 		}
 	};
 
-	public updateRole = async (req: Request, res: Response): Promise<void> => {
+	public updateRole = async (req: Request, res: Response) => {
+		if (config.app.isDemo) {
+			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+		}
 		const { id } = req.params;
 		const { name, policies } = req.body;
 
@@ -110,20 +120,27 @@ export class IamController {
 				'End user',
 				[
 					{
-						action: 'create',
-						subject: 'ingestion',
+						"action": "read",
+						"subject": "dashboard"
 					},
 					{
-						action: 'read',
-						subject: 'dashboard',
+						"action": "create",
+						"subject": "ingestion"
 					},
 					{
-						action: 'manage',
-						subject: 'ingestion',
-						conditions: {
-							userId: '${user.id}',
-						},
+						"action": "manage",
+						"subject": "ingestion",
+						"conditions": {
+							"userId": "${user.id}"
+						}
 					},
+					{
+						"action": "manage",
+						"subject": "archive",
+						"conditions": {
+							"ingestionSource.userId": "${user.id}"
+						}
+					}
 				],
 				'predefined_end_user'
 			);
