@@ -7,3 +7,4 @@ export * from './archived-emails.types';
 export * from './search.types';
 export * from './dashboard.types';
 export * from './iam.types';
+export * from './system.types';

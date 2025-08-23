@@ -16,7 +16,7 @@ import { createSearchRouter } from './api/routes/search.routes';
 import { createDashboardRouter } from './api/routes/dashboard.routes';
 import { createUploadRouter } from './api/routes/upload.routes';
 import { createUserRouter } from './api/routes/user.routes';
-import testRouter from './api/routes/test.routes';
+import { createSettingsRouter } from './api/routes/settings.routes';
 import { AuthService } from './services/AuthService';
 import { UserService } from './services/UserService';
 import { IamService } from './services/IamService';
@@ -62,6 +62,7 @@ const dashboardRouter = createDashboardRouter(authService);
 const iamRouter = createIamRouter(iamController, authService);
 const uploadRouter = createUploadRouter(authService);
 const userRouter = createUserRouter(authService);
+const settingsRouter = createSettingsRouter(authService);
 // upload route is added before middleware because it doesn't use the json middleware.
 app.use('/v1/upload', uploadRouter);
 
@@ -77,7 +78,7 @@ app.use('/v1/storage', storageRouter);
 app.use('/v1/search', searchRouter);
 app.use('/v1/dashboard', dashboardRouter);
 app.use('/v1/users', userRouter);
-app.use('/v1/test', testRouter);
+app.use('/v1/settings', settingsRouter);
 
 // Example of a protected route
 app.get('/v1/protected', requireAuth(authService), (req, res) => {

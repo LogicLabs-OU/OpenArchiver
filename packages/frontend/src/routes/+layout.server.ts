@@ -20,9 +20,13 @@ export const load: LayoutServerLoad = async (event) => {
 		throw error;
 	}
 
+	const settingsResponse = await api('/settings', event);
+	const settings = settingsResponse.ok ? await settingsResponse.json() : null;
+
 	return {
 		user: locals.user,
 		accessToken: locals.accessToken,
 		isDemo: process.env.IS_DEMO === 'true',
+		settings,
 	};
 };
