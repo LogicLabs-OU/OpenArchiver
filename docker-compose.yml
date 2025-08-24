@@ -57,7 +57,7 @@ services:
         container_name: tika
         restart: always
         ports:
-            - "9998:9998"
+            - '9998:9998'
         networks:
             - open-archiver-net
 
