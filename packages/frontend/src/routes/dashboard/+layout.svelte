@@ -21,6 +21,10 @@
 			label: 'Settings',
 			subMenu: [
 				{
+					href: '/dashboard/settings/system',
+					label: 'System',
+				},
+				{
 					href: '/dashboard/settings/users',
 					label: 'Users',
 				},
