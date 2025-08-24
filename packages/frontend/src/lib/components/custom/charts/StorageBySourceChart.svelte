@@ -14,7 +14,10 @@
 	} satisfies ChartConfig;
 </script>
 
-<Chart.Container config={chartConfig} class="h-full min-h-[300px] w-full">
+<Chart.Container
+	config={chartConfig}
+	class=" flex  h-full w-full flex-col overflow-y-auto [&_.lc-legend-swatch-group]:overflow-x-auto "
+>
 	<PieChart
 		{data}
 		key="name"
