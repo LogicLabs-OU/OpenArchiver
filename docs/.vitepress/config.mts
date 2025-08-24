@@ -10,6 +10,7 @@ export default defineConfig({
 				'data-website-id': '2c8b452e-eab5-4f82-8ead-902d8f8b976f',
 			},
 		],
+		['link', { rel: 'icon', href: '/logo-sq.svg' }],
 	],
 	title: 'Open Archiver',
 	description: 'Official documentation for the Open Archiver project.',
@@ -73,6 +74,11 @@ export default defineConfig({
 				items: [
 					{ text: 'Overview', link: '/services/' },
 					{ text: 'Storage Service', link: '/services/storage-service' },
+					{
+						text: 'IAM Service', items: [
+							{ text: 'IAM Policies', link: '/services/iam-service/iam-policy' }
+						]
+					},
 				],
 			},
 		],
