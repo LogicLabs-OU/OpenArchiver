@@ -16,7 +16,7 @@
 
 <Chart.Container
 	config={chartConfig}
-	class=" flex  h-full w-full flex-col overflow-y-auto [&_.lc-legend-swatch-group]:overflow-x-auto "
+	class="flex h-full w-full flex-col overflow-y-auto [&_.lc-legend-swatch-group]:overflow-x-auto "
 >
 	<PieChart
 		{data}
