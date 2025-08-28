@@ -8,20 +8,22 @@
 	import * as Select from '$lib/components/ui/select';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import type { SupportedLanguage } from '@open-archiver/types';
+	import { t } from '$lib/translations';
 
 	let { data, form }: { data: PageData; form: any } = $props();
 	let settings = $state(data.settings);
 	let isSaving = $state(false);
 
 	const languageOptions: { value: SupportedLanguage; label: string }[] = [
-		{ value: 'en', label: 'English' },
-		{ value: 'es', label: 'Spanish' },
-		{ value: 'fr', label: 'French' },
-		{ value: 'de', label: 'German' },
-		{ value: 'it', label: 'Italian' },
-		{ value: 'pt', label: 'Portuguese' },
-		{ value: 'nl', label: 'Dutch' },
-		{ value: 'ja', label: 'Japanese' },
+		{ value: 'en', label: '🇬🇧 English' },
+		{ value: 'de', label: '🇩🇪 Deutsch' },
+		{ value: 'fr', label: '🇫🇷 Français' },
+		{ value: 'et', label: '🇪🇪 Eesti' },
+		{ value: 'es', label: '🇪🇸 Español' },
+		{ value: 'it', label: '🇮🇹 Italiano' },
+		{ value: 'pt', label: '🇵🇹 Português' },
+		{ value: 'nl', label: '🇳🇱 Nederlands' },
+		{ value: 'ja', label: '🇯🇵 日本語' },
 	];
 
 	const languageTriggerContent = $derived(
@@ -52,35 +54,37 @@
 </script>
 
 <svelte:head>
-	<title>System Settings - OpenArchiver</title>
+	<title>{$t('app.system_settings.title')} - OpenArchiver</title>
 </svelte:head>
 
 <div class="space-y-6">
 	<div>
-		<h1 class="text-2xl font-bold">System Settings</h1>
-		<p class="text-muted-foreground">Manage global application settings.</p>
+		<h1 class="text-2xl font-bold">{$t('app.system_settings.system_settings')}</h1>
+		<p class="text-muted-foreground">{$t('app.system_settings.description')}</p>
 	</div>
 
 	<form method="POST" class="space-y-8" onsubmit={() => (isSaving = true)}>
 		<Card.Root>
 			<Card.Content class="space-y-4">
 				<!-- Hide language setting for now -->
-				<!-- <div class="grid gap-2">
-					<Label.Root class="mb-1" for="language">Language</Label.Root>
+				<div class="grid gap-2">
+					<Label.Root class="mb-1" for="language"
+						>{$t('app.system_settings.language')}</Label.Root
+					>
 					<Select.Root name="language" bind:value={settings.language} type="single">
 						<Select.Trigger class="w-[280px]">
 							{languageTriggerContent}
 						</Select.Trigger>
-						<Select.Content> 
+						<Select.Content>
 							{#each languageOptions as lang}
 								<Select.Item value={lang.value}>{lang.label}</Select.Item>
 							{/each}
 						</Select.Content>
 					</Select.Root>
-				</div> -->
+				</div>
 
 				<div class="grid gap-2">
-					<Label.Root class="mb-1">Default theme</Label.Root>
+					<Label.Root class="mb-1">{$t('app.system_settings.default_theme')}</Label.Root>
 					<RadioGroup.Root
 						bind:value={settings.theme}
 						name="theme"
@@ -88,21 +92,23 @@
 					>
 						<div class="flex items-center gap-2">
 							<RadioGroup.Item value="light" id="light" />
-							<Label.Root for="light">Light</Label.Root>
+							<Label.Root for="light">{$t('app.system_settings.light')}</Label.Root>
 						</div>
 						<div class="flex items-center gap-2">
 							<RadioGroup.Item value="dark" id="dark" />
-							<Label.Root for="dark">Dark</Label.Root>
+							<Label.Root for="dark">{$t('app.system_settings.dark')}</Label.Root>
 						</div>
 						<div class="flex items-center gap-2">
 							<RadioGroup.Item value="system" id="system" />
-							<Label.Root for="system">System</Label.Root>
+							<Label.Root for="system">{$t('app.system_settings.system')}</Label.Root>
 						</div>
 					</RadioGroup.Root>
 				</div>
 
 				<div class="grid gap-2">
-					<Label.Root class="mb-1" for="supportEmail">Support Email</Label.Root>
+					<Label.Root class="mb-1" for="supportEmail"
+						>{$t('app.system_settings.support_email')}</Label.Root
+					>
 					<Input
 						id="supportEmail"
 						name="supportEmail"
@@ -115,7 +121,11 @@
 			</Card.Content>
 			<Card.Footer class="border-t px-6 py-4">
 				<Button type="submit" disabled={isSaving}>
-					{#if isSaving}Saving...{:else}Save Changes{/if}
+					{#if isSaving}
+						{$t('app.system_settings.saving')}...
+					{:else}
+						{$t('app.system_settings.save_changes')}
+					{/if}
 				</Button>
 			</Card.Footer>
 		</Card.Root>

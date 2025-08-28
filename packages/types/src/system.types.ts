@@ -6,7 +6,8 @@ export type SupportedLanguage =
     | 'it' // Italian
     | 'pt' // Portuguese
     | 'nl' // Dutch
-    | 'ja'; // Japanese
+    | 'ja' // Japanese
+    | 'et'; // Estonian
 
 export type Theme = 'light' | 'dark' | 'system';
 

@@ -16,6 +16,7 @@
 	import type { MatchingStrategy } from '@open-archiver/types';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import * as Alert from '$lib/components/ui/alert/index.js';
+	import { t } from '$lib/translations';
 
 	let { data }: { data: PageData } = $props();
 	let searchResult = $derived(data.searchResult);
@@ -27,13 +28,14 @@
 	);
 
 	const strategies = [
-		{ value: 'last', label: 'Fuzzy' },
-		{ value: 'all', label: 'Verbatim' },
-		{ value: 'frequency', label: 'Frequency' },
+		{ value: 'last', label: $t('app.search.strategy_fuzzy') },
+		{ value: 'all', label: $t('app.search.strategy_verbatim') },
+		{ value: 'frequency', label: $t('app.search.strategy_frequency') },
 	];
 
 	const triggerContent = $derived(
-		strategies.find((s) => s.value === matchingStrategy)?.label ?? 'Select a strategy'
+		strategies.find((s) => s.value === matchingStrategy)?.label ??
+			$t('app.search.select_strategy')
 	);
 
 	let isMounted = $state(false);
@@ -170,25 +172,27 @@
 </script>
 
 <svelte:head>
-	<title>Search | Open Archiver</title>
-	<meta name="description" content="Search for archived emails." />
+	<title>{$t('app.search.title')} | Open Archiver</title>
+	<meta name="description" content={$t('app.search.description')} />
 </svelte:head>
 
 <div class="container mx-auto p-4 md:p-8">
-	<h1 class="mb-4 text-2xl font-bold">Email Search</h1>
+	<h1 class="mb-4 text-2xl font-bold">{$t('app.search.email_search')}</h1>
 
 	<form onsubmit={handleSearch} class="mb-8 flex flex-col space-y-2">
 		<div class="flex items-center gap-2">
 			<Input
 				type="search"
 				name="keywords"
-				placeholder="Search by keyword, sender, recipient..."
+				placeholder={$t('app.search.placeholder')}
 				class=" h-12 flex-grow"
 				bind:value={keywords}
 			/>
-			<Button type="submit" class="h-12 cursor-pointer">Search</Button>
+			<Button type="submit" class="h-12 cursor-pointer"
+				>{$t('app.search.search_button')}</Button
+			>
 		</div>
-		<div class="mt-1 text-xs font-medium">Search options</div>
+		<div class="mt-1 text-xs font-medium">{$t('app.search.search_options')}</div>
 		<div class="flex items-center gap-2">
 			<Select.Root type="single" name="matchingStrategy" bind:value={matchingStrategy}>
 				<Select.Trigger class=" w-[180px] cursor-pointer">
@@ -212,7 +216,7 @@
 	{#if error}
 		<Alert.Root variant="destructive">
 			<CircleAlertIcon class="size-4" />
-			<Alert.Title>Error</Alert.Title>
+			<Alert.Title>{$t('app.search.error')}</Alert.Title>
 			<Alert.Description>{error}</Alert.Description>
 		</Alert.Root>
 	{/if}
@@ -220,9 +224,12 @@
 	{#if searchResult}
 		<p class="text-muted-foreground mb-4">
 			{#if searchResult.total > 0}
-				Found {searchResult.total} results in {searchResult.processingTimeMs / 1000}s
+				{$t('app.search.found_results_in', {
+					total: searchResult.total,
+					seconds: searchResult.processingTimeMs / 1000,
+				} as any)}
 			{:else}
-				Found {searchResult.total} results
+				{$t('app.search.found_results', { total: searchResult.total } as any)}
 			{/if}
 		</p>
 
@@ -240,7 +247,7 @@
 								{/if}
 							</CardTitle>
 							<CardDescription class="flex items-center space-x-1">
-								<span>From:</span>
+								<span>{$t('app.search.from')}:</span>
 								{#if !isMounted}
 									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
 									></span>
@@ -251,7 +258,7 @@
 									></span>
 								{/if}
 								<span class="mx-2">|</span>
-								<span>To:</span>
+								<span>{$t('app.search.to')}:</span>
 								{#if !isMounted}
 									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
 									></span>
@@ -280,7 +287,9 @@
 									<div
 										class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
 									>
-										<p class="text-sm text-gray-500">In email body:</p>
+										<p class="text-sm text-gray-500">
+											{$t('app.search.in_email_body')}:
+										</p>
 										{#if !isMounted}
 											<Skeleton class="my-2 h-5 w-full bg-gray-200" />
 										{:else}
@@ -302,7 +311,9 @@
 												class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
 											>
 												<p class="text-sm text-gray-500">
-													In attachment: {attachment.filename}
+													{$t('app.search.in_attachment', {
+														filename: attachment.filename,
+													} as any)}
 												</p>
 												{#if !isMounted}
 													<Skeleton class="my-2 h-5 w-full bg-gray-200" />
@@ -331,7 +342,7 @@
 					}&matchingStrategy=${matchingStrategy}`}
 					class={page === 1 ? 'pointer-events-none' : ''}
 				>
-					<Button variant="outline" disabled={page === 1}>Prev</Button>
+					<Button variant="outline" disabled={page === 1}>{$t('app.search.prev')}</Button>
 				</a>
 
 				{#each paginationItems as item}
@@ -357,7 +368,7 @@
 					<Button
 						variant="outline"
 						disabled={page === Math.ceil(searchResult.total / searchResult.limit)}
-						>Next</Button
+						>{$t('app.search.next')}</Button
 					>
 				</a>
 			</div>

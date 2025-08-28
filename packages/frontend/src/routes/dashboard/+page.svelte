@@ -8,6 +8,7 @@
 	import TopSendersChart from '$lib/components/custom/charts/TopSendersChart.svelte';
 	import IngestionHistoryChart from '$lib/components/custom/charts/IngestionHistoryChart.svelte';
 	import StorageBySourceChart from '$lib/components/custom/charts/StorageBySourceChart.svelte';
+	import { t } from '$lib/translations';
 	let { data }: { data: PageData } = $props();
 
 	const transformedHistory = $derived(
@@ -19,20 +20,20 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard - OpenArchiver</title>
-	<meta name="description" content="Overview of your email archive." />
+	<title>{$t('app.dashboard_page.title')} - OpenArchiver</title>
+	<meta name="description" content={$t('app.dashboard_page.meta_description')} />
 </svelte:head>
 
 <div class="flex-1 space-y-4">
 	<div class="flex items-center justify-between space-y-2">
-		<h2 class="text-3xl font-bold tracking-tight">Dashboard</h2>
+		<h2 class="text-3xl font-bold tracking-tight">{$t('app.dashboard_page.header')}</h2>
 	</div>
 	{#if !data.ingestionSources || data.ingestionSources?.length === 0}
 		<div>
 			<EmptyState
-				buttonText="Create an ingestion"
-				header="You don't have any ingestion source set up."
-				text="Add an ingestion source to start archiving your inboxes."
+				buttonText={$t('app.dashboard_page.create_ingestion')}
+				header={$t('app.dashboard_page.no_ingestion_header')}
+				text={$t('app.dashboard_page.no_ingestion_text')}
 				click={() => {
 					goto('/dashboard/ingestions');
 				}}
@@ -47,9 +48,9 @@
 						<Card.Header
 							class="flex flex-row items-center justify-between space-y-0 pb-2"
 						>
-							<Card.Title class="text-sm font-medium"
-								>Total Emails Archived</Card.Title
-							>
+							<Card.Title class="text-sm font-medium">
+								{$t('app.dashboard_page.total_emails_archived')}
+							</Card.Title>
 							<Archive class="text-muted-foreground h-4 w-4" />
 						</Card.Header>
 						<Card.Content>
@@ -62,7 +63,9 @@
 						<Card.Header
 							class="flex flex-row items-center justify-between space-y-0 pb-2"
 						>
-							<Card.Title class="text-sm font-medium">Total Storage Used</Card.Title>
+							<Card.Title class="text-sm font-medium"
+								>{$t('app.dashboard_page.total_storage_used')}</Card.Title
+							>
 							<HardDrive class="text-muted-foreground h-4 w-4" />
 						</Card.Header>
 						<Card.Content>
@@ -75,9 +78,9 @@
 						<Card.Header
 							class="flex flex-row items-center justify-between space-y-0 pb-2"
 						>
-							<Card.Title class="text-sm font-medium"
-								>Failed Ingestions (Last 7 Days)</Card.Title
-							>
+							<Card.Title class="text-sm font-medium">
+								{$t('app.dashboard_page.failed_ingestions')}
+							</Card.Title>
 							<CircleAlert class=" text-muted-foreground h-4 w-4" />
 						</Card.Header>
 						<Card.Content>
@@ -97,13 +100,13 @@
 				<div class=" lg:col-span-2">
 					<Card.Root>
 						<Card.Header>
-							<Card.Title>Ingestion History</Card.Title>
+							<Card.Title>{$t('app.dashboard_page.ingestion_history')}</Card.Title>
 						</Card.Header>
 						<Card.Content class=" pl-4">
 							{#if transformedHistory.length > 0}
 								<IngestionHistoryChart data={transformedHistory} />
 							{:else}
-								<p>No ingestion history available.</p>
+								<p>{$t('app.dashboard_page.no_ingestion_history')}</p>
 							{/if}
 						</Card.Content>
 					</Card.Root>
@@ -111,31 +114,33 @@
 				<div class=" lg:col-span-1">
 					<Card.Root class="h-full">
 						<Card.Header>
-							<Card.Title>Storage by Ingestion Source</Card.Title>
+							<Card.Title>{$t('app.dashboard_page.storage_by_source')}</Card.Title>
 						</Card.Header>
 						<Card.Content class="h-full">
 							{#if data.ingestionSources && data.ingestionSources.length > 0}
 								<StorageBySourceChart data={data.ingestionSources} />
 							{:else}
-								<p>No ingestion sources available.</p>
+								<p>{$t('app.dashboard_page.no_ingestion_sources')}</p>
 							{/if}
 						</Card.Content>
 					</Card.Root>
 				</div>
 			</div>
 			<div>
-				<h1 class="text-xl font-semibold leading-6">Indexed insights</h1>
+				<h1 class="text-xl font-semibold leading-6">
+					{$t('app.dashboard_page.indexed_insights')}
+				</h1>
 			</div>
 			<div class="grid grid-cols-1">
 				<Card.Root>
 					<Card.Header>
-						<Card.Title>Top 10 Senders</Card.Title>
+						<Card.Title>{$t('app.dashboard_page.top_10_senders')}</Card.Title>
 					</Card.Header>
 					<Card.Content>
 						{#if data.indexedInsights && data.indexedInsights.topSenders.length > 0}
 							<TopSendersChart data={data.indexedInsights.topSenders} />
 						{:else}
-							<p>No indexed insights available.</p>
+							<p>{$t('app.dashboard_page.no_indexed_insights')}</p>
 						{/if}
 					</Card.Content>
 				</Card.Root>

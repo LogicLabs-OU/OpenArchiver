@@ -2,6 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import 'dotenv/config';
 import { api } from '$lib/server/api';
+import type { SystemSettings } from '@open-archiver/types';
 
 export const load: LayoutServerLoad = async (event) => {
 	const { locals, url } = event;
@@ -21,7 +22,7 @@ export const load: LayoutServerLoad = async (event) => {
 	}
 
 	const settingsResponse = await api('/settings', event);
-	const settings = settingsResponse.ok ? await settingsResponse.json() : null;
+	const settings: SystemSettings | null = settingsResponse.ok ? await settingsResponse.json() : null;
 
 	return {
 		user: locals.user,

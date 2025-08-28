@@ -7,6 +7,7 @@
 	import { api } from '$lib/api.client';
 	import { authStore } from '$lib/stores/auth.store';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
+	import { t } from '$lib/translations';
 
 	let first_name = '';
 	let last_name = '';
@@ -45,11 +46,8 @@
 </script>
 
 <svelte:head>
-	<title>Setup - Open Archiver</title>
-	<meta
-		name="description"
-		content="Set up the initial administrator account for Open Archiver."
-	/>
+	<title>{$t('app.setup.title')} - Open Archiver</title>
+	<meta name="description" content={$t('app.setup.description')} />
 </svelte:head>
 
 <div
@@ -67,35 +65,33 @@
 	</div>
 	<Card.Root class="w-full max-w-md">
 		<Card.Header class="space-y-1">
-			<Card.Title class="text-2xl">Welcome</Card.Title>
-			<Card.Description
-				>Create the first administrator account to get started.</Card.Description
-			>
+			<Card.Title class="text-2xl">{$t('app.setup.welcome')}</Card.Title>
+			<Card.Description>{$t('app.setup.create_admin_account')}</Card.Description>
 		</Card.Header>
 		<Card.Content class="grid gap-4">
 			<form on:submit|preventDefault={handleSubmit} class="grid gap-4">
 				<div class="grid gap-2">
-					<Label for="first_name">First name</Label>
+					<Label for="first_name">{$t('app.setup.first_name')}</Label>
 					<Input
 						id="first_name"
 						type="text"
-						placeholder="First name"
+						placeholder={$t('app.setup.first_name')}
 						bind:value={first_name}
 						required
 					/>
 				</div>
 				<div class="grid gap-2">
-					<Label for="last_name">Last name</Label>
+					<Label for="last_name">{$t('app.setup.last_name')}</Label>
 					<Input
 						id="last_name"
 						type="text"
-						placeholder="Last name"
+						placeholder={$t('app.setup.last_name')}
 						bind:value={last_name}
 						required
 					/>
 				</div>
 				<div class="grid gap-2">
-					<Label for="email">Email</Label>
+					<Label for="email">{$t('app.setup.email')}</Label>
 					<Input
 						id="email"
 						type="email"
@@ -105,15 +101,15 @@
 					/>
 				</div>
 				<div class="grid gap-2">
-					<Label for="password">Password</Label>
+					<Label for="password">{$t('app.setup.password')}</Label>
 					<Input id="password" type="password" bind:value={password} required />
 				</div>
 
 				<Button type="submit" class="w-full" disabled={isLoading}>
 					{#if isLoading}
-						<span>Creating Account...</span>
+						<span>{$t('app.setup.creating_account')}...</span>
 					{:else}
-						<span>Create Account</span>
+						<span>{$t('app.setup.create_account')}</span>
 					{/if}
 				</Button>
 			</form>

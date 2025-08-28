@@ -5,6 +5,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import { t } from '$lib/translations';
 
 	let {
 		user = null,
@@ -25,7 +26,7 @@
 	});
 
 	const triggerContent = $derived(
-		roles.find((r) => r.id === formData.roleId)?.name ?? 'Select a role'
+		roles.find((r) => r.id === formData.roleId)?.name ?? $t('components.user_form.select_role')
 	);
 
 	let isSubmitting = $state(false);
@@ -53,20 +54,20 @@
 
 <form onsubmit={handleSubmit} class="grid gap-4 py-4">
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="first_name" class="text-left">First Name</Label>
+		<Label for="first_name" class="text-left">{$t('setup.first_name')}</Label>
 		<Input id="first_name" bind:value={formData.first_name} class="col-span-3" />
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="last_name" class="text-left">Last Name</Label>
+		<Label for="last_name" class="text-left">{$t('setup.last_name')}</Label>
 		<Input id="last_name" bind:value={formData.last_name} class="col-span-3" />
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="email" class="text-left">Email</Label>
+		<Label for="email" class="text-left">{$t('users.email')}</Label>
 		<Input id="email" type="email" bind:value={formData.email} class="col-span-3" />
 	</div>
 	{#if !user}
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="password" class="text-left">Password</Label>
+			<Label for="password" class="text-left">{$t('auth.password')}</Label>
 			<Input
 				id="password"
 				type="password"
@@ -76,7 +77,7 @@
 		</div>
 	{/if}
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="role" class="text-left">Role</Label>
+		<Label for="role" class="text-left">{$t('users.role')}</Label>
 		<Select.Root name="role" bind:value={formData.roleId} type="single">
 			<Select.Trigger class="col-span-3">
 				{triggerContent}
@@ -92,9 +93,9 @@
 	<Dialog.Footer>
 		<Button type="submit" disabled={isSubmitting}>
 			{#if isSubmitting}
-				Submitting...
+				{$t('components.common.submitting')}
 			{:else}
-				Submit
+				{$t('components.common.submit')}
 			{/if}
 		</Button>
 	</Dialog.Footer>

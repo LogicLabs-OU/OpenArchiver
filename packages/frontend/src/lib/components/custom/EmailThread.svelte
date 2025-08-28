@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import type { ArchivedEmail } from '@open-archiver/types';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
+	import { t } from '$lib/translations';
 
 	let {
 		thread,
@@ -47,16 +48,16 @@
 										goto(`/dashboard/archived-emails/${item.id}`, {
 											invalidateAll: true,
 										});
-									}}>{item.subject || 'No Subject'}</a
+									}}>{item.subject || $t('archive.no_subject')}</a
 								>
 							{:else}
-								{item.subject || 'No Subject'}
+								{item.subject || $t('archive.no_subject')}
 							{/if}
 						</h4>
 						<div
 							class="flex flex-col space-y-2 text-sm font-normal leading-none text-gray-400"
 						>
-							<span>From: {item.senderEmail}</span>
+							<span>{$t('archive.from')}: {item.senderEmail}</span>
 							<time class="">{new Date(item.sentAt).toLocaleString()}</time>
 						</div>
 					</div>

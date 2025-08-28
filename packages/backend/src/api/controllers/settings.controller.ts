@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { SettingsService } from '../../services/SettingsService';
+import { SystemSettings } from '@open-archiver/types';
 
 const settingsService = new SettingsService();
 

@@ -4,12 +4,13 @@
 	import type { IngestionSourceStats } from '@open-archiver/types';
 	import type { ChartConfig } from '$lib/components/ui/chart';
 	import { formatBytes } from '$lib/utils';
+	import { t } from '$lib/translations';
 
 	export let data: IngestionSourceStats[];
 
 	const chartConfig = {
 		storageUsed: {
-			label: 'Storage Used',
+			label: $t('app.components.charts.storage_used'),
 		},
 	} satisfies ChartConfig;
 </script>

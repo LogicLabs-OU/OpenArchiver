@@ -11,6 +11,7 @@
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { api } from '$lib/api.client';
 	import { Loader2 } from 'lucide-svelte';
+	import { t } from '$lib/translations';
 	let {
 		source = null,
 		onSubmit,
@@ -20,11 +21,20 @@
 	} = $props();
 
 	const providerOptions = [
-		{ value: 'generic_imap', label: 'Generic IMAP' },
-		{ value: 'google_workspace', label: 'Google Workspace' },
-		{ value: 'microsoft_365', label: 'Microsoft 365' },
-		{ value: 'pst_import', label: 'PST Import' },
-		{ value: 'eml_import', label: 'EML Import' },
+		{
+			value: 'generic_imap',
+			label: $t('components.ingestion_source_form.provider_generic_imap'),
+		},
+		{
+			value: 'google_workspace',
+			label: $t('components.ingestion_source_form.provider_google_workspace'),
+		},
+		{
+			value: 'microsoft_365',
+			label: $t('components.ingestion_source_form.provider_microsoft_365'),
+		},
+		{ value: 'pst_import', label: $t('components.ingestion_source_form.provider_pst_import') },
+		{ value: 'eml_import', label: $t('components.ingestion_source_form.provider_eml_import') },
 	];
 
 	let formData: CreateIngestionSourceDto = $state({
@@ -42,7 +52,8 @@
 	});
 
 	const triggerContent = $derived(
-		providerOptions.find((p) => p.value === formData.provider)?.label ?? 'Select a provider'
+		providerOptions.find((p) => p.value === formData.provider)?.label ??
+			$t('components.ingestion_source_form.select_provider')
 	);
 
 	let isSubmitting = $state(false);
@@ -89,7 +100,7 @@
 			fileUploading = false;
 			setAlert({
 				type: 'error',
-				title: 'Upload Failed, please try again',
+				title: $t('components.ingestion_source_form.upload_failed'),
 				message: JSON.stringify(error),
 				duration: 5000,
 				show: true,
@@ -100,11 +111,11 @@
 
 <form onsubmit={handleSubmit} class="grid gap-4 py-4">
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="name" class="text-left">Name</Label>
+		<Label for="name" class="text-left">{$t('ingestions.name')}</Label>
 		<Input id="name" bind:value={formData.name} class="col-span-3" />
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="provider" class="text-left">Provider</Label>
+		<Label for="provider" class="text-left">{$t('ingestions.provider')}</Label>
 		<Select.Root name="provider" bind:value={formData.provider} type="single">
 			<Select.Trigger class="col-span-3">
 				{triggerContent}
@@ -119,16 +130,20 @@
 
 	{#if formData.provider === 'google_workspace'}
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="serviceAccountKeyJson" class="text-left">Service Account Key (JSON)</Label>
+			<Label for="serviceAccountKeyJson" class="text-left"
+				>{$t('components.ingestion_source_form.service_account_key')}</Label
+			>
 			<Textarea
-				placeholder="Paste your service account key JSON content"
+				placeholder={$t('components.ingestion_source_form.service_account_key_placeholder')}
 				id="serviceAccountKeyJson"
 				bind:value={formData.providerConfig.serviceAccountKeyJson}
 				class="col-span-3 max-h-32"
 			/>
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="impersonatedAdminEmail" class="text-left">Impersonated Admin Email</Label>
+			<Label for="impersonatedAdminEmail" class="text-left"
+				>{$t('components.ingestion_source_form.impersonated_admin_email')}</Label
+			>
 			<Input
 				id="impersonatedAdminEmail"
 				bind:value={formData.providerConfig.impersonatedAdminEmail}
@@ -137,30 +152,38 @@
 		</div>
 	{:else if formData.provider === 'microsoft_365'}
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="clientId" class="text-left">Application (Client) ID</Label>
+			<Label for="clientId" class="text-left"
+				>{$t('components.ingestion_source_form.client_id')}</Label
+			>
 			<Input id="clientId" bind:value={formData.providerConfig.clientId} class="col-span-3" />
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="clientSecret" class="text-left">Client Secret Value</Label>
+			<Label for="clientSecret" class="text-left"
+				>{$t('components.ingestion_source_form.client_secret')}</Label
+			>
 			<Input
 				id="clientSecret"
 				type="password"
-				placeholder="Enter the secret Value, not the Secret ID"
+				placeholder={$t('components.ingestion_source_form.client_secret_placeholder')}
 				bind:value={formData.providerConfig.clientSecret}
 				class="col-span-3"
 			/>
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="tenantId" class="text-left">Directory (Tenant) ID</Label>
+			<Label for="tenantId" class="text-left"
+				>{$t('components.ingestion_source_form.tenant_id')}</Label
+			>
 			<Input id="tenantId" bind:value={formData.providerConfig.tenantId} class="col-span-3" />
 		</div>
 	{:else if formData.provider === 'generic_imap'}
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="host" class="text-left">Host</Label>
+			<Label for="host" class="text-left">{$t('components.ingestion_source_form.host')}</Label
+			>
 			<Input id="host" bind:value={formData.providerConfig.host} class="col-span-3" />
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="port" class="text-left">Port</Label>
+			<Label for="port" class="text-left">{$t('components.ingestion_source_form.port')}</Label
+			>
 			<Input
 				id="port"
 				type="number"
@@ -169,11 +192,13 @@
 			/>
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="username" class="text-left">Username</Label>
+			<Label for="username" class="text-left"
+				>{$t('components.ingestion_source_form.username')}</Label
+			>
 			<Input id="username" bind:value={formData.providerConfig.username} class="col-span-3" />
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="password" class="text-left">Password</Label>
+			<Label for="password" class="text-left">{$t('auth.password')}</Label>
 			<Input
 				id="password"
 				type="password"
@@ -182,12 +207,16 @@
 			/>
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="secure" class="text-left">Use TLS</Label>
+			<Label for="secure" class="text-left"
+				>{$t('components.ingestion_source_form.use_tls')}</Label
+			>
 			<Checkbox id="secure" bind:checked={formData.providerConfig.secure} />
 		</div>
 	{:else if formData.provider === 'pst_import'}
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="pst-file" class="text-left">PST File</Label>
+			<Label for="pst-file" class="text-left"
+				>{$t('components.ingestion_source_form.pst_file')}</Label
+			>
 			<div class="col-span-3 flex flex-row items-center space-x-2">
 				<Input
 					id="pst-file"
@@ -203,7 +232,9 @@
 		</div>
 	{:else if formData.provider === 'eml_import'}
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="eml-file" class="text-left">EML File</Label>
+			<Label for="eml-file" class="text-left"
+				>{$t('components.ingestion_source_form.eml_file')}</Label
+			>
 			<div class="col-span-3 flex flex-row items-center space-x-2">
 				<Input
 					id="eml-file"
@@ -220,12 +251,10 @@
 	{/if}
 	{#if formData.provider === 'google_workspace' || formData.provider === 'microsoft_365'}
 		<Alert.Root>
-			<Alert.Title>Heads up!</Alert.Title>
+			<Alert.Title>{$t('components.ingestion_source_form.heads_up')}</Alert.Title>
 			<Alert.Description>
 				<div class="my-1">
-					Please note that this is an organization-wide operation. This kind of ingestions
-					will import and index <b>all</b> email inboxes in your organization. If you want
-					to import only specific email inboxes, use the IMAP connector.
+					{@html $t('components.ingestion_source_form.org_wide_warning')}
 				</div>
 			</Alert.Description>
 		</Alert.Root>
@@ -233,9 +262,9 @@
 	<Dialog.Footer>
 		<Button type="submit" disabled={isSubmitting || fileUploading}>
 			{#if isSubmitting}
-				Submitting...
+				{$t('components.common.submitting')}
 			{:else}
-				Submit
+				{$t('components.common.submit')}
 			{/if}
 		</Button>
 	</Dialog.Footer>
