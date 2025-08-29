@@ -23,19 +23,19 @@ export const createIamRouter = (iamController: IamController, authService: AuthS
 	 */
 	router.post(
 		'/roles',
-		requirePermission('manage', 'all', 'Super Admin role is required to manage roles.'),
+		requirePermission('manage', 'all', 'iam.requiresSuperAdminRole'),
 		iamController.createRole
 	);
 
 	router.delete(
 		'/roles/:id',
-		requirePermission('manage', 'all', 'Super Admin role is required to manage roles.'),
+		requirePermission('manage', 'all', 'iam.requiresSuperAdminRole'),
 		iamController.deleteRole
 	);
 
 	router.put(
 		'/roles/:id',
-		requirePermission('manage', 'all', 'Super Admin role is required to manage roles.'),
+		requirePermission('manage', 'all', 'iam.requiresSuperAdminRole'),
 		iamController.updateRole
 	);
 	return router;

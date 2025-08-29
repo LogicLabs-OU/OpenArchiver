@@ -12,7 +12,7 @@ export default defineConfig({
 		],
 		['link', { rel: 'icon', href: '/logo-sq.svg' }],
 	],
-	title: 'Open Archiver',
+	title: 'Open Archiver Docs',
 	description: 'Official documentation for the Open Archiver project.',
 	themeConfig: {
 		search: {
@@ -54,6 +54,16 @@ export default defineConfig({
 							{ text: 'PST Import', link: '/user-guides/email-providers/pst' },
 						],
 					},
+					{
+						text: 'Settings',
+						collapsed: true,
+						items: [
+							{
+								text: 'System',
+								link: '/user-guides/settings/system',
+							},
+						],
+					},
 				],
 			},
 			{
@@ -75,9 +85,8 @@ export default defineConfig({
 					{ text: 'Overview', link: '/services/' },
 					{ text: 'Storage Service', link: '/services/storage-service' },
 					{
-						text: 'IAM Service', items: [
-							{ text: 'IAM Policies', link: '/services/iam-service/iam-policy' }
-						]
+						text: 'IAM Service',
+						items: [{ text: 'IAM Policies', link: '/services/iam-service/iam-policy' }],
 					},
 				],
 			},

@@ -25,9 +25,11 @@ export const requirePermission = (
 		);
 
 		if (!hasPermission) {
+			const message = rejectMessage
+				? req.t(rejectMessage)
+				: req.t('errors.noPermissionToAction');
 			return res.status(403).json({
-				message:
-					rejectMessage || `You don't have the permission to perform the current action.`,
+				message,
 			});
 		}
 

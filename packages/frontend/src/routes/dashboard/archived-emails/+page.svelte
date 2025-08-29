@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import { goto } from '$app/navigation';
+	import { t } from '$lib/translations';
 
 	let { data }: { data: PageData } = $props();
 
@@ -68,11 +69,11 @@
 </script>
 
 <svelte:head>
-	<title>Archived emails - OpenArchiver</title>
+	<title>{$t('app.archived_emails_page.title')} - OpenArchiver</title>
 </svelte:head>
 
 <div class="mb-4 flex items-center justify-between">
-	<h1 class="text-2xl font-bold">Archived Emails</h1>
+	<h1 class="text-2xl font-bold">{$t('app.archived_emails_page.header')}</h1>
 	{#if ingestionSources.length > 0}
 		<div class="w-[250px]">
 			<Select.Root
@@ -84,7 +85,7 @@
 					<span
 						>{selectedIngestionSourceId
 							? ingestionSources.find((s) => s.id === selectedIngestionSourceId)?.name
-							: 'Select an ingestion source'}</span
+							: $t('app.archived_emails_page.select_ingestion_source')}</span
 					>
 				</Select.Trigger>
 				<Select.Content>
@@ -101,12 +102,12 @@
 	<Table.Root>
 		<Table.Header>
 			<Table.Row>
-				<Table.Head>Date</Table.Head>
-				<Table.Head>Subject</Table.Head>
-				<Table.Head>Sender</Table.Head>
-				<Table.Head>Inbox</Table.Head>
-				<Table.Head>Path</Table.Head>
-				<Table.Head class="text-right">Actions</Table.Head>
+				<Table.Head>{$t('app.archived_emails_page.date')}</Table.Head>
+				<Table.Head>{$t('app.archived_emails_page.subject')}</Table.Head>
+				<Table.Head>{$t('app.archived_emails_page.sender')}</Table.Head>
+				<Table.Head>{$t('app.archived_emails_page.inbox')}</Table.Head>
+				<Table.Head>{$t('app.archived_emails_page.path')}</Table.Head>
+				<Table.Head class="text-right">{$t('app.archived_emails_page.actions')}</Table.Head>
 			</Table.Row>
 		</Table.Header>
 		<Table.Body class="text-sm">
@@ -135,7 +136,9 @@
 						</Table.Cell>
 						<Table.Cell class="text-right">
 							<a href={`/dashboard/archived-emails/${email.id}`}>
-								<Button variant="outline">View</Button>
+								<Button variant="outline"
+									>{$t('app.archived_emails_page.view')}</Button
+								>
 							</a>
 						</Table.Cell>
 					</Table.Row>
@@ -143,7 +146,7 @@
 			{:else}
 				<Table.Row>
 					<Table.Cell colspan={5} class="text-center"
-						>No archived emails found.</Table.Cell
+						>{$t('app.archived_emails_page.no_emails_found')}</Table.Cell
 					>
 				</Table.Row>
 			{/if}
@@ -159,7 +162,9 @@
 			}&limit=${archivedEmails.limit}`}
 			class={archivedEmails.page === 1 ? 'pointer-events-none' : ''}
 		>
-			<Button variant="outline" disabled={archivedEmails.page === 1}>Prev</Button>
+			<Button variant="outline" disabled={archivedEmails.page === 1}
+				>{$t('app.archived_emails_page.prev')}</Button
+			>
 		</a>
 
 		{#each paginationItems as item}
@@ -187,7 +192,8 @@
 			<Button
 				variant="outline"
 				disabled={archivedEmails.page ===
-					Math.ceil(archivedEmails.total / archivedEmails.limit)}>Next</Button
+					Math.ceil(archivedEmails.total / archivedEmails.limit)}
+				>{$t('app.archived_emails_page.next')}</Button
 			>
 		</a>
 	</div>

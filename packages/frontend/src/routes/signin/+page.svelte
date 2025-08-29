@@ -8,6 +8,7 @@
 	import { authStore } from '$lib/stores/auth.store';
 	import type { LoginResponse } from '@open-archiver/types';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
+	import { t } from '$lib/translations';
 
 	let email = '';
 	let password = '';
@@ -50,7 +51,7 @@
 </script>
 
 <svelte:head>
-	<title>Login - Open Archiver</title>
+	<title>{$t('app.auth.login')} - Open Archiver</title>
 	<meta name="description" content="Login to your Open Archiver account." />
 </svelte:head>
 
@@ -69,13 +70,13 @@
 	</div>
 	<Card.Root class="w-full max-w-md">
 		<Card.Header class="space-y-1">
-			<Card.Title class="text-2xl">Login</Card.Title>
-			<Card.Description>Enter your email below to login to your account.</Card.Description>
+			<Card.Title class="text-2xl">{$t('app.auth.login')}</Card.Title>
+			<Card.Description>{$t('app.auth.login_tip')}</Card.Description>
 		</Card.Header>
 		<Card.Content class="grid gap-4">
 			<form onsubmit={handleSubmit} class="grid gap-4">
 				<div class="grid gap-2">
-					<Label for="email">Email</Label>
+					<Label for="email">{$t('app.auth.email')}</Label>
 					<Input
 						id="email"
 						type="email"
@@ -85,12 +86,12 @@
 					/>
 				</div>
 				<div class="grid gap-2">
-					<Label for="password">Password</Label>
+					<Label for="password">{$t('app.auth.password')}</Label>
 					<Input id="password" type="password" bind:value={password} required />
 				</div>
 
 				<Button type="submit" class=" w-full" disabled={isLoading}>
-					{isLoading ? 'Logging in...' : 'Login'}
+					{isLoading ? $t('app.common.working') : $t('app.auth.login')}
 				</Button>
 			</form>
 		</Card.Content>

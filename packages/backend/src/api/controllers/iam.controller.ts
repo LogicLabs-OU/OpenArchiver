@@ -22,7 +22,7 @@ export class IamController {
 			}
 			res.status(200).json(roles);
 		} catch (error) {
-			res.status(500).json({ message: 'Failed to get roles.' });
+			res.status(500).json({ message: req.t('iam.failedToGetRoles') });
 		}
 	};
 
@@ -34,21 +34,21 @@ export class IamController {
 			if (role) {
 				res.status(200).json(role);
 			} else {
-				res.status(404).json({ message: 'Role not found.' });
+				res.status(404).json({ message: req.t('iam.roleNotFound') });
 			}
 		} catch (error) {
-			res.status(500).json({ message: 'Failed to get role.' });
+			res.status(500).json({ message: req.t('iam.failedToGetRole') });
 		}
 	};
 
 	public createRole = async (req: Request, res: Response) => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		const { name, policies } = req.body;
 
 		if (!name || !policies) {
-			res.status(400).json({ message: 'Missing required fields: name and policy.' });
+			res.status(400).json({ message: req.t('iam.missingRoleFields') });
 			return;
 		}
 
@@ -56,7 +56,7 @@ export class IamController {
 			for (const statement of policies) {
 				const { valid, reason } = PolicyValidator.isValid(statement as CaslPolicy);
 				if (!valid) {
-					res.status(400).json({ message: `Invalid policy statement: ${reason}` });
+					res.status(400).json({ message: `${req.t('iam.invalidPolicy')} ${reason}` });
 					return;
 				}
 			}
@@ -64,13 +64,13 @@ export class IamController {
 			res.status(201).json(role);
 		} catch (error) {
 			console.log(error);
-			res.status(500).json({ message: 'Failed to create role.' });
+			res.status(500).json({ message: req.t('iam.failedToCreateRole') });
 		}
 	};
 
 	public deleteRole = async (req: Request, res: Response) => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		const { id } = req.params;
 
@@ -78,19 +78,19 @@ export class IamController {
 			await this.#iamService.deleteRole(id);
 			res.status(204).send();
 		} catch (error) {
-			res.status(500).json({ message: 'Failed to delete role.' });
+			res.status(500).json({ message: req.t('iam.failedToDeleteRole') });
 		}
 	};
 
 	public updateRole = async (req: Request, res: Response) => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		const { id } = req.params;
 		const { name, policies } = req.body;
 
 		if (!name && !policies) {
-			res.status(400).json({ message: 'Missing fields to update: name or policies.' });
+			res.status(400).json({ message: req.t('iam.missingUpdateFields') });
 			return;
 		}
 
@@ -98,7 +98,7 @@ export class IamController {
 			for (const statement of policies) {
 				const { valid, reason } = PolicyValidator.isValid(statement as CaslPolicy);
 				if (!valid) {
-					res.status(400).json({ message: `Invalid policy statement: ${reason}` });
+					res.status(400).json({ message: `${req.t('iam.invalidPolicy')} ${reason}` });
 					return;
 				}
 			}
@@ -108,7 +108,7 @@ export class IamController {
 			const role = await this.#iamService.updateRole(id, { name, policies });
 			res.status(200).json(role);
 		} catch (error) {
-			res.status(500).json({ message: 'Failed to update role.' });
+			res.status(500).json({ message: req.t('iam.failedToUpdateRole') });
 		}
 	};
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PostalMime, { type Email } from 'postal-mime';
 	import type { Buffer } from 'buffer';
+	import { t } from '$lib/translations';
 
 	let {
 		raw,
@@ -51,13 +52,16 @@
 
 <div class="mt-2 rounded-md border bg-white p-4">
 	{#if isLoading}
-		<p>Loading email preview...</p>
+		<p>{$t('components.email_preview.loading')}</p>
 	{:else if emailHtml}
-		<iframe title="Email Preview" srcdoc={emailHtml()} class="h-[600px] w-full border-none"
+		<iframe
+			title={$t('archive.email_preview')}
+			srcdoc={emailHtml()}
+			class="h-[600px] w-full border-none"
 		></iframe>
 	{:else if raw}
-		<p>Could not render email preview.</p>
+		<p>{$t('components.email_preview.render_error')}</p>
 	{:else}
-		<p class="text-gray-500">Raw .eml file not available for this email.</p>
+		<p class="text-gray-500">{$t('components.email_preview.not_available')}</p>
 	{/if}
 </div>

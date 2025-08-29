@@ -10,7 +10,7 @@ export class StorageController {
 		const unsafePath = req.query.path as string;
 
 		if (!unsafePath) {
-			res.status(400).send('File path is required');
+			res.status(400).send(req.t('storage.filePathRequired'));
 			return;
 		}
 
@@ -24,7 +24,7 @@ export class StorageController {
 		const fullPath = path.join(basePath, normalizedPath);
 
 		if (!fullPath.startsWith(basePath)) {
-			res.status(400).send('Invalid file path');
+			res.status(400).send(req.t('storage.invalidFilePath'));
 			return;
 		}
 
@@ -34,7 +34,7 @@ export class StorageController {
 		try {
 			const fileExists = await this.storageService.exists(safePath);
 			if (!fileExists) {
-				res.status(404).send('File not found');
+				res.status(404).send(req.t('storage.fileNotFound'));
 				return;
 			}
 
@@ -44,7 +44,7 @@ export class StorageController {
 			fileStream.pipe(res);
 		} catch (error) {
 			console.error('Error downloading file:', error);
-			res.status(500).send('Error downloading file');
+			res.status(500).send(req.t('storage.downloadError'));
 		}
 	};
 }

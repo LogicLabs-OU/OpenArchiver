@@ -9,6 +9,7 @@
 	import UserForm from '$lib/components/custom/UserForm.svelte';
 	import { api } from '$lib/api.client';
 	import type { User } from '@open-archiver/types';
+	import { t } from '$lib/translations';
 
 	let { data }: { data: PageData } = $props();
 	let users = $state(data.users);
@@ -103,24 +104,24 @@
 </script>
 
 <svelte:head>
-	<title>User Management - OpenArchiver</title>
+	<title>{$t('app.users.title')} - OpenArchiver</title>
 </svelte:head>
 
 <div class="">
 	<div class="mb-4 flex items-center justify-between">
-		<h1 class="text-2xl font-bold">User Management</h1>
-		<Button onclick={openCreateDialog}>Create New</Button>
+		<h1 class="text-2xl font-bold">{$t('app.users.user_management')}</h1>
+		<Button onclick={openCreateDialog}>{$t('app.users.create_new')}</Button>
 	</div>
 
 	<div class="rounded-md border">
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
-					<Table.Head>Name</Table.Head>
-					<Table.Head>Email</Table.Head>
-					<Table.Head>Role</Table.Head>
-					<Table.Head>Created At</Table.Head>
-					<Table.Head class="text-right">Actions</Table.Head>
+					<Table.Head>{$t('app.users.name')}</Table.Head>
+					<Table.Head>{$t('app.users.email')}</Table.Head>
+					<Table.Head>{$t('app.users.role')}</Table.Head>
+					<Table.Head>{$t('app.users.created_at')}</Table.Head>
+					<Table.Head class="text-right">{$t('app.users.actions')}</Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
@@ -135,18 +136,20 @@
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>
 										<Button variant="ghost" class="h-8 w-8 p-0">
-											<span class="sr-only">Open menu</span>
+											<span class="sr-only">{$t('app.users.open_menu')}</span>
 											<MoreHorizontal class="h-4 w-4" />
 										</Button>
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content>
-										<DropdownMenu.Label>Actions</DropdownMenu.Label>
+										<DropdownMenu.Label
+											>{$t('app.users.actions')}</DropdownMenu.Label
+										>
 										<DropdownMenu.Item
 											onclick={() => openEditDialog(user)}
 											class="cursor-pointer"
 										>
 											<Edit class="mr-2 h-4 w-4" />
-											Edit</DropdownMenu.Item
+											{$t('app.users.edit')}</DropdownMenu.Item
 										>
 										<DropdownMenu.Separator />
 										<DropdownMenu.Item
@@ -154,7 +157,7 @@
 											onclick={() => openDeleteDialog(user)}
 										>
 											<Trash class="mr-2 h-4 w-4" />
-											Delete
+											{$t('app.users.delete')}
 										</DropdownMenu.Item>
 									</DropdownMenu.Content>
 								</DropdownMenu.Root>
@@ -163,7 +166,8 @@
 					{/each}
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={5} class="h-24 text-center">No users found.</Table.Cell
+						<Table.Cell colspan={5} class="h-24 text-center"
+							>{$t('app.users.no_users_found')}</Table.Cell
 						>
 					</Table.Row>
 				{/if}
@@ -175,9 +179,14 @@
 <Dialog.Root bind:open={isDialogOpen}>
 	<Dialog.Content class="sm:max-w-lg">
 		<Dialog.Header>
-			<Dialog.Title>{selectedUser ? 'Edit' : 'Create'} User</Dialog.Title>
+			<Dialog.Title
+				>{selectedUser ? $t('app.users.edit') : $t('app.users.create')}
+				{$t('app.users.user')}</Dialog.Title
+			>
 			<Dialog.Description>
-				{selectedUser ? 'Make changes to the user here.' : 'Add a new user to the system.'}
+				{selectedUser
+					? $t('app.users.edit_description')
+					: $t('app.users.create_description')}
 			</Dialog.Description>
 		</Dialog.Header>
 		<UserForm {roles} user={selectedUser} onSubmit={handleFormSubmit} />
@@ -187,10 +196,9 @@
 <Dialog.Root bind:open={isDeleteDialogOpen}>
 	<Dialog.Content class="sm:max-w-lg">
 		<Dialog.Header>
-			<Dialog.Title>Are you sure you want to delete this user?</Dialog.Title>
+			<Dialog.Title>{$t('app.users.delete_confirmation_title')}</Dialog.Title>
 			<Dialog.Description>
-				This action cannot be undone. This will permanently delete the user and remove their
-				data from our servers.
+				{$t('app.users.delete_confirmation_description')}
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="sm:justify-start">
@@ -200,10 +208,14 @@
 				onclick={confirmDelete}
 				disabled={isDeleting}
 			>
-				{#if isDeleting}Deleting...{:else}Confirm{/if}
+				{#if isDeleting}
+					{$t('app.users.deleting')}...
+				{:else}
+					{$t('app.users.confirm')}
+				{/if}
 			</Button>
 			<Dialog.Close>
-				<Button type="button" variant="secondary">Cancel</Button>
+				<Button type="button" variant="secondary">{$t('app.users.cancel')}</Button>
 			</Dialog.Close>
 		</Dialog.Footer>
 	</Dialog.Content>

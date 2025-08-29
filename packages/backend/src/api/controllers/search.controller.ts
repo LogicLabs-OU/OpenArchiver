@@ -15,12 +15,12 @@ export class SearchController {
 			const userId = req.user?.sub;
 
 			if (!userId) {
-				res.status(401).json({ message: 'Unauthorized' });
+				res.status(401).json({ message: req.t('errors.unauthorized') });
 				return;
 			}
 
 			if (!keywords) {
-				res.status(400).json({ message: 'Keywords are required' });
+				res.status(400).json({ message: req.t('search.keywordsRequired') });
 				return;
 			}
 
@@ -36,7 +36,7 @@ export class SearchController {
 
 			res.status(200).json(results);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : 'An unknown error occurred';
+			const message = error instanceof Error ? error.message : req.t('errors.unknown');
 			res.status(500).json({ message });
 		}
 	};

@@ -13,6 +13,7 @@
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
+	import { t } from '$lib/translations';
 
 	let { data }: { data: PageData } = $props();
 	let ingestionSources = $state(data.ingestionSources);
@@ -266,38 +267,40 @@
 </script>
 
 <svelte:head>
-	<title>Ingestion sources - OpenArchiver</title>
+	<title>{$t('app.ingestions.title')} - OpenArchiver</title>
 </svelte:head>
 
 <div class="">
 	<div class="mb-4 flex items-center justify-between">
 		<div class="flex items-center gap-4">
-			<h1 class="text-2xl font-bold">Ingestion Sources</h1>
+			<h1 class="text-2xl font-bold">{$t('app.ingestions.ingestion_sources')}</h1>
 			{#if selectedIds.length > 0}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
 						<Button variant="outline">
-							Bulk Actions ({selectedIds.length})
+							{$t('app.ingestions.bulk_actions')} ({selectedIds.length})
 							<MoreHorizontal class="ml-2 h-4 w-4" />
 						</Button>
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content>
 						<DropdownMenu.Item onclick={handleBulkForceSync}>
 							<RefreshCw class="mr-2 h-4 w-4" />
-							Force Sync
+							{$t('app.ingestions.force_sync')}
 						</DropdownMenu.Item>
 						<DropdownMenu.Item
 							class="text-red-600"
 							onclick={() => (isBulkDeleteDialogOpen = true)}
 						>
 							<Trash class="mr-2 h-4 w-4" />
-							Delete
+							{$t('app.ingestions.delete')}
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
 			{/if}
 		</div>
-		<Button onclick={openCreateDialog} disabled={data.isDemo}>Create New</Button>
+		<Button onclick={openCreateDialog} disabled={data.isDemo}
+			>{$t('app.ingestions.create_new')}</Button
+		>
 	</div>
 
 	<div class="rounded-md border">
@@ -319,12 +322,12 @@
 								: ((selectedIds.length > 0 ? 'indeterminate' : false) as any)}
 						/>
 					</Table.Head>
-					<Table.Head>Name</Table.Head>
-					<Table.Head>Provider</Table.Head>
-					<Table.Head>Status</Table.Head>
-					<Table.Head>Active</Table.Head>
-					<Table.Head>Created At</Table.Head>
-					<Table.Head class="text-right">Actions</Table.Head>
+					<Table.Head>{$t('app.ingestions.name')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.provider')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.status')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.active')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.created_at')}</Table.Head>
+					<Table.Head class="text-right">{$t('app.ingestions.actions')}</Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
@@ -369,8 +372,9 @@
 									<HoverCard.Content class="{getStatusClasses(source.status)} ">
 										<div class="flex flex-col space-y-4 text-sm">
 											<p class=" font-mono">
-												<b>Last sync message:</b>
-												{source.lastSyncStatusMessage || 'Empty'}
+												<b>{$t('app.ingestions.last_sync_message')}:</b>
+												{source.lastSyncStatusMessage ||
+													$t('app.ingestions.empty')}
 											</p>
 										</div>
 									</HoverCard.Content>
@@ -393,23 +397,27 @@
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>
 										<Button variant="ghost" class="h-8 w-8 p-0">
-											<span class="sr-only">Open menu</span>
+											<span class="sr-only"
+												>{$t('app.ingestions.open_menu')}</span
+											>
 											<MoreHorizontal class="h-4 w-4" />
 										</Button>
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content>
-										<DropdownMenu.Label>Actions</DropdownMenu.Label>
+										<DropdownMenu.Label
+											>{$t('app.ingestions.actions')}</DropdownMenu.Label
+										>
 										<DropdownMenu.Item onclick={() => openEditDialog(source)}
-											>Edit</DropdownMenu.Item
+											>{$t('app.ingestions.edit')}</DropdownMenu.Item
 										>
 										<DropdownMenu.Item onclick={() => handleSync(source.id)}
-											>Force sync</DropdownMenu.Item
+											>{$t('app.ingestions.force_sync')}</DropdownMenu.Item
 										>
 										<DropdownMenu.Separator />
 										<DropdownMenu.Item
 											class="text-red-600"
 											onclick={() => openDeleteDialog(source)}
-											>Delete</DropdownMenu.Item
+											>{$t('app.ingestions.delete')}</DropdownMenu.Item
 										>
 									</DropdownMenu.Content>
 								</DropdownMenu.Root>
@@ -429,17 +437,21 @@
 <Dialog.Root bind:open={isDialogOpen}>
 	<Dialog.Content class="sm:max-w-120 md:max-w-180">
 		<Dialog.Header>
-			<Dialog.Title>{selectedSource ? 'Edit' : 'Create'} Ingestion Source</Dialog.Title>
+			<Dialog.Title
+				>{selectedSource ? $t('app.ingestions.edit') : $t('app.ingestions.create')}{' '}
+				{$t('app.ingestions.ingestion_source')}</Dialog.Title
+			>
 			<Dialog.Description>
 				{selectedSource
-					? 'Make changes to your ingestion source here.'
-					: 'Add a new ingestion source to start archiving emails.'}
+					? $t('app.ingestions.edit_description')
+					: $t('app.ingestions.create_description')}
 				<span
-					>Read <a
+					>{$t('app.ingestions.read')}{' '}
+					<a
 						class="text-primary underline underline-offset-2"
 						target="_blank"
 						href="https://docs.openarchiver.com/user-guides/email-providers/"
-						>docs here</a
+						>{$t('app.ingestions.docs_here')}</a
 					>.</span
 				>
 			</Dialog.Description>
@@ -451,11 +463,9 @@
 <Dialog.Root bind:open={isDeleteDialogOpen}>
 	<Dialog.Content class="sm:max-w-lg">
 		<Dialog.Header>
-			<Dialog.Title>Are you sure you want to delete this ingestion?</Dialog.Title>
+			<Dialog.Title>{$t('app.ingestions.delete_confirmation_title')}</Dialog.Title>
 			<Dialog.Description>
-				This will delete all archived emails, attachments, indexing, and files associated
-				with this ingestion. If you only want to stop syncing new emails, you can pause the
-				ingestion instead.
+				{$t('app.ingestions.delete_confirmation_description')}
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="sm:justify-start">
@@ -464,10 +474,14 @@
 				variant="destructive"
 				onclick={confirmDelete}
 				disabled={isDeleting}
-				>{#if isDeleting}Deleting...{:else}Confirm{/if}</Button
+				>{#if isDeleting}
+					{$t('app.ingestions.deleting')}...
+				{:else}
+					{$t('app.ingestions.confirm')}
+				{/if}</Button
 			>
 			<Dialog.Close>
-				<Button type="button" variant="secondary">Cancel</Button>
+				<Button type="button" variant="secondary">{$t('app.ingestions.cancel')}</Button>
 			</Dialog.Close>
 		</Dialog.Footer>
 	</Dialog.Content>
@@ -477,12 +491,12 @@
 	<Dialog.Content class="sm:max-w-lg">
 		<Dialog.Header>
 			<Dialog.Title
-				>Are you sure you want to delete {selectedIds.length} selected ingestions?</Dialog.Title
+				>{$t('app.ingestions.bulk_delete_confirmation_title', {
+					count: selectedIds.length,
+				} as any)}</Dialog.Title
 			>
 			<Dialog.Description>
-				This will delete all archived emails, attachments, indexing, and files associated
-				with these ingestions. If you only want to stop syncing new emails, you can pause
-				the ingestions instead.
+				{$t('app.ingestions.bulk_delete_confirmation_description')}
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="sm:justify-start">
@@ -491,10 +505,14 @@
 				variant="destructive"
 				onclick={handleBulkDelete}
 				disabled={isDeleting}
-				>{#if isDeleting}Deleting...{:else}Confirm{/if}</Button
+				>{#if isDeleting}
+					{$t('app.ingestions.deleting')}...
+				{:else}
+					{$t('app.ingestions.confirm')}
+				{/if}</Button
 			>
 			<Dialog.Close>
-				<Button type="button" variant="secondary">Cancel</Button>
+				<Button type="button" variant="secondary">{$t('app.ingestions.cancel')}</Button>
 			</Dialog.Close>
 		</Dialog.Footer>
 	</Dialog.Content>

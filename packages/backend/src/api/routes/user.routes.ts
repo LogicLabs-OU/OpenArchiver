@@ -18,19 +18,19 @@ export const createUserRouter = (authService: AuthService): Router => {
 	 */
 	router.post(
 		'/',
-		requirePermission('manage', 'all', 'Super Admin role is required to manage users.'),
+		requirePermission('manage', 'all', 'user.requiresSuperAdminRole'),
 		userController.createUser
 	);
 
 	router.put(
 		'/:id',
-		requirePermission('manage', 'all', 'Super Admin role is required to manage users.'),
+		requirePermission('manage', 'all', 'user.requiresSuperAdminRole'),
 		userController.updateUser
 	);
 
 	router.delete(
 		'/:id',
-		requirePermission('manage', 'all', 'Super Admin role is required to manage users.'),
+		requirePermission('manage', 'all', 'user.requiresSuperAdminRole'),
 		userController.deleteUser
 	);
 

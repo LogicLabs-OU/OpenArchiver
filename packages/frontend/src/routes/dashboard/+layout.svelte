@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import ThemeSwitcher from '$lib/components/custom/ThemeSwitcher.svelte';
+	import { t } from '$lib/translations';
 	const navItems: {
 		href?: string;
 		label: string;
@@ -13,24 +14,24 @@
 			label: string;
 		}[];
 	}[] = [
-		{ href: '/dashboard', label: 'Dashboard' },
-		{ href: '/dashboard/ingestions', label: 'Ingestions' },
-		{ href: '/dashboard/archived-emails', label: 'Archived emails' },
-		{ href: '/dashboard/search', label: 'Search' },
+		{ href: '/dashboard', label: $t('app.layout.dashboard') },
+		{ href: '/dashboard/ingestions', label: $t('app.layout.ingestions') },
+		{ href: '/dashboard/archived-emails', label: $t('app.layout.archived_emails') },
+		{ href: '/dashboard/search', label: $t('app.layout.search') },
 		{
-			label: 'Settings',
+			label: $t('app.layout.settings'),
 			subMenu: [
 				{
 					href: '/dashboard/settings/system',
-					label: 'System',
+					label: $t('app.layout.system'),
 				},
 				{
 					href: '/dashboard/settings/users',
-					label: 'Users',
+					label: $t('app.layout.users'),
 				},
 				{
 					href: '/dashboard/settings/roles',
-					label: 'Roles',
+					label: $t('app.layout.roles'),
 				},
 			],
 		},
@@ -90,7 +91,7 @@
 		</NavigationMenu.Root>
 		<div class="flex items-center gap-4">
 			<ThemeSwitcher />
-			<Button onclick={handleLogout} variant="outline">Logout</Button>
+			<Button onclick={handleLogout} variant="outline">{$t('app.layout.logout')}</Button>
 		</div>
 	</div>
 </header>

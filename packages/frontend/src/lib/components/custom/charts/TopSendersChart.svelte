@@ -3,12 +3,13 @@
 	import { BarChart } from 'layerchart';
 	import type { TopSender } from '@open-archiver/types';
 	import type { ChartConfig } from '$lib/components/ui/chart';
+	import { t } from '$lib/translations';
 
 	export let data: TopSender[];
 
 	const chartConfig = {
 		count: {
-			label: 'Emails',
+			label: $t('app.components.charts.emails'),
 		},
 	} satisfies ChartConfig;
 </script>

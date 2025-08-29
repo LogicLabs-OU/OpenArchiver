@@ -11,7 +11,7 @@ export class ArchivedEmailController {
 			const userId = req.user?.sub;
 
 			if (!userId) {
-				return res.status(401).json({ message: 'Unauthorized' });
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
 
 			const result = await ArchivedEmailService.getArchivedEmails(
@@ -23,7 +23,7 @@ export class ArchivedEmailController {
 			return res.status(200).json(result);
 		} catch (error) {
 			console.error('Get archived emails error:', error);
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
@@ -33,23 +33,23 @@ export class ArchivedEmailController {
 			const userId = req.user?.sub;
 
 			if (!userId) {
-				return res.status(401).json({ message: 'Unauthorized' });
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
 
 			const email = await ArchivedEmailService.getArchivedEmailById(id, userId);
 			if (!email) {
-				return res.status(404).json({ message: 'Archived email not found' });
+				return res.status(404).json({ message: req.t('archivedEmail.notFound') });
 			}
 			return res.status(200).json(email);
 		} catch (error) {
 			console.error(`Get archived email by id ${req.params.id} error:`, error);
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
 	public deleteArchivedEmail = async (req: Request, res: Response): Promise<Response> => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		try {
 			const { id } = req.params;
@@ -59,11 +59,11 @@ export class ArchivedEmailController {
 			console.error(`Delete archived email ${req.params.id} error:`, error);
 			if (error instanceof Error) {
 				if (error.message === 'Archived email not found') {
-					return res.status(404).json({ message: error.message });
+					return res.status(404).json({ message: req.t('archivedEmail.notFound') });
 				}
 				return res.status(500).json({ message: error.message });
 			}
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 }

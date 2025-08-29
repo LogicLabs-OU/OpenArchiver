@@ -3,12 +3,13 @@
 	import { AreaChart } from 'layerchart';
 	import { curveMonotoneX } from 'd3-shape';
 	import type { ChartConfig } from '$lib/components/ui/chart';
+	import { t } from '$lib/translations';
 
 	export let data: { date: Date; count: number }[];
 
 	const chartConfig = {
 		count: {
-			label: 'Emails Ingested',
+			label: $t('app.components.charts.emails_ingested'),
 			color: 'var(--chart-1)',
 		},
 	} satisfies ChartConfig;

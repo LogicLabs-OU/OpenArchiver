@@ -9,6 +9,7 @@
 	import RoleForm from '$lib/components/custom/RoleForm.svelte';
 	import { api } from '$lib/api.client';
 	import type { Role } from '@open-archiver/types';
+	import { t } from '$lib/translations';
 
 	let { data }: { data: PageData } = $props();
 	let roles = $state(data.roles);
@@ -108,22 +109,22 @@
 </script>
 
 <svelte:head>
-	<title>Role Management - OpenArchiver</title>
+	<title>{$t('app.roles.title')} - OpenArchiver</title>
 </svelte:head>
 
 <div class="">
 	<div class="mb-4 flex items-center justify-between">
-		<h1 class="text-2xl font-bold">Role Management</h1>
-		<Button onclick={openCreateDialog}>Create New</Button>
+		<h1 class="text-2xl font-bold">{$t('app.roles.role_management')}</h1>
+		<Button onclick={openCreateDialog}>{$t('app.roles.create_new')}</Button>
 	</div>
 
 	<div class="rounded-md border">
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
-					<Table.Head>Name</Table.Head>
-					<Table.Head>Created At</Table.Head>
-					<Table.Head class="text-right">Actions</Table.Head>
+					<Table.Head>{$t('app.roles.name')}</Table.Head>
+					<Table.Head>{$t('app.roles.created_at')}</Table.Head>
+					<Table.Head class="text-right">{$t('app.roles.actions')}</Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
@@ -136,25 +137,27 @@
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>
 										<Button variant="ghost" class="h-8 w-8 p-0">
-											<span class="sr-only">Open menu</span>
+											<span class="sr-only">{$t('app.roles.open_menu')}</span>
 											<MoreHorizontal class="h-4 w-4" />
 										</Button>
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content>
-										<DropdownMenu.Label>Actions</DropdownMenu.Label>
+										<DropdownMenu.Label
+											>{$t('app.roles.actions')}</DropdownMenu.Label
+										>
 										<DropdownMenu.Item
 											onclick={() => openViewPolicyDialog(role)}
 											class="cursor-pointer"
 										>
 											<Eye class="mr-2 h-4 w-4" />
-											View Policy
+											{$t('app.roles.view_policy')}
 										</DropdownMenu.Item>
 										<DropdownMenu.Item
 											onclick={() => openEditDialog(role)}
 											class="cursor-pointer"
 										>
 											<Edit class="mr-2 h-4 w-4" />
-											Edit
+											{$t('app.roles.edit')}
 										</DropdownMenu.Item>
 										<DropdownMenu.Separator />
 										<DropdownMenu.Item
@@ -162,7 +165,7 @@
 											onclick={() => openDeleteDialog(role)}
 										>
 											<Trash class="mr-2 h-4 w-4" />
-											Delete
+											{$t('app.roles.delete')}
 										</DropdownMenu.Item>
 									</DropdownMenu.Content>
 								</DropdownMenu.Root>
@@ -171,7 +174,8 @@
 					{/each}
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={3} class="h-24 text-center">No roles found.</Table.Cell
+						<Table.Cell colspan={3} class="h-24 text-center"
+							>{$t('app.roles.no_roles_found')}</Table.Cell
 						>
 					</Table.Row>
 				{/if}
@@ -183,9 +187,9 @@
 <Dialog.Root bind:open={isViewPolicyDialogOpen}>
 	<Dialog.Content class="sm:max-w-lg">
 		<Dialog.Header>
-			<Dialog.Title>Role Policy</Dialog.Title>
+			<Dialog.Title>{$t('app.roles.role_policy')}</Dialog.Title>
 			<Dialog.Description>
-				Viewing policy for role: {selectedRole?.name}
+				{$t('app.roles.viewing_policy_for_role', { name: selectedRole?.name } as any)}
 			</Dialog.Description>
 		</Dialog.Header>
 		<div
@@ -199,9 +203,14 @@
 <Dialog.Root bind:open={isFormDialogOpen}>
 	<Dialog.Content class="sm:max-w-lg">
 		<Dialog.Header>
-			<Dialog.Title>{selectedRole ? 'Edit' : 'Create'} Role</Dialog.Title>
+			<Dialog.Title
+				>{selectedRole ? $t('app.roles.edit') : $t('app.roles.create')}
+				{$t('app.roles.role')}</Dialog.Title
+			>
 			<Dialog.Description>
-				{selectedRole ? 'Make changes to the role here.' : 'Add a new role to the system.'}
+				{selectedRole
+					? $t('app.roles.edit_description')
+					: $t('app.roles.create_description')}
 			</Dialog.Description>
 		</Dialog.Header>
 		<RoleForm role={selectedRole} onSubmit={handleFormSubmit} />
@@ -211,9 +220,9 @@
 <Dialog.Root bind:open={isDeleteDialogOpen}>
 	<Dialog.Content class="sm:max-w-lg">
 		<Dialog.Header>
-			<Dialog.Title>Are you sure you want to delete this role?</Dialog.Title>
+			<Dialog.Title>{$t('app.roles.delete_confirmation_title')}</Dialog.Title>
 			<Dialog.Description>
-				This action cannot be undone. This will permanently delete the role.
+				{$t('app.roles.delete_confirmation_description')}
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="sm:justify-start">
@@ -223,10 +232,14 @@
 				onclick={confirmDelete}
 				disabled={isDeleting}
 			>
-				{#if isDeleting}Deleting...{:else}Confirm{/if}
+				{#if isDeleting}
+					{$t('app.roles.deleting')}...
+				{:else}
+					{$t('app.roles.confirm')}
+				{/if}
 			</Button>
 			<Dialog.Close>
-				<Button type="button" variant="secondary">Cancel</Button>
+				<Button type="button" variant="secondary">{$t('app.roles.cancel')}</Button>
 			</Dialog.Close>
 		</Dialog.Footer>
 	</Dialog.Content>
