@@ -13,11 +13,13 @@
 		"internalServerError": "Ocurrió un error interno del servidor",
 		"demoMode": "Esta operación no está permitida en modo de demostración.",
 		"unauthorized": "No autorizado",
-		"unknown": "Ocurrió un error desconocido"
+		"unknown": "Ocurrió un error desconocido",
+		"noPermissionToAction": "No tienes permiso para realizar la acción actual."
 	},
 	"user": {
 		"notFound": "Usuario no encontrado",
-		"cannotDeleteOnlyUser": "Está intentando eliminar el único usuario de la base de datos, esto no está permitido."
+		"cannotDeleteOnlyUser": "Estás intentando eliminar al único usuario de la base de datos, esto no está permitido.",
+		"requiresSuperAdminRole": "Se requiere el rol de Superadministrador para gestionar usuarios."
 	},
 	"iam": {
 		"failedToGetRoles": "Error al obtener los roles.",
@@ -28,11 +30,16 @@
 		"failedToCreateRole": "Error al crear el rol.",
 		"failedToDeleteRole": "Error al eliminar el rol.",
 		"missingUpdateFields": "Faltan campos para actualizar: nombre o políticas.",
-		"failedToUpdateRole": "Error al actualizar el rol."
+		"failedToUpdateRole": "Error al actualizar el rol.",
+		"requiresSuperAdminRole": "Se requiere el rol de Superadministrador para gestionar los roles."
 	},
 	"settings": {
 		"failedToRetrieve": "Error al recuperar la configuración",
-		"failedToUpdate": "Error al actualizar la configuración"
+		"failedToUpdate": "Error al actualizar la configuración",
+		"noPermissionToUpdate": "No tienes permiso para actualizar la configuración del sistema."
+	},
+	"dashboard": {
+		"permissionRequired": "Necesitas el permiso de lectura del panel de control para ver los datos del panel."
 	},
 	"ingestion": {
 		"failedToCreate": "Error al crear la fuente de ingesta debido a un error de conexión.",

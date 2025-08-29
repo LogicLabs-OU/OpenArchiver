@@ -17,11 +17,7 @@ export const createSettingsRouter = (authService: AuthService): Router => {
 	router.put(
 		'/',
 		requireAuth(authService),
-		requirePermission(
-			'manage',
-			'settings',
-			'You do not have permission to update system settings.'
-		),
+		requirePermission('manage', 'settings', 'settings.noPermissionToUpdate'),
 		settingsController.updateSettings
 	);
 

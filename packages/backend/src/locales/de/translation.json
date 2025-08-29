@@ -13,11 +13,13 @@
 		"internalServerError": "Ein interner Serverfehler ist aufgetreten",
 		"demoMode": "Dieser Vorgang ist im Demo-Modus nicht zulässig.",
 		"unauthorized": "Unbefugt",
-		"unknown": "Ein unbekannter Fehler ist aufgetreten"
+		"unknown": "Ein unbekannter Fehler ist aufgetreten",
+		"noPermissionToAction": "Sie haben keine Berechtigung, die aktuelle Aktion auszuführen."
 	},
 	"user": {
 		"notFound": "Benutzer nicht gefunden",
-		"cannotDeleteOnlyUser": "Sie versuchen, den einzigen Benutzer in der Datenbank zu löschen, dies ist nicht gestattet."
+		"cannotDeleteOnlyUser": "Sie versuchen, den einzigen Benutzer in der Datenbank zu löschen, dies ist nicht gestattet.",
+		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Benutzer zu verwalten."
 	},
 	"iam": {
 		"failedToGetRoles": "Rollen konnten nicht abgerufen werden.",
@@ -28,17 +30,22 @@
 		"failedToCreateRole": "Rolle konnte nicht erstellt werden.",
 		"failedToDeleteRole": "Rolle konnte nicht gelöscht werden.",
 		"missingUpdateFields": "Fehlende Felder zum Aktualisieren: Name oder Richtlinien.",
-		"failedToUpdateRole": "Rolle konnte nicht aktualisiert werden."
+		"failedToUpdateRole": "Rolle konnte nicht aktualisiert werden.",
+		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Rollen zu verwalten."
 	},
 	"settings": {
 		"failedToRetrieve": "Einstellungen konnten nicht abgerufen werden",
-		"failedToUpdate": "Einstellungen konnten nicht aktualisiert werden"
+		"failedToUpdate": "Einstellungen konnten nicht aktualisiert werden",
+		"noPermissionToUpdate": "Sie haben keine Berechtigung, die Systemeinstellungen zu aktualisieren."
+	},
+	"dashboard": {
+		"permissionRequired": "Sie benötigen die Leseberechtigung für das Dashboard, um Dashboard-Daten anzuzeigen."
 	},
 	"ingestion": {
 		"failedToCreate": "Die Erfassungsquelle konnte aufgrund eines Verbindungsfehlers nicht erstellt werden.",
 		"notFound": "Erfassungsquelle nicht gefunden",
-		"initialImportTriggered": "Der erstmalige Import wurde erfolgreich ausgelöst.",
-		"forceSyncTriggered": "Die Zwangssynchronisierung wurde erfolgreich ausgelöst."
+		"initialImportTriggered": "Erstimport erfolgreich ausgelöst.",
+		"forceSyncTriggered": "Erzwungene Synchronisierung erfolgreich ausgelöst."
 	},
 	"archivedEmail": {
 		"notFound": "Archivierte E-Mail nicht gefunden"

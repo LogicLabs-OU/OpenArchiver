@@ -240,6 +240,21 @@
 			"indexed_insights": "Geïndexeerde inzichten",
 			"top_10_senders": "Top 10 afzenders",
 			"no_indexed_insights": "Geen geïndexeerde inzichten beschikbaar."
+		},
+		"archived_emails_page": {
+			"title": "Gearchiveerde e-mails",
+			"header": "Gearchiveerde e-mails",
+			"select_ingestion_source": "Selecteer een innamebron",
+			"date": "Datum",
+			"subject": "Onderwerp",
+			"sender": "Afzender",
+			"inbox": "Inbox",
+			"path": "Pad",
+			"actions": "Acties",
+			"view": "Bekijken",
+			"no_emails_found": "Geen gearchiveerde e-mails gevonden.",
+			"prev": "Vorige",
+			"next": "Volgende"
 		}
 	}
 }

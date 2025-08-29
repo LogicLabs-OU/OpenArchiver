@@ -13,32 +13,39 @@
 		"internalServerError": "Er is een interne serverfout opgetreden",
 		"demoMode": "Deze bewerking is niet toegestaan in de demomodus.",
 		"unauthorized": "Ongeautoriseerd",
-		"unknown": "Er is een onbekende fout opgetreden"
+		"unknown": "Er is een onbekende fout opgetreden",
+		"noPermissionToAction": "U heeft geen toestemming om de huidige actie uit te voeren."
 	},
 	"user": {
 		"notFound": "Gebruiker niet gevonden",
-		"cannotDeleteOnlyUser": "U probeert de enige gebruiker in de database te verwijderen, dit is niet toegestaan."
+		"cannotDeleteOnlyUser": "U probeert de enige gebruiker in de database te verwijderen, dit is niet toegestaan.",
+		"requiresSuperAdminRole": "De rol van Super Admin is vereist om gebruikers te beheren."
 	},
 	"iam": {
-		"failedToGetRoles": "Rollen ophalen mislukt.",
+		"failedToGetRoles": "Kan rollen niet ophalen.",
 		"roleNotFound": "Rol niet gevonden.",
-		"failedToGetRole": "Rol ophalen mislukt.",
-		"missingRoleFields": "Verplichte velden ontbreken: naam en beleid.",
+		"failedToGetRole": "Kan rol niet ophalen.",
+		"missingRoleFields": "Ontbrekende verplichte velden: naam en beleid.",
 		"invalidPolicy": "Ongeldige beleidsverklaring:",
-		"failedToCreateRole": "Rol aanmaken mislukt.",
-		"failedToDeleteRole": "Rol verwijderen mislukt.",
-		"missingUpdateFields": "Te updaten velden ontbreken: naam of beleid.",
-		"failedToUpdateRole": "Rol bijwerken mislukt."
+		"failedToCreateRole": "Kan rol niet aanmaken.",
+		"failedToDeleteRole": "Kan rol niet verwijderen.",
+		"missingUpdateFields": "Ontbrekende velden om bij te werken: naam of beleid.",
+		"failedToUpdateRole": "Kan rol niet bijwerken.",
+		"requiresSuperAdminRole": "De rol van Super Admin is vereist om rollen te beheren."
 	},
 	"settings": {
-		"failedToRetrieve": "Instellingen ophalen mislukt",
-		"failedToUpdate": "Instellingen bijwerken mislukt"
+		"failedToRetrieve": "Kan instellingen niet ophalen",
+		"failedToUpdate": "Kan instellingen niet bijwerken",
+		"noPermissionToUpdate": "U heeft geen toestemming om de systeeminstellingen bij te werken."
+	},
+	"dashboard": {
+		"permissionRequired": "U heeft de leesrechten voor het dashboard nodig om dashboardgegevens te bekijken."
 	},
 	"ingestion": {
-		"failedToCreate": "Aanmaken van de opnamebron mislukt vanwege een verbindingsfout.",
+		"failedToCreate": "Kan de opnamebron niet aanmaken vanwege een verbindingsfout.",
 		"notFound": "Opnamebron niet gevonden",
-		"initialImportTriggered": "Initiële import succesvol gestart.",
-		"forceSyncTriggered": "Geforceerde synchronisatie succesvol gestart."
+		"initialImportTriggered": "Initiële import succesvol geactiveerd.",
+		"forceSyncTriggered": "Geforceerde synchronisatie succesvol geactiveerd."
 	},
 	"archivedEmail": {
 		"notFound": "Gearchiveerde e-mail niet gevonden"

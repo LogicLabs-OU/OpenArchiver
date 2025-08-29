@@ -17,7 +17,7 @@
 			const parsedPolicies: CaslPolicy[] = JSON.parse(policies);
 			onSubmit({ name, policies: parsedPolicies });
 		} catch (error) {
-			alert($t('components.role_form.invalid_json'));
+			alert($t('app.components.role_form.invalid_json'));
 		}
 	};
 </script>
@@ -30,11 +30,13 @@
 	class="grid gap-4 py-4"
 >
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="name" class="text-right">{$t('roles.name')}</Label>
+		<Label for="name" class="text-right">{$t('app.roles.name')}</Label>
 		<Input id="name" bind:value={name} class="col-span-3" />
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="policies" class="text-right">{$t('components.role_form.policies_json')}</Label>
+		<Label for="policies" class="text-right"
+			>{$t('app.components.role_form.policies_json')}</Label
+		>
 		<Textarea
 			id="policies"
 			bind:value={policies}
@@ -43,6 +45,6 @@
 		/>
 	</div>
 	<div class="flex justify-end">
-		<Button type="submit">{$t('components.common.save')}</Button>
+		<Button type="submit">{$t('app.components.common.save')}</Button>
 	</div>
 </form>

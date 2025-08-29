@@ -240,6 +240,21 @@
 			"indexed_insights": "Indekseeritud ülevaated",
 			"top_10_senders": "Top 10 saatjat",
 			"no_indexed_insights": "Indekseeritud ülevaateid pole saadaval."
+		},
+		"archived_emails_page": {
+			"title": "Arhiveeritud e-kirjad",
+			"header": "Arhiveeritud e-kirjad",
+			"select_ingestion_source": "Valige sissevõtuallikas",
+			"date": "Kuupäev",
+			"subject": "Teema",
+			"sender": "Saatja",
+			"inbox": "Postkast",
+			"path": "Tee",
+			"actions": "Toimingud",
+			"view": "Vaade",
+			"no_emails_found": "Arhiveeritud e-kirju ei leitud.",
+			"prev": "Eelmine",
+			"next": "Järgmine"
 		}
 	}
 }

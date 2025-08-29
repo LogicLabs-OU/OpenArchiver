@@ -5,7 +5,7 @@
 			"alreadyCompleted": "A configuração já foi concluída."
 		},
 		"login": {
-			"emailAndPasswordRequired": "E-mail and senha são obrigatórios",
+			"emailAndPasswordRequired": "E-mail e senha são obrigatórios",
 			"invalidCredentials": "Credenciais inválidas"
 		}
 	},
@@ -13,11 +13,13 @@
 		"internalServerError": "Ocorreu um erro interno do servidor",
 		"demoMode": "Esta operação não é permitida no modo de demonstração.",
 		"unauthorized": "Não autorizado",
-		"unknown": "Ocorreu um erro desconhecido"
+		"unknown": "Ocorreu um erro desconhecido",
+		"noPermissionToAction": "Você não tem permissão para executar a ação atual."
 	},
 	"user": {
 		"notFound": "Usuário não encontrado",
-		"cannotDeleteOnlyUser": "Você está tentando excluir o único usuário no banco de dados, isso não é permitido."
+		"cannotDeleteOnlyUser": "Você está tentando excluir o único usuário no banco de dados, isso não é permitido.",
+		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar usuários."
 	},
 	"iam": {
 		"failedToGetRoles": "Falha ao obter as funções.",
@@ -27,12 +29,17 @@
 		"invalidPolicy": "Declaração de política inválida:",
 		"failedToCreateRole": "Falha ao criar a função.",
 		"failedToDeleteRole": "Falha ao excluir a função.",
-		"missingUpdateFields": "Campos ausentes para atualizar: nome ou políticas.",
-		"failedToUpdateRole": "Falha ao atualizar a função."
+		"missingUpdateFields": "Campos ausentes para atualização: nome ou políticas.",
+		"failedToUpdateRole": "Falha ao atualizar a função.",
+		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar as funções."
 	},
 	"settings": {
 		"failedToRetrieve": "Falha ao recuperar as configurações",
-		"failedToUpdate": "Falha ao atualizar as configurações"
+		"failedToUpdate": "Falha ao atualizar as configurações",
+		"noPermissionToUpdate": "Você não tem permissão para atualizar as configurações do sistema."
+	},
+	"dashboard": {
+		"permissionRequired": "Você precisa da permissão de leitura do painel para visualizar os dados do painel."
 	},
 	"ingestion": {
 		"failedToCreate": "Falha ao criar a fonte de ingestão devido a um erro de conexão.",

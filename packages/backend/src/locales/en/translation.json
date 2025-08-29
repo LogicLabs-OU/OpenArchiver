@@ -6,18 +6,20 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "Email and password are required",
-			"invalidCredentials": "Invalid credentials this is a translation"
+			"invalidCredentials": "Invalid credentials"
 		}
 	},
 	"errors": {
 		"internalServerError": "An internal server error occurred",
 		"demoMode": "This operation is not allowed in demo mode.",
 		"unauthorized": "Unauthorized",
-		"unknown": "An unknown error occurred"
+		"unknown": "An unknown error occurred",
+		"noPermissionToAction": "You don't have the permission to perform the current action."
 	},
 	"user": {
 		"notFound": "User not found",
-		"cannotDeleteOnlyUser": "You are trying to delete the only user in the database, this is not allowed."
+		"cannotDeleteOnlyUser": "You are trying to delete the only user in the database, this is not allowed.",
+		"requiresSuperAdminRole": "Super Admin role is required to manage users."
 	},
 	"iam": {
 		"failedToGetRoles": "Failed to get roles.",
@@ -28,11 +30,16 @@
 		"failedToCreateRole": "Failed to create role.",
 		"failedToDeleteRole": "Failed to delete role.",
 		"missingUpdateFields": "Missing fields to update: name or policies.",
-		"failedToUpdateRole": "Failed to update role."
+		"failedToUpdateRole": "Failed to update role.",
+		"requiresSuperAdminRole": "Super Admin role is required to manage roles."
 	},
 	"settings": {
 		"failedToRetrieve": "Failed to retrieve settings",
-		"failedToUpdate": "Failed to update settings"
+		"failedToUpdate": "Failed to update settings",
+		"noPermissionToUpdate": "You do not have permission to update system settings."
+	},
+	"dashboard": {
+		"permissionRequired": "You need the dashboard read permission to view dashboard data."
 	},
 	"ingestion": {
 		"failedToCreate": "Failed to create ingestion source due to a connection error.",

@@ -41,21 +41,6 @@ if (!PORT_BACKEND || !JWT_SECRET || !JWT_EXPIRES_IN) {
 	);
 }
 
-// --- Dependency Injection Setup ---
-
-const userService = new UserService();
-const authService = new AuthService(userService, JWT_SECRET, JWT_EXPIRES_IN);
-const authController = new AuthController(authService, userService);
-const ingestionController = new IngestionController();
-const archivedEmailController = new ArchivedEmailController();
-const storageService = new StorageService();
-const storageController = new StorageController(storageService);
-const searchService = new SearchService();
-const searchController = new SearchController();
-const iamService = new IamService();
-const iamController = new IamController(iamService);
-const settingsService = new SettingsService();
-
 // --- i18next Initialization ---
 const initializeI18next = async () => {
 	const systemSettings = await settingsService.getSettings();
@@ -71,6 +56,21 @@ const initializeI18next = async () => {
 		},
 	});
 };
+
+// --- Dependency Injection Setup ---
+
+const userService = new UserService();
+const authService = new AuthService(userService, JWT_SECRET, JWT_EXPIRES_IN);
+const authController = new AuthController(authService, userService);
+const ingestionController = new IngestionController();
+const archivedEmailController = new ArchivedEmailController();
+const storageService = new StorageService();
+const storageController = new StorageController(storageService);
+const searchService = new SearchService();
+const searchController = new SearchController();
+const iamService = new IamService();
+const iamController = new IamController(iamService);
+const settingsService = new SettingsService();
 
 // --- Express App Initialization ---
 const app = express();

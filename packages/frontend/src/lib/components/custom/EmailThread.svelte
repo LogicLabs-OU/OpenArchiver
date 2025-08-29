@@ -48,16 +48,16 @@
 										goto(`/dashboard/archived-emails/${item.id}`, {
 											invalidateAll: true,
 										});
-									}}>{item.subject || $t('archive.no_subject')}</a
+									}}>{item.subject || $t('app.archive.no_subject')}</a
 								>
 							{:else}
-								{item.subject || $t('archive.no_subject')}
+								{item.subject || $t('app.archive.no_subject')}
 							{/if}
 						</h4>
 						<div
 							class="flex flex-col space-y-2 text-sm font-normal leading-none text-gray-400"
 						>
-							<span>{$t('archive.from')}: {item.senderEmail}</span>
+							<span>{$t('app.archive.from')}: {item.senderEmail}</span>
 							<time class="">{new Date(item.sentAt).toLocaleString()}</time>
 						</div>
 					</div>

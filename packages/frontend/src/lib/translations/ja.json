@@ -240,6 +240,21 @@
 			"indexed_insights": "インデックス付きインサイト",
 			"top_10_senders": "トップ10送信者",
 			"no_indexed_insights": "インデックス付きインサイトはありません。"
+		},
+		"archived_emails_page": {
+			"title": "アーカイブされたメール",
+			"header": "アーカイブされたメール",
+			"select_ingestion_source": "取り込み元を選択",
+			"date": "日付",
+			"subject": "件名",
+			"sender": "差出人",
+			"inbox": "受信トレイ",
+			"path": "パス",
+			"actions": "アクション",
+			"view": "表示",
+			"no_emails_found": "アーカイブされたメールは見つかりませんでした。",
+			"prev": "前へ",
+			"next": "次へ"
 		}
 	}
 }

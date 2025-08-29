@@ -1,38 +1,45 @@
 {
 	"auth": {
 		"setup": {
-			"allFieldsRequired": "E-mail, mot de passe et nom sont requis",
+			"allFieldsRequired": "L'e-mail, le mot de passe et le nom sont requis",
 			"alreadyCompleted": "La configuration est déjà terminée."
 		},
 		"login": {
-			"emailAndPasswordRequired": "E-mail et mot de passe sont requis",
-			"invalidCredentials": "Identifiants non valides"
+			"emailAndPasswordRequired": "L'e-mail et le mot de passe sont requis",
+			"invalidCredentials": "Identifiants invalides"
 		}
 	},
 	"errors": {
-		"internalServerError": "Une erreur interne du serveur est survenue",
+		"internalServerError": "Une erreur interne du serveur s'est produite",
 		"demoMode": "Cette opération n'est pas autorisée en mode démo.",
 		"unauthorized": "Non autorisé",
-		"unknown": "Une erreur inconnue est survenue"
+		"unknown": "Une erreur inconnue s'est produite",
+		"noPermissionToAction": "Vous n'avez pas la permission d'effectuer l'action en cours."
 	},
 	"user": {
 		"notFound": "Utilisateur non trouvé",
-		"cannotDeleteOnlyUser": "Vous essayez de supprimer le seul utilisateur de la base de données, ce n'est pas autorisé."
+		"cannotDeleteOnlyUser": "Vous essayez de supprimer le seul utilisateur de la base de données, ce n'est pas autorisé.",
+		"requiresSuperAdminRole": "Le rôle de Super Admin est requis pour gérer les utilisateurs."
 	},
 	"iam": {
 		"failedToGetRoles": "Échec de la récupération des rôles.",
 		"roleNotFound": "Rôle non trouvé.",
 		"failedToGetRole": "Échec de la récupération du rôle.",
 		"missingRoleFields": "Champs obligatoires manquants : nom et politique.",
-		"invalidPolicy": "Déclaration de politique non valide :",
+		"invalidPolicy": "Déclaration de politique invalide :",
 		"failedToCreateRole": "Échec de la création du rôle.",
 		"failedToDeleteRole": "Échec de la suppression du rôle.",
 		"missingUpdateFields": "Champs à mettre à jour manquants : nom ou politiques.",
-		"failedToUpdateRole": "Échec de la mise à jour du rôle."
+		"failedToUpdateRole": "Échec de la mise à jour du rôle.",
+		"requiresSuperAdminRole": "Le rôle de Super Admin est requis pour gérer les rôles."
 	},
 	"settings": {
 		"failedToRetrieve": "Échec de la récupération des paramètres",
-		"failedToUpdate": "Échec de la mise à jour des paramètres"
+		"failedToUpdate": "Échec de la mise à jour des paramètres",
+		"noPermissionToUpdate": "Vous n'avez pas la permission de mettre à jour les paramètres système."
+	},
+	"dashboard": {
+		"permissionRequired": "Vous avez besoin de la permission de lecture du tableau de bord pour afficher les données du tableau de bord."
 	},
 	"ingestion": {
 		"failedToCreate": "Échec de la création de la source d'ingestion en raison d'une erreur de connexion.",
@@ -44,11 +51,11 @@
 		"notFound": "E-mail archivé non trouvé"
 	},
 	"search": {
-		"keywordsRequired": "Mots-clés requis"
+		"keywordsRequired": "Des mots-clés sont requis"
 	},
 	"storage": {
-		"filePathRequired": "Chemin du fichier requis",
-		"invalidFilePath": "Chemin de fichier non valide",
+		"filePathRequired": "Le chemin du fichier est requis",
+		"invalidFilePath": "Chemin de fichier invalide",
 		"fileNotFound": "Fichier non trouvé",
 		"downloadError": "Erreur lors du téléchargement du fichier"
 	}

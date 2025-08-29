@@ -240,6 +240,21 @@
 			"indexed_insights": "Informations indexées",
 			"top_10_senders": "Top 10 des expéditeurs",
 			"no_indexed_insights": "Aucune information indexée disponible."
+		},
+		"archived_emails_page": {
+			"title": "E-mails archivés",
+			"header": "E-mails archivés",
+			"select_ingestion_source": "Sélectionnez une source d'ingestion",
+			"date": "Date",
+			"subject": "Sujet",
+			"sender": "Expéditeur",
+			"inbox": "Boîte de réception",
+			"path": "Chemin",
+			"actions": "Actions",
+			"view": "Voir",
+			"no_emails_found": "Aucun e-mail archivé trouvé.",
+			"prev": "Préc",
+			"next": "Suiv"
 		}
 	}
 }

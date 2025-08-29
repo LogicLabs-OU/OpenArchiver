@@ -240,6 +240,21 @@
 			"indexed_insights": "Indizierte Einblicke",
 			"top_10_senders": "Top 10 Absender",
 			"no_indexed_insights": "Keine indizierten Einblicke verfügbar."
+		},
+		"archived_emails_page": {
+			"title": "Archivierte E-Mails",
+			"header": "Archivierte E-Mails",
+			"select_ingestion_source": "Wählen Sie eine Erfassungsquelle aus",
+			"date": "Datum",
+			"subject": "Betreff",
+			"sender": "Absender",
+			"inbox": "Posteingang",
+			"path": "Pfad",
+			"actions": "Aktionen",
+			"view": "Ansehen",
+			"no_emails_found": "Keine archivierten E-Mails gefunden.",
+			"prev": "Zurück",
+			"next": "Weiter"
 		}
 	}
 }

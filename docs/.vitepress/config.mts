@@ -54,6 +54,16 @@ export default defineConfig({
 							{ text: 'PST Import', link: '/user-guides/email-providers/pst' },
 						],
 					},
+					{
+						text: 'Settings',
+						collapsed: true,
+						items: [
+							{
+								text: 'System',
+								link: '/user-guides/settings/system',
+							},
+						],
+					},
 				],
 			},
 			{

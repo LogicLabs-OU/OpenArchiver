@@ -10,14 +10,16 @@
 		}
 	},
 	"errors": {
-		"internalServerError": "Ilmnes sisemine serveri viga",
-		"demoMode": "See toiming pole demo-režiimis lubatud.",
+		"internalServerError": "Ilmnes sisemine serveriviga",
+		"demoMode": "See toiming pole demorežiimis lubatud.",
 		"unauthorized": "Volitamata",
-		"unknown": "Ilmnes tundmatu viga"
+		"unknown": "Ilmnes tundmatu viga",
+		"noPermissionToAction": "Teil pole praeguse toimingu tegemiseks luba."
 	},
 	"user": {
 		"notFound": "Kasutajat ei leitud",
-		"cannotDeleteOnlyUser": "Püüate kustutada andmebaasi ainsat kasutajat, see pole lubatud."
+		"cannotDeleteOnlyUser": "Püüate kustutada andmebaasi ainsat kasutajat, see pole lubatud.",
+		"requiresSuperAdminRole": "Kasutajate haldamiseks on vajalik superadministraatori roll."
 	},
 	"iam": {
 		"failedToGetRoles": "Rollide hankimine ebaõnnestus.",
@@ -27,18 +29,23 @@
 		"invalidPolicy": "Kehtetu poliitika avaldus:",
 		"failedToCreateRole": "Rolli loomine ebaõnnestus.",
 		"failedToDeleteRole": "Rolli kustutamine ebaõnnestus.",
-		"missingUpdateFields": "Uuendatavad väljad puuduvad: nimi või poliitikad.",
-		"failedToUpdateRole": "Rolli värskendamine ebaõnnestus."
+		"missingUpdateFields": "Uuendamiseks puuduvad väljad: nimi või poliitikad.",
+		"failedToUpdateRole": "Rolli värskendamine ebaõnnestus.",
+		"requiresSuperAdminRole": "Rollide haldamiseks on vajalik superadministraatori roll."
 	},
 	"settings": {
 		"failedToRetrieve": "Seadete toomine ebaõnnestus",
-		"failedToUpdate": "Seadete värskendamine ebaõnnestus"
+		"failedToUpdate": "Seadete värskendamine ebaõnnestus",
+		"noPermissionToUpdate": "Teil pole süsteemi seadete värskendamiseks luba."
+	},
+	"dashboard": {
+		"permissionRequired": "Armatuurlaua andmete vaatamiseks on teil vaja armatuurlaua lugemisluba."
 	},
 	"ingestion": {
 		"failedToCreate": "Söötmeallika loomine ebaõnnestus ühenduse vea tõttu.",
 		"notFound": "Söötmeallikat ei leitud",
 		"initialImportTriggered": "Esialgne import käivitati edukalt.",
-		"forceSyncTriggered": "Sunnitud sünkroonimine käivitati edukalt."
+		"forceSyncTriggered": "Sundsünkroonimine käivitati edukalt."
 	},
 	"archivedEmail": {
 		"notFound": "Arhiveeritud e-kirja ei leitud"
