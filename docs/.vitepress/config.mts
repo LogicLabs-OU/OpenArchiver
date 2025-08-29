@@ -12,7 +12,7 @@ export default defineConfig({
 		],
 		['link', { rel: 'icon', href: '/logo-sq.svg' }],
 	],
-	title: 'Open Archiver',
+	title: 'Open Archiver Docs',
 	description: 'Official documentation for the Open Archiver project.',
 	themeConfig: {
 		search: {
