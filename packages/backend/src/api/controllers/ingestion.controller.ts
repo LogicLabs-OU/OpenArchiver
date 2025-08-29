@@ -38,8 +38,7 @@ export class IngestionController {
 			logger.error({ err: error }, 'Create ingestion source error');
 			// Return a 400 Bad Request for connection errors
 			return res.status(400).json({
-				message:
-					error.message || req.t('ingestion.failedToCreate'),
+				message: error.message || req.t('ingestion.failedToCreate'),
 			});
 		}
 	};

@@ -4,18 +4,18 @@ import { browser } from '$app/environment';
 import type { SupportedLanguage } from '@open-archiver/types';
 
 export const load: LayoutLoad = async ({ url, data }) => {
-    const { pathname } = url;
+	const { pathname } = url;
 
-    let initLocale: SupportedLanguage = 'en'; // Default fallback
+	let initLocale: SupportedLanguage = 'en'; // Default fallback
 
-    if (data.settings?.language) {
-        initLocale = data.settings.language;
-    }
+	if (data.settings?.language) {
+		initLocale = data.settings.language;
+	}
 
-    console.log(initLocale);
-    await loadTranslations(initLocale, pathname);
+	console.log(initLocale);
+	await loadTranslations(initLocale, pathname);
 
-    return {
-        ...data
-    };
+	return {
+		...data,
+	};
 };

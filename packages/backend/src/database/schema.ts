@@ -5,4 +5,4 @@ export * from './schema/compliance';
 export * from './schema/custodians';
 export * from './schema/ingestion-sources';
 export * from './schema/users';
-export * from './schema/system-settings'
+export * from './schema/system-settings';

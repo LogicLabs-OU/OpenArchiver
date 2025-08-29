@@ -4,7 +4,7 @@ import * as path from 'path';
 import { storage as storageConfig } from '../../config/storage';
 
 export class StorageController {
-	constructor(private storageService: StorageService) { }
+	constructor(private storageService: StorageService) {}
 
 	public downloadFile = async (req: Request, res: Response): Promise<void> => {
 		const unsafePath = req.query.path as string;

@@ -22,7 +22,9 @@ export const load: LayoutServerLoad = async (event) => {
 	}
 
 	const settingsResponse = await api('/settings', event);
-	const settings: SystemSettings | null = settingsResponse.ok ? await settingsResponse.json() : null;
+	const settings: SystemSettings | null = settingsResponse.ok
+		? await settingsResponse.json()
+		: null;
 
 	return {
 		user: locals.user,

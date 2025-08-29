@@ -75,9 +75,8 @@ export default defineConfig({
 					{ text: 'Overview', link: '/services/' },
 					{ text: 'Storage Service', link: '/services/storage-service' },
 					{
-						text: 'IAM Service', items: [
-							{ text: 'IAM Policies', link: '/services/iam-service/iam-policy' }
-						]
+						text: 'IAM Service',
+						items: [{ text: 'IAM Policies', link: '/services/iam-service/iam-policy' }],
 					},
 				],
 			},

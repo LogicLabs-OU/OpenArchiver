@@ -61,17 +61,15 @@ const initializeI18next = async () => {
 	const systemSettings = await settingsService.getSettings();
 	const defaultLanguage = systemSettings?.language || 'en';
 	logger.info({ language: defaultLanguage }, 'Default language');
-	await i18next
-		.use(FsBackend)
-		.init({
-			lng: defaultLanguage,
-			fallbackLng: defaultLanguage,
-			ns: ['translation'],
-			defaultNS: 'translation',
-			backend: {
-				loadPath: path.resolve(__dirname, './locales/{{lng}}/{{ns}}.json'),
-			},
-		});
+	await i18next.use(FsBackend).init({
+		lng: defaultLanguage,
+		fallbackLng: defaultLanguage,
+		ns: ['translation'],
+		defaultNS: 'translation',
+		backend: {
+			loadPath: path.resolve(__dirname, './locales/{{lng}}/{{ns}}.json'),
+		},
+	});
 };
 
 // --- Express App Initialization ---

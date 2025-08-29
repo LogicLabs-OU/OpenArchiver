@@ -15,70 +15,70 @@ import el from './el.json';
 // This is your config object.
 // It defines the languages and how to load them.
 const config: Config = {
-    // Define the loaders for each language
-    loaders: [
-        // English 🇬🇧
-        {
-            locale: 'en',
-            key: 'app', // This key matches the top-level key in your en.json
-            loader: async () => en.app, // We return the nested 'app' object
-        },
-        // German 🇩🇪
-        {
-            locale: 'de',
-            key: 'app', // This key matches the top-level key in your en.json
-            loader: async () => de.app, // We return the nested 'app' object
-        },
-        // Spanish 🇪🇸
-        {
-            locale: 'es',
-            key: 'app',
-            loader: async () => es.app,
-        },
-        // French 🇫🇷
-        {
-            locale: 'fr',
-            key: 'app',
-            loader: async () => fr.app,
-        },
-        // Italian 🇮🇹
-        {
-            locale: 'it',
-            key: 'app',
-            loader: async () => it.app,
-        },
-        // Portuguese 🇵🇹
-        {
-            locale: 'pt',
-            key: 'app',
-            loader: async () => pt.app,
-        },
-        // Dutch 🇳🇱
-        {
-            locale: 'nl',
-            key: 'app',
-            loader: async () => nl.app,
-        },
-        // Japanese 🇯🇵
-        {
-            locale: 'ja',
-            key: 'app',
-            loader: async () => ja.app,
-        },
-        // Estonian 🇪🇪
-        {
-            locale: 'et',
-            key: 'app',
-            loader: async () => et.app,
-        },
-        // Greek 🇬🇷
-        {
-            locale: 'el',
-            key: 'app',
-            loader: async () => el.app,
-        },
-    ],
-    fallbackLocale: 'en',
+	// Define the loaders for each language
+	loaders: [
+		// English 🇬🇧
+		{
+			locale: 'en',
+			key: 'app', // This key matches the top-level key in your en.json
+			loader: async () => en.app, // We return the nested 'app' object
+		},
+		// German 🇩🇪
+		{
+			locale: 'de',
+			key: 'app', // This key matches the top-level key in your en.json
+			loader: async () => de.app, // We return the nested 'app' object
+		},
+		// Spanish 🇪🇸
+		{
+			locale: 'es',
+			key: 'app',
+			loader: async () => es.app,
+		},
+		// French 🇫🇷
+		{
+			locale: 'fr',
+			key: 'app',
+			loader: async () => fr.app,
+		},
+		// Italian 🇮🇹
+		{
+			locale: 'it',
+			key: 'app',
+			loader: async () => it.app,
+		},
+		// Portuguese 🇵🇹
+		{
+			locale: 'pt',
+			key: 'app',
+			loader: async () => pt.app,
+		},
+		// Dutch 🇳🇱
+		{
+			locale: 'nl',
+			key: 'app',
+			loader: async () => nl.app,
+		},
+		// Japanese 🇯🇵
+		{
+			locale: 'ja',
+			key: 'app',
+			loader: async () => ja.app,
+		},
+		// Estonian 🇪🇪
+		{
+			locale: 'et',
+			key: 'app',
+			loader: async () => et.app,
+		},
+		// Greek 🇬🇷
+		{
+			locale: 'el',
+			key: 'app',
+			loader: async () => el.app,
+		},
+	],
+	fallbackLocale: 'en',
 };
 
 // Create the i18n instance.
@@ -88,7 +88,6 @@ export const { t, locale, locales, loading, loadTranslations } = new i18n(config
 
 // Export the t store for use in components
 // export const t = i18n.t;
-
 
 // import i18n from 'sveltekit-i18n';
 // import type { Config } from 'sveltekit-i18n';
