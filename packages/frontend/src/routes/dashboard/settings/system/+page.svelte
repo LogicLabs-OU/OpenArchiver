@@ -23,6 +23,7 @@
 		{ value: 'it', label: '🇮🇹 Italiano' },
 		{ value: 'pt', label: '🇵🇹 Português' },
 		{ value: 'nl', label: '🇳🇱 Nederlands' },
+		{ value: 'el', label: '🇬🇷 Ελληνικά' },
 		{ value: 'ja', label: '🇯🇵 日本語' },
 	];
 

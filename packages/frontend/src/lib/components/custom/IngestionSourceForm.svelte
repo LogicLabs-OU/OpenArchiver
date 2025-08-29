@@ -23,18 +23,24 @@
 	const providerOptions = [
 		{
 			value: 'generic_imap',
-			label: $t('components.ingestion_source_form.provider_generic_imap'),
+			label: $t('app.components.ingestion_source_form.provider_generic_imap'),
 		},
 		{
 			value: 'google_workspace',
-			label: $t('components.ingestion_source_form.provider_google_workspace'),
+			label: $t('app.components.ingestion_source_form.provider_google_workspace'),
 		},
 		{
 			value: 'microsoft_365',
-			label: $t('components.ingestion_source_form.provider_microsoft_365'),
+			label: $t('app.components.ingestion_source_form.provider_microsoft_365'),
 		},
-		{ value: 'pst_import', label: $t('components.ingestion_source_form.provider_pst_import') },
-		{ value: 'eml_import', label: $t('components.ingestion_source_form.provider_eml_import') },
+		{
+			value: 'pst_import',
+			label: $t('app.components.ingestion_source_form.provider_pst_import'),
+		},
+		{
+			value: 'eml_import',
+			label: $t('app.components.ingestion_source_form.provider_eml_import'),
+		},
 	];
 
 	let formData: CreateIngestionSourceDto = $state({
@@ -53,7 +59,7 @@
 
 	const triggerContent = $derived(
 		providerOptions.find((p) => p.value === formData.provider)?.label ??
-			$t('components.ingestion_source_form.select_provider')
+			$t('app.components.ingestion_source_form.select_provider')
 	);
 
 	let isSubmitting = $state(false);
@@ -100,7 +106,7 @@
 			fileUploading = false;
 			setAlert({
 				type: 'error',
-				title: $t('components.ingestion_source_form.upload_failed'),
+				title: $t('app.components.ingestion_source_form.upload_failed'),
 				message: JSON.stringify(error),
 				duration: 5000,
 				show: true,
@@ -111,11 +117,11 @@
 
 <form onsubmit={handleSubmit} class="grid gap-4 py-4">
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="name" class="text-left">{$t('ingestions.name')}</Label>
+		<Label for="name" class="text-left">{$t('app.ingestions.name')}</Label>
 		<Input id="name" bind:value={formData.name} class="col-span-3" />
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
-		<Label for="provider" class="text-left">{$t('ingestions.provider')}</Label>
+		<Label for="provider" class="text-left">{$t('app.ingestions.provider')}</Label>
 		<Select.Root name="provider" bind:value={formData.provider} type="single">
 			<Select.Trigger class="col-span-3">
 				{triggerContent}
@@ -131,10 +137,12 @@
 	{#if formData.provider === 'google_workspace'}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="serviceAccountKeyJson" class="text-left"
-				>{$t('components.ingestion_source_form.service_account_key')}</Label
+				>{$t('app.components.ingestion_source_form.service_account_key')}</Label
 			>
 			<Textarea
-				placeholder={$t('components.ingestion_source_form.service_account_key_placeholder')}
+				placeholder={$t(
+					'app.components.ingestion_source_form.service_account_key_placeholder'
+				)}
 				id="serviceAccountKeyJson"
 				bind:value={formData.providerConfig.serviceAccountKeyJson}
 				class="col-span-3 max-h-32"
@@ -142,7 +150,7 @@
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="impersonatedAdminEmail" class="text-left"
-				>{$t('components.ingestion_source_form.impersonated_admin_email')}</Label
+				>{$t('app.components.ingestion_source_form.impersonated_admin_email')}</Label
 			>
 			<Input
 				id="impersonatedAdminEmail"
@@ -153,36 +161,38 @@
 	{:else if formData.provider === 'microsoft_365'}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="clientId" class="text-left"
-				>{$t('components.ingestion_source_form.client_id')}</Label
+				>{$t('app.components.ingestion_source_form.client_id')}</Label
 			>
 			<Input id="clientId" bind:value={formData.providerConfig.clientId} class="col-span-3" />
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="clientSecret" class="text-left"
-				>{$t('components.ingestion_source_form.client_secret')}</Label
+				>{$t('app.components.ingestion_source_form.client_secret')}</Label
 			>
 			<Input
 				id="clientSecret"
 				type="password"
-				placeholder={$t('components.ingestion_source_form.client_secret_placeholder')}
+				placeholder={$t('app.components.ingestion_source_form.client_secret_placeholder')}
 				bind:value={formData.providerConfig.clientSecret}
 				class="col-span-3"
 			/>
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="tenantId" class="text-left"
-				>{$t('components.ingestion_source_form.tenant_id')}</Label
+				>{$t('app.components.ingestion_source_form.tenant_id')}</Label
 			>
 			<Input id="tenantId" bind:value={formData.providerConfig.tenantId} class="col-span-3" />
 		</div>
 	{:else if formData.provider === 'generic_imap'}
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="host" class="text-left">{$t('components.ingestion_source_form.host')}</Label
+			<Label for="host" class="text-left"
+				>{$t('app.components.ingestion_source_form.host')}</Label
 			>
 			<Input id="host" bind:value={formData.providerConfig.host} class="col-span-3" />
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="port" class="text-left">{$t('components.ingestion_source_form.port')}</Label
+			<Label for="port" class="text-left"
+				>{$t('app.components.ingestion_source_form.port')}</Label
 			>
 			<Input
 				id="port"
@@ -193,7 +203,7 @@
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="username" class="text-left"
-				>{$t('components.ingestion_source_form.username')}</Label
+				>{$t('app.components.ingestion_source_form.username')}</Label
 			>
 			<Input id="username" bind:value={formData.providerConfig.username} class="col-span-3" />
 		</div>
@@ -208,14 +218,14 @@
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="secure" class="text-left"
-				>{$t('components.ingestion_source_form.use_tls')}</Label
+				>{$t('app.components.ingestion_source_form.use_tls')}</Label
 			>
 			<Checkbox id="secure" bind:checked={formData.providerConfig.secure} />
 		</div>
 	{:else if formData.provider === 'pst_import'}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="pst-file" class="text-left"
-				>{$t('components.ingestion_source_form.pst_file')}</Label
+				>{$t('app.components.ingestion_source_form.pst_file')}</Label
 			>
 			<div class="col-span-3 flex flex-row items-center space-x-2">
 				<Input
@@ -233,7 +243,7 @@
 	{:else if formData.provider === 'eml_import'}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="eml-file" class="text-left"
-				>{$t('components.ingestion_source_form.eml_file')}</Label
+				>{$t('app.components.ingestion_source_form.eml_file')}</Label
 			>
 			<div class="col-span-3 flex flex-row items-center space-x-2">
 				<Input
@@ -251,10 +261,10 @@
 	{/if}
 	{#if formData.provider === 'google_workspace' || formData.provider === 'microsoft_365'}
 		<Alert.Root>
-			<Alert.Title>{$t('components.ingestion_source_form.heads_up')}</Alert.Title>
+			<Alert.Title>{$t('app.components.ingestion_source_form.heads_up')}</Alert.Title>
 			<Alert.Description>
 				<div class="my-1">
-					{@html $t('components.ingestion_source_form.org_wide_warning')}
+					{@html $t('app.components.ingestion_source_form.org_wide_warning')}
 				</div>
 			</Alert.Description>
 		</Alert.Root>
@@ -262,9 +272,9 @@
 	<Dialog.Footer>
 		<Button type="submit" disabled={isSubmitting || fileUploading}>
 			{#if isSubmitting}
-				{$t('components.common.submitting')}
+				{$t('app.components.common.submitting')}
 			{:else}
-				{$t('components.common.submit')}
+				{$t('app.components.common.submit')}
 			{/if}
 		</Button>
 	</Dialog.Footer>

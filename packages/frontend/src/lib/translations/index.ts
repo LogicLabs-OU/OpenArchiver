@@ -11,6 +11,7 @@ import pt from './pt.json';
 import nl from './nl.json';
 import ja from './ja.json';
 import et from './et.json';
+import el from './el.json';
 // This is your config object.
 // It defines the languages and how to load them.
 const config: Config = {
@@ -69,6 +70,12 @@ const config: Config = {
             locale: 'et',
             key: 'app',
             loader: async () => et.app,
+        },
+        // Greek 🇬🇷
+        {
+            locale: 'el',
+            key: 'app',
+            loader: async () => el.app,
         },
     ],
     fallbackLocale: 'en',
