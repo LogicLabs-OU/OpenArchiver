@@ -27,7 +27,7 @@ export class AuthController {
 		const { email, password, first_name, last_name } = req.body;
 
 		if (!email || !password || !first_name || !last_name) {
-			return res.status(400).json({ message: 'Email, password, and name are required' });
+			return res.status(400).json({ message: req.t('auth.setup.allFieldsRequired') });
 		}
 
 		try {
@@ -37,7 +37,7 @@ export class AuthController {
 			const userCount = Number(userCountResult[0].count);
 
 			if (userCount > 0) {
-				return res.status(403).json({ message: 'Setup has already been completed.' });
+				return res.status(403).json({ message: req.t('auth.setup.alreadyCompleted') });
 			}
 
 			const newUser = await this.#userService.createAdminUser(
@@ -48,7 +48,7 @@ export class AuthController {
 			return res.status(201).json(result);
 		} catch (error) {
 			console.error('Setup error:', error);
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
@@ -56,20 +56,20 @@ export class AuthController {
 		const { email, password } = req.body;
 
 		if (!email || !password) {
-			return res.status(400).json({ message: 'Email and password are required' });
+			return res.status(400).json({ message: req.t('auth.login.emailAndPasswordRequired') });
 		}
 
 		try {
 			const result = await this.#authService.login(email, password);
 
 			if (!result) {
-				return res.status(401).json({ message: 'Invalid credentials' });
+				return res.status(401).json({ message: req.t('auth.login.invalidCredentials') });
 			}
 
 			return res.status(200).json(result);
 		} catch (error) {
 			console.error('Login error:', error);
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
@@ -124,7 +124,7 @@ export class AuthController {
 			return res.status(200).json({ needsSetupUser });
 		} catch (error) {
 			console.error('Status check error:', error);
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 }

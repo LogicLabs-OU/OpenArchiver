@@ -1,0 +1,55 @@
+{
+	"auth": {
+		"setup": {
+			"allFieldsRequired": "Email, password, and name are required",
+			"alreadyCompleted": "Setup has already been completed."
+		},
+		"login": {
+			"emailAndPasswordRequired": "Email and password are required",
+			"invalidCredentials": "Invalid credentials this is a translation"
+		}
+	},
+	"errors": {
+		"internalServerError": "An internal server error occurred",
+		"demoMode": "This operation is not allowed in demo mode.",
+		"unauthorized": "Unauthorized",
+		"unknown": "An unknown error occurred"
+	},
+	"user": {
+		"notFound": "User not found",
+		"cannotDeleteOnlyUser": "You are trying to delete the only user in the database, this is not allowed."
+	},
+	"iam": {
+		"failedToGetRoles": "Failed to get roles.",
+		"roleNotFound": "Role not found.",
+		"failedToGetRole": "Failed to get role.",
+		"missingRoleFields": "Missing required fields: name and policy.",
+		"invalidPolicy": "Invalid policy statement:",
+		"failedToCreateRole": "Failed to create role.",
+		"failedToDeleteRole": "Failed to delete role.",
+		"missingUpdateFields": "Missing fields to update: name or policies.",
+		"failedToUpdateRole": "Failed to update role."
+	},
+	"settings": {
+		"failedToRetrieve": "Failed to retrieve settings",
+		"failedToUpdate": "Failed to update settings"
+	},
+	"ingestion": {
+		"failedToCreate": "Failed to create ingestion source due to a connection error.",
+		"notFound": "Ingestion source not found",
+		"initialImportTriggered": "Initial import triggered successfully.",
+		"forceSyncTriggered": "Force sync triggered successfully."
+	},
+	"archivedEmail": {
+		"notFound": "Archived email not found"
+	},
+	"search": {
+		"keywordsRequired": "Keywords are required"
+	},
+	"storage": {
+		"filePathRequired": "File path is required",
+		"invalidFilePath": "Invalid file path",
+		"fileNotFound": "File not found",
+		"downloadError": "Error downloading file"
+	}
+}

@@ -22,6 +22,12 @@ import { UserService } from './services/UserService';
 import { IamService } from './services/IamService';
 import { StorageService } from './services/StorageService';
 import { SearchService } from './services/SearchService';
+import { SettingsService } from './services/SettingsService';
+import i18next from 'i18next';
+import FsBackend from 'i18next-fs-backend';
+import i18nextMiddleware from 'i18next-http-middleware';
+import path from 'path';
+import { logger } from './config/logger';
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +54,25 @@ const searchService = new SearchService();
 const searchController = new SearchController();
 const iamService = new IamService();
 const iamController = new IamController(iamService);
+const settingsService = new SettingsService();
+
+// --- i18next Initialization ---
+const initializeI18next = async () => {
+	const systemSettings = await settingsService.getSettings();
+	const defaultLanguage = systemSettings?.language || 'en';
+	logger.info({ language: defaultLanguage }, 'Default language');
+	await i18next
+		.use(FsBackend)
+		.init({
+			lng: defaultLanguage,
+			fallbackLng: defaultLanguage,
+			ns: ['translation'],
+			defaultNS: 'translation',
+			backend: {
+				loadPath: path.resolve(__dirname, './locales/{{lng}}/{{ns}}.json'),
+			},
+		});
+};
 
 // --- Express App Initialization ---
 const app = express();
@@ -69,6 +94,9 @@ app.use('/v1/upload', uploadRouter);
 // Middleware for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// i18n middleware
+app.use(i18nextMiddleware.handle(i18next));
 
 app.use('/v1/auth', authRouter);
 app.use('/v1/iam', iamRouter);
@@ -95,15 +123,19 @@ app.get('/', (req, res) => {
 // --- Server Start ---
 const startServer = async () => {
 	try {
+		// Initialize i18next
+		await initializeI18next();
+		logger.info({}, 'i18next initialized');
+
 		// Configure the Meilisearch index on startup
-		console.log('Configuring email index...');
+		logger.info({}, 'Configuring email index...');
 		await searchService.configureEmailIndex();
 
 		app.listen(PORT_BACKEND, () => {
-			console.log(`Backend listening at http://localhost:${PORT_BACKEND}`);
+			logger.info({}, `Backend listening at http://localhost:${PORT_BACKEND}`);
 		});
 	} catch (error) {
-		console.error('Failed to start the server:', error);
+		logger.error({ error }, 'Failed to start the server:', error);
 		process.exit(1);
 	}
 };

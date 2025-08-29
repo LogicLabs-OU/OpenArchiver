@@ -1,0 +1,55 @@
+{
+	"auth": {
+		"setup": {
+			"allFieldsRequired": "E-post, parool ja nimi on kohustuslikud",
+			"alreadyCompleted": "Seadistamine on juba lõpule viidud."
+		},
+		"login": {
+			"emailAndPasswordRequired": "E-post ja parool on kohustuslikud",
+			"invalidCredentials": "Valed sisselogimisandmed"
+		}
+	},
+	"errors": {
+		"internalServerError": "Ilmnes sisemine serveri viga",
+		"demoMode": "See toiming pole demo-režiimis lubatud.",
+		"unauthorized": "Volitamata",
+		"unknown": "Ilmnes tundmatu viga"
+	},
+	"user": {
+		"notFound": "Kasutajat ei leitud",
+		"cannotDeleteOnlyUser": "Püüate kustutada andmebaasi ainsat kasutajat, see pole lubatud."
+	},
+	"iam": {
+		"failedToGetRoles": "Rollide hankimine ebaõnnestus.",
+		"roleNotFound": "Rolli ei leitud.",
+		"failedToGetRole": "Rolli hankimine ebaõnnestus.",
+		"missingRoleFields": "Puuduvad kohustuslikud väljad: nimi ja poliitika.",
+		"invalidPolicy": "Kehtetu poliitika avaldus:",
+		"failedToCreateRole": "Rolli loomine ebaõnnestus.",
+		"failedToDeleteRole": "Rolli kustutamine ebaõnnestus.",
+		"missingUpdateFields": "Uuendatavad väljad puuduvad: nimi või poliitikad.",
+		"failedToUpdateRole": "Rolli värskendamine ebaõnnestus."
+	},
+	"settings": {
+		"failedToRetrieve": "Seadete toomine ebaõnnestus",
+		"failedToUpdate": "Seadete värskendamine ebaõnnestus"
+	},
+	"ingestion": {
+		"failedToCreate": "Söötmeallika loomine ebaõnnestus ühenduse vea tõttu.",
+		"notFound": "Söötmeallikat ei leitud",
+		"initialImportTriggered": "Esialgne import käivitati edukalt.",
+		"forceSyncTriggered": "Sunnitud sünkroonimine käivitati edukalt."
+	},
+	"archivedEmail": {
+		"notFound": "Arhiveeritud e-kirja ei leitud"
+	},
+	"search": {
+		"keywordsRequired": "Märksõnad on kohustuslikud"
+	},
+	"storage": {
+		"filePathRequired": "Faili tee on kohustuslik",
+		"invalidFilePath": "Kehtetu faili tee",
+		"fileNotFound": "Faili ei leitud",
+		"downloadError": "Faili allalaadimisel ilmnes viga"
+	}
+}

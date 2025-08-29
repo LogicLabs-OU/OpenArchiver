@@ -9,7 +9,7 @@ export const getSettings = async (req: Request, res: Response) => {
         res.status(200).json(settings);
     } catch (error) {
         // A more specific error could be logged here
-        res.status(500).json({ message: 'Failed to retrieve settings' });
+        res.status(500).json({ message: req.t('settings.failedToRetrieve') });
     }
 };
 
@@ -20,6 +20,6 @@ export const updateSettings = async (req: Request, res: Response) => {
         res.status(200).json(updatedSettings);
     } catch (error) {
         // A more specific error could be logged here
-        res.status(500).json({ message: 'Failed to update settings' });
+        res.status(500).json({ message: req.t('settings.failedToUpdate') });
     }
 };

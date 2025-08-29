@@ -1,0 +1,55 @@
+{
+	"auth": {
+		"setup": {
+			"allFieldsRequired": "E-mail, mot de passe et nom sont requis",
+			"alreadyCompleted": "La configuration est déjà terminée."
+		},
+		"login": {
+			"emailAndPasswordRequired": "E-mail et mot de passe sont requis",
+			"invalidCredentials": "Identifiants non valides"
+		}
+	},
+	"errors": {
+		"internalServerError": "Une erreur interne du serveur est survenue",
+		"demoMode": "Cette opération n'est pas autorisée en mode démo.",
+		"unauthorized": "Non autorisé",
+		"unknown": "Une erreur inconnue est survenue"
+	},
+	"user": {
+		"notFound": "Utilisateur non trouvé",
+		"cannotDeleteOnlyUser": "Vous essayez de supprimer le seul utilisateur de la base de données, ce n'est pas autorisé."
+	},
+	"iam": {
+		"failedToGetRoles": "Échec de la récupération des rôles.",
+		"roleNotFound": "Rôle non trouvé.",
+		"failedToGetRole": "Échec de la récupération du rôle.",
+		"missingRoleFields": "Champs obligatoires manquants : nom et politique.",
+		"invalidPolicy": "Déclaration de politique non valide :",
+		"failedToCreateRole": "Échec de la création du rôle.",
+		"failedToDeleteRole": "Échec de la suppression du rôle.",
+		"missingUpdateFields": "Champs à mettre à jour manquants : nom ou politiques.",
+		"failedToUpdateRole": "Échec de la mise à jour du rôle."
+	},
+	"settings": {
+		"failedToRetrieve": "Échec de la récupération des paramètres",
+		"failedToUpdate": "Échec de la mise à jour des paramètres"
+	},
+	"ingestion": {
+		"failedToCreate": "Échec de la création de la source d'ingestion en raison d'une erreur de connexion.",
+		"notFound": "Source d'ingestion non trouvée",
+		"initialImportTriggered": "Importation initiale déclenchée avec succès.",
+		"forceSyncTriggered": "Synchronisation forcée déclenchée avec succès."
+	},
+	"archivedEmail": {
+		"notFound": "E-mail archivé non trouvé"
+	},
+	"search": {
+		"keywordsRequired": "Mots-clés requis"
+	},
+	"storage": {
+		"filePathRequired": "Chemin du fichier requis",
+		"invalidFilePath": "Chemin de fichier non valide",
+		"fileNotFound": "Fichier non trouvé",
+		"downloadError": "Erreur lors du téléchargement du fichier"
+	}
+}

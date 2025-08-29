@@ -1,0 +1,55 @@
+{
+	"auth": {
+		"setup": {
+			"allFieldsRequired": "Email, password e nome sono obbligatori",
+			"alreadyCompleted": "La configurazione è già stata completata."
+		},
+		"login": {
+			"emailAndPasswordRequired": "Email e password sono obbligatori",
+			"invalidCredentials": "Credenziali non valide"
+		}
+	},
+	"errors": {
+		"internalServerError": "Si è verificato un errore interno del server",
+		"demoMode": "Questa operazione non è consentita in modalità demo.",
+		"unauthorized": "Non autorizzato",
+		"unknown": "Si è verificato un errore sconosciuto"
+	},
+	"user": {
+		"notFound": "Utente non trovato",
+		"cannotDeleteOnlyUser": "Stai tentando di eliminare l'unico utente nel database, ciò non è consentito."
+	},
+	"iam": {
+		"failedToGetRoles": "Impossibile ottenere i ruoli.",
+		"roleNotFound": "Ruolo non trovato.",
+		"failedToGetRole": "Impossibile ottenere il ruolo.",
+		"missingRoleFields": "Campi obbligatori mancanti: nome e politica.",
+		"invalidPolicy": "Dichiarazione di politica non valida:",
+		"failedToCreateRole": "Impossibile creare il ruolo.",
+		"failedToDeleteRole": "Impossibile eliminare il ruolo.",
+		"missingUpdateFields": "Campi da aggiornare mancanti: nome o politiche.",
+		"failedToUpdateRole": "Impossibile aggiornare il ruolo."
+	},
+	"settings": {
+		"failedToRetrieve": "Impossibile recuperare le impostazioni",
+		"failedToUpdate": "Impossibile aggiornare le impostazioni"
+	},
+	"ingestion": {
+		"failedToCreate": "Impossibile creare l'origine di ingestione a causa di un errore di connessione.",
+		"notFound": "Origine di ingestione non trovata",
+		"initialImportTriggered": "Importazione iniziale attivata con successo.",
+		"forceSyncTriggered": "Sincronizzazione forzata attivata con successo."
+	},
+	"archivedEmail": {
+		"notFound": "Email archiviata non trovata"
+	},
+	"search": {
+		"keywordsRequired": "Le parole chiave sono obbligatorie"
+	},
+	"storage": {
+		"filePathRequired": "Il percorso del file è obbligatorio",
+		"invalidFilePath": "Percorso del file non valido",
+		"fileNotFound": "File non trovato",
+		"downloadError": "Errore durante il download del file"
+	}
+}

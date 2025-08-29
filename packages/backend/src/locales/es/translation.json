@@ -1,0 +1,55 @@
+{
+	"auth": {
+		"setup": {
+			"allFieldsRequired": "Se requieren correo electrónico, contraseña y nombre",
+			"alreadyCompleted": "La configuración ya se ha completado."
+		},
+		"login": {
+			"emailAndPasswordRequired": "Se requieren correo electrónico y contraseña",
+			"invalidCredentials": "Credenciales no válidas"
+		}
+	},
+	"errors": {
+		"internalServerError": "Ocurrió un error interno del servidor",
+		"demoMode": "Esta operación no está permitida en modo de demostración.",
+		"unauthorized": "No autorizado",
+		"unknown": "Ocurrió un error desconocido"
+	},
+	"user": {
+		"notFound": "Usuario no encontrado",
+		"cannotDeleteOnlyUser": "Está intentando eliminar el único usuario de la base de datos, esto no está permitido."
+	},
+	"iam": {
+		"failedToGetRoles": "Error al obtener los roles.",
+		"roleNotFound": "Rol no encontrado.",
+		"failedToGetRole": "Error al obtener el rol.",
+		"missingRoleFields": "Faltan campos obligatorios: nombre y política.",
+		"invalidPolicy": "Declaración de política no válida:",
+		"failedToCreateRole": "Error al crear el rol.",
+		"failedToDeleteRole": "Error al eliminar el rol.",
+		"missingUpdateFields": "Faltan campos para actualizar: nombre o políticas.",
+		"failedToUpdateRole": "Error al actualizar el rol."
+	},
+	"settings": {
+		"failedToRetrieve": "Error al recuperar la configuración",
+		"failedToUpdate": "Error al actualizar la configuración"
+	},
+	"ingestion": {
+		"failedToCreate": "Error al crear la fuente de ingesta debido a un error de conexión.",
+		"notFound": "Fuente de ingesta no encontrada",
+		"initialImportTriggered": "Importación inicial activada correctamente.",
+		"forceSyncTriggered": "Sincronización forzada activada correctamente."
+	},
+	"archivedEmail": {
+		"notFound": "Correo electrónico archivado no encontrado"
+	},
+	"search": {
+		"keywordsRequired": "Se requieren palabras clave"
+	},
+	"storage": {
+		"filePathRequired": "Se requiere la ruta del archivo",
+		"invalidFilePath": "Ruta de archivo no válida",
+		"fileNotFound": "Archivo no encontrado",
+		"downloadError": "Error al descargar el archivo"
+	}
+}

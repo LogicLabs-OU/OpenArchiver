@@ -1,0 +1,55 @@
+{
+	"auth": {
+		"setup": {
+			"allFieldsRequired": "E-mail, wachtwoord en naam zijn verplicht",
+			"alreadyCompleted": "De installatie is al voltooid."
+		},
+		"login": {
+			"emailAndPasswordRequired": "E-mail en wachtwoord zijn verplicht",
+			"invalidCredentials": "Ongeldige inloggegevens"
+		}
+	},
+	"errors": {
+		"internalServerError": "Er is een interne serverfout opgetreden",
+		"demoMode": "Deze bewerking is niet toegestaan in de demomodus.",
+		"unauthorized": "Ongeautoriseerd",
+		"unknown": "Er is een onbekende fout opgetreden"
+	},
+	"user": {
+		"notFound": "Gebruiker niet gevonden",
+		"cannotDeleteOnlyUser": "U probeert de enige gebruiker in de database te verwijderen, dit is niet toegestaan."
+	},
+	"iam": {
+		"failedToGetRoles": "Rollen ophalen mislukt.",
+		"roleNotFound": "Rol niet gevonden.",
+		"failedToGetRole": "Rol ophalen mislukt.",
+		"missingRoleFields": "Verplichte velden ontbreken: naam en beleid.",
+		"invalidPolicy": "Ongeldige beleidsverklaring:",
+		"failedToCreateRole": "Rol aanmaken mislukt.",
+		"failedToDeleteRole": "Rol verwijderen mislukt.",
+		"missingUpdateFields": "Te updaten velden ontbreken: naam of beleid.",
+		"failedToUpdateRole": "Rol bijwerken mislukt."
+	},
+	"settings": {
+		"failedToRetrieve": "Instellingen ophalen mislukt",
+		"failedToUpdate": "Instellingen bijwerken mislukt"
+	},
+	"ingestion": {
+		"failedToCreate": "Aanmaken van de opnamebron mislukt vanwege een verbindingsfout.",
+		"notFound": "Opnamebron niet gevonden",
+		"initialImportTriggered": "Initiële import succesvol gestart.",
+		"forceSyncTriggered": "Geforceerde synchronisatie succesvol gestart."
+	},
+	"archivedEmail": {
+		"notFound": "Gearchiveerde e-mail niet gevonden"
+	},
+	"search": {
+		"keywordsRequired": "Trefwoorden zijn verplicht"
+	},
+	"storage": {
+		"filePathRequired": "Bestandspad is verplicht",
+		"invalidFilePath": "Ongeldig bestandspad",
+		"fileNotFound": "Bestand niet gevonden",
+		"downloadError": "Fout bij het downloaden van het bestand"
+	}
+}

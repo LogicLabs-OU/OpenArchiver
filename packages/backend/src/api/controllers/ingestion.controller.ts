@@ -23,13 +23,13 @@ export class IngestionController {
 
 	public create = async (req: Request, res: Response): Promise<Response> => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		try {
 			const dto: CreateIngestionSourceDto = req.body;
 			const userId = req.user?.sub;
 			if (!userId) {
-				return res.status(401).json({ message: 'Unauthorized' });
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
 			const newSource = await IngestionService.create(dto, userId);
 			const safeSource = this.toSafeIngestionSource(newSource);
@@ -39,7 +39,7 @@ export class IngestionController {
 			// Return a 400 Bad Request for connection errors
 			return res.status(400).json({
 				message:
-					error.message || 'Failed to create ingestion source due to a connection error.',
+					error.message || req.t('ingestion.failedToCreate'),
 			});
 		}
 	};
@@ -48,14 +48,14 @@ export class IngestionController {
 		try {
 			const userId = req.user?.sub;
 			if (!userId) {
-				return res.status(401).json({ message: 'Unauthorized' });
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
 			const sources = await IngestionService.findAll(userId);
 			const safeSources = sources.map(this.toSafeIngestionSource);
 			return res.status(200).json(safeSources);
 		} catch (error) {
 			console.error('Find all ingestion sources error:', error);
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
@@ -68,15 +68,15 @@ export class IngestionController {
 		} catch (error) {
 			console.error(`Find ingestion source by id ${req.params.id} error:`, error);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
-				return res.status(404).json({ message: error.message });
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
 	public update = async (req: Request, res: Response): Promise<Response> => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		try {
 			const { id } = req.params;
@@ -87,15 +87,15 @@ export class IngestionController {
 		} catch (error) {
 			console.error(`Update ingestion source ${req.params.id} error:`, error);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
-				return res.status(404).json({ message: error.message });
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
 	public delete = async (req: Request, res: Response): Promise<Response> => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		try {
 			const { id } = req.params;
@@ -104,32 +104,32 @@ export class IngestionController {
 		} catch (error) {
 			console.error(`Delete ingestion source ${req.params.id} error:`, error);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
-				return res.status(404).json({ message: error.message });
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
 	public triggerInitialImport = async (req: Request, res: Response): Promise<Response> => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		try {
 			const { id } = req.params;
 			await IngestionService.triggerInitialImport(id);
-			return res.status(202).json({ message: 'Initial import triggered successfully.' });
+			return res.status(202).json({ message: req.t('ingestion.initialImportTriggered') });
 		} catch (error) {
 			console.error(`Trigger initial import for ${req.params.id} error:`, error);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
-				return res.status(404).json({ message: error.message });
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
 	public pause = async (req: Request, res: Response): Promise<Response> => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		try {
 			const { id } = req.params;
@@ -139,26 +139,26 @@ export class IngestionController {
 		} catch (error) {
 			console.error(`Pause ingestion source ${req.params.id} error:`, error);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
-				return res.status(404).json({ message: error.message });
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 
 	public triggerForceSync = async (req: Request, res: Response): Promise<Response> => {
 		if (config.app.isDemo) {
-			return res.status(403).json({ message: 'This operation is not allowed in demo mode.' });
+			return res.status(403).json({ message: req.t('errors.demoMode') });
 		}
 		try {
 			const { id } = req.params;
 			await IngestionService.triggerForceSync(id);
-			return res.status(202).json({ message: 'Force sync triggered successfully.' });
+			return res.status(202).json({ message: req.t('ingestion.forceSyncTriggered') });
 		} catch (error) {
 			console.error(`Trigger force sync for ${req.params.id} error:`, error);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
-				return res.status(404).json({ message: error.message });
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}
-			return res.status(500).json({ message: 'An internal server error occurred' });
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
 }

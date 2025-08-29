@@ -1,0 +1,55 @@
+{
+	"auth": {
+		"setup": {
+			"allFieldsRequired": "E-Mail, Passwort und Name sind erforderlich",
+			"alreadyCompleted": "Die Einrichtung wurde bereits abgeschlossen."
+		},
+		"login": {
+			"emailAndPasswordRequired": "E-Mail und Passwort sind erforderlich",
+			"invalidCredentials": "Ungültige Anmeldeinformationen"
+		}
+	},
+	"errors": {
+		"internalServerError": "Ein interner Serverfehler ist aufgetreten",
+		"demoMode": "Dieser Vorgang ist im Demo-Modus nicht zulässig.",
+		"unauthorized": "Unbefugt",
+		"unknown": "Ein unbekannter Fehler ist aufgetreten"
+	},
+	"user": {
+		"notFound": "Benutzer nicht gefunden",
+		"cannotDeleteOnlyUser": "Sie versuchen, den einzigen Benutzer in der Datenbank zu löschen, dies ist nicht gestattet."
+	},
+	"iam": {
+		"failedToGetRoles": "Rollen konnten nicht abgerufen werden.",
+		"roleNotFound": "Rolle nicht gefunden.",
+		"failedToGetRole": "Rolle konnte nicht abgerufen werden.",
+		"missingRoleFields": "Fehlende erforderliche Felder: Name und Richtlinie.",
+		"invalidPolicy": "Ungültige Richtlinienanweisung:",
+		"failedToCreateRole": "Rolle konnte nicht erstellt werden.",
+		"failedToDeleteRole": "Rolle konnte nicht gelöscht werden.",
+		"missingUpdateFields": "Fehlende Felder zum Aktualisieren: Name oder Richtlinien.",
+		"failedToUpdateRole": "Rolle konnte nicht aktualisiert werden."
+	},
+	"settings": {
+		"failedToRetrieve": "Einstellungen konnten nicht abgerufen werden",
+		"failedToUpdate": "Einstellungen konnten nicht aktualisiert werden"
+	},
+	"ingestion": {
+		"failedToCreate": "Die Erfassungsquelle konnte aufgrund eines Verbindungsfehlers nicht erstellt werden.",
+		"notFound": "Erfassungsquelle nicht gefunden",
+		"initialImportTriggered": "Der erstmalige Import wurde erfolgreich ausgelöst.",
+		"forceSyncTriggered": "Die Zwangssynchronisierung wurde erfolgreich ausgelöst."
+	},
+	"archivedEmail": {
+		"notFound": "Archivierte E-Mail nicht gefunden"
+	},
+	"search": {
+		"keywordsRequired": "Schlüsselwörter sind erforderlich"
+	},
+	"storage": {
+		"filePathRequired": "Dateipfad ist erforderlich",
+		"invalidFilePath": "Ungültiger Dateipfad",
+		"fileNotFound": "Datei nicht gefunden",
+		"downloadError": "Fehler beim Herunterladen der Datei"
+	}
+}
