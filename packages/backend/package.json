@@ -5,7 +5,8 @@
 	"main": "dist/index.js",
 	"scripts": {
 		"dev": "ts-node-dev --respawn --transpile-only src/index.ts ",
-		"build": "tsc",
+		"build": "tsc && pnpm copy-assets",
+		"copy-assets": "cp -r src/locales dist/locales",
 		"start": "node dist/index.js",
 		"start:ingestion-worker": "node dist/workers/ingestion.worker.js",
 		"start:indexing-worker": "node dist/workers/indexing.worker.js",
