@@ -183,6 +183,7 @@
 				"port": "Port",
 				"username": "Username",
 				"use_tls": "Use TLS",
+				"allow_insecure_cert": "Allow insecure cert",
 				"pst_file": "PST File",
 				"eml_file": "EML File",
 				"heads_up": "Heads up!",

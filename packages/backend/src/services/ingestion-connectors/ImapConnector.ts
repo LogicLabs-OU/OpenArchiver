@@ -27,9 +27,8 @@ export class ImapConnector implements IEmailConnector {
 			port: this.credentials.port,
 			secure: this.credentials.secure,
 			tls: {
-				rejectUnauthorized: false,
+				rejectUnauthorized: this.credentials.allowInsecureCert,
 				requestCert: true,
-
 			},
 			auth: {
 				user: this.credentials.username,

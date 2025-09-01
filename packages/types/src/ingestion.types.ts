@@ -44,6 +44,7 @@ export interface GenericImapCredentials extends BaseIngestionCredentials {
 	host: string;
 	port: number;
 	secure: boolean;
+	allowInsecureCert: boolean;
 	username: string;
 	password?: string;
 }

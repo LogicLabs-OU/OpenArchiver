@@ -49,6 +49,7 @@
 		providerConfig: source?.credentials ?? {
 			type: source?.provider ?? 'generic_imap',
 			secure: true,
+			allowInsecureCert: false,
 		},
 	});
 
@@ -221,6 +222,12 @@
 				>{$t('app.components.ingestion_source_form.use_tls')}</Label
 			>
 			<Checkbox id="secure" bind:checked={formData.providerConfig.secure} />
+		</div>
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="secure" class="text-left"
+				>{$t('app.components.ingestion_source_form.allow_insecure_cert')}</Label
+			>
+			<Checkbox id="secure" bind:checked={formData.providerConfig.allowInsecureCert} />
 		</div>
 	{:else if formData.provider === 'pst_import'}
 		<div class="grid grid-cols-4 items-center gap-4">
