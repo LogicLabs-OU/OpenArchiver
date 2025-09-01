@@ -6,7 +6,6 @@ services:
         container_name: open-archiver
         restart: unless-stopped
         ports:
-            - '4000:4000' # Backend
             - '3000:3000' # Frontend
         env_file:
             - .env
@@ -29,8 +28,6 @@ services:
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
         volumes:
             - pgdata:/var/lib/postgresql/data
-        ports:
-            - '5432:5432'
         networks:
             - open-archiver-net
 
@@ -39,8 +36,6 @@ services:
         container_name: valkey
         restart: unless-stopped
         command: valkey-server --requirepass ${REDIS_PASSWORD}
-        ports:
-            - '6379:6379'
         volumes:
             - valkeydata:/data
         networks:
@@ -52,8 +47,6 @@ services:
         restart: unless-stopped
         environment:
             MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-aSampleMasterKey}
-        ports:
-            - '7700:7700'
         volumes:
             - meilidata:/meili_data
         networks:
