@@ -157,7 +157,11 @@ export class ImapConnector implements IEmailConnector {
 				// filter out trash and all mail emails
 				if (mailbox.specialUse) {
 					const specialUse = mailbox.specialUse.toLowerCase();
-					if (specialUse === '\\junk' || specialUse === '\\trash' || specialUse === '\\all') {
+					if (
+						specialUse === '\\junk' ||
+						specialUse === '\\trash' ||
+						specialUse === '\\all'
+					) {
 						return false;
 					}
 				}
