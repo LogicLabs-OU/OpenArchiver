@@ -99,7 +99,7 @@ export class IndexingService {
 			archivedEmailId,
 			email.userEmail || ''
 		);
-		console.log(document);
+		// console.log(document);
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
@@ -129,7 +129,7 @@ export class IndexingService {
 				//  skip attachment or fail the job
 			}
 		}
-		console.log('email.userEmail', userEmail);
+		// console.log('email.userEmail', userEmail);
 		return {
 			id: archivedEmailId,
 			userEmail: userEmail,
@@ -165,7 +165,7 @@ export class IndexingService {
 			'';
 
 		const recipients = email.recipients as DbRecipients;
-		console.log('email.userEmail', email.userEmail);
+		// console.log('email.userEmail', email.userEmail);
 		return {
 			id: email.id,
 			userEmail: userEmail,
