@@ -20,11 +20,6 @@ export const requireAuth = (authService: AuthService) => {
 		}
 		const token = authHeader.split(' ')[1];
 		try {
-			// use a SUPER_API_KEY for all authentications. add process.env.SUPER_API_KEY conditional check in case user didn't set a SUPER_API_KEY.
-			if (process.env.SUPER_API_KEY && token === process.env.SUPER_API_KEY) {
-				next();
-				return;
-			}
 			const payload = await authService.verifyToken(token);
 			if (!payload) {
 				return res.status(401).json({ message: 'Unauthorized: Invalid token' });
