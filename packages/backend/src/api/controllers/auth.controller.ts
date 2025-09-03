@@ -121,7 +121,7 @@ export class AuthController {
 				);
 				return res.status(200).json({ needsSetup: false });
 			}
-			return res.status(200).json({ needsSetupUser });
+			return res.status(200).json({ needsSetup: needsSetupUser });
 		} catch (error) {
 			console.error('Status check error:', error);
 			return res.status(500).json({ message: req.t('errors.internalServerError') });
