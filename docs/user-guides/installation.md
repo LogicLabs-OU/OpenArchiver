@@ -110,6 +110,8 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `JWT_SECRET`                     | A secret key for signing JWT tokens.                                                                                                           | `a-very-secret-key-that-you-should-change` |
 | `JWT_EXPIRES_IN`                 | The expiration time for JWT tokens.                                                                                                            | `7d`                                       |
 | ~~`SUPER_API_KEY`~~ (Deprecated) | An API key with super admin privileges. (The SUPER_API_KEY is deprecated since v0.3.0 after we roll out the role-based access control system.) |                                            |
+| `RATE_LIMIT_WINDOW_MS`           | The window in milliseconds for which API requests are checked.                                                                                 | `900000` (15 minutes)                      |
+| `RATE_LIMIT_MAX_REQUESTS`        | The maximum number of API requests allowed from an IP within the window.                                                                       | `100`                                      |
 | `ENCRYPTION_KEY`                 | A 32-byte hex string for encrypting sensitive data in the database.                                                                            |                                            |
 
 ## 3. Run the Application
