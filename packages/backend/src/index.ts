@@ -17,6 +17,7 @@ import { createDashboardRouter } from './api/routes/dashboard.routes';
 import { createUploadRouter } from './api/routes/upload.routes';
 import { createUserRouter } from './api/routes/user.routes';
 import { createSettingsRouter } from './api/routes/settings.routes';
+import { apiKeyRoutes } from './api/routes/api-key.routes';
 import { AuthService } from './services/AuthService';
 import { UserService } from './services/UserService';
 import { IamService } from './services/IamService';
@@ -28,6 +29,7 @@ import FsBackend from 'i18next-fs-backend';
 import i18nextMiddleware from 'i18next-http-middleware';
 import path from 'path';
 import { logger } from './config/logger';
+import { rateLimiter } from './api/middleware/rateLimiter';
 
 // Load environment variables
 dotenv.config();
@@ -43,7 +45,7 @@ if (!PORT_BACKEND || !JWT_SECRET || !JWT_EXPIRES_IN) {
 
 // --- i18next Initialization ---
 const initializeI18next = async () => {
-	const systemSettings = await settingsService.getSettings();
+	const systemSettings = await settingsService.getSystemSettings();
 	const defaultLanguage = systemSettings?.language || 'en';
 	logger.info({ language: defaultLanguage }, 'Default language');
 	await i18next.use(FsBackend).init({
@@ -86,10 +88,12 @@ const iamRouter = createIamRouter(iamController, authService);
 const uploadRouter = createUploadRouter(authService);
 const userRouter = createUserRouter(authService);
 const settingsRouter = createSettingsRouter(authService);
+const apiKeyRouter = apiKeyRoutes(authService);
 // upload route is added before middleware because it doesn't use the json middleware.
 app.use('/v1/upload', uploadRouter);
 
 // Middleware for all other routes
+app.use(rateLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -105,6 +109,7 @@ app.use('/v1/search', searchRouter);
 app.use('/v1/dashboard', dashboardRouter);
 app.use('/v1/users', userRouter);
 app.use('/v1/settings', settingsRouter);
+app.use('/v1/api-keys', apiKeyRouter);
 
 // Example of a protected route
 app.get('/v1/protected', requireAuth(authService), (req, res) => {

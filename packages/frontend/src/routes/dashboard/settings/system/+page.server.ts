@@ -4,7 +4,7 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	const response = await api('/settings', event);
+	const response = await api('/settings/system', event);
 
 	if (!response.ok) {
 		const { message } = await response.json();
@@ -30,7 +30,7 @@ export const actions: Actions = {
 			supportEmail: supportEmail ? String(supportEmail) : null,
 		};
 
-		const response = await api('/settings', event, {
+		const response = await api('/settings/system', event, {
 			method: 'PUT',
 			body: JSON.stringify(body),
 		});

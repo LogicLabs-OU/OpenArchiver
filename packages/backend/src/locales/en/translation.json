@@ -58,5 +58,12 @@
 		"invalidFilePath": "Invalid file path",
 		"fileNotFound": "File not found",
 		"downloadError": "Error downloading file"
+	},
+	"apiKeys": {
+		"generateSuccess": "API key generated successfully.",
+		"deleteSuccess": "API key deleted successfully."
+	},
+	"api": {
+		"requestBodyInvalid": "Invalid request body."
 	}
 }

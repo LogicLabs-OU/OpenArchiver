@@ -1,45 +1,25 @@
 # API Authentication
 
-To access protected API endpoints, you need to include a JSON Web Token (JWT) in the `Authorization` header of your requests.
+To access protected API endpoints, you need to include a user-generated API key in the `X-API-KEY` header of your requests.
 
-## Obtaining a JWT
+## 1. Creating an API Key
 
-First, you need to authenticate with the `/api/v1/auth/login` endpoint by providing your email and password. If the credentials are correct, the API will return an `accessToken`.
+You can create, manage, and view your API keys through the application's user interface.
 
-**Request:**
+1.  Navigate to **Settings > API Keys** in the dashboard.
+2.  Click the **"Generate API Key"** button.
+3.  Provide a descriptive name for your key and select an expiration period.
+4.  The new API key will be displayed. **Copy this key immediately and store it in a secure location. You will not be able to see it again.**
 
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
+## 2. Making Authenticated Requests
 
-{
-  "email": "user@example.com",
-  "password": "your-password"
-}
-```
-
-**Successful Response:**
-
-```json
-{
-	"accessToken": "your.jwt.token",
-	"user": {
-		"id": "user-id",
-		"email": "user@example.com",
-		"role": "user"
-	}
-}
-```
-
-## Making Authenticated Requests
-
-Once you have the `accessToken`, you must include it in the `Authorization` header of all subsequent requests to protected endpoints, using the `Bearer` scheme.
+Once you have your API key, you must include it in the `X-API-KEY` header of all subsequent requests to protected API endpoints.
 
 **Example:**
 
 ```http
 GET /api/v1/dashboard/stats
-Authorization: Bearer your.jwt.token
+X-API-KEY: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
 ```
 
-If the token is missing, expired, or invalid, the API will respond with a `401 Unauthorized` status code.
+If the API key is missing, expired, or invalid, the API will respond with a `401 Unauthorized` status code.

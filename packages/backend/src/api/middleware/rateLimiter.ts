@@ -1,10 +1,12 @@
 import rateLimit from 'express-rate-limit';
+import { config } from '../../config';
 
-// Rate limiter to prevent brute-force attacks on the login endpoint
-export const loginRateLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	max: 10, // Limit each IP to 10 login requests per windowMs
-	message: 'Too many login attempts from this IP, please try again after 15 minutes',
-	standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+const windowInMinutes = Math.ceil(config.api.rateLimit.windowMs / 60000);
+
+export const rateLimiter = rateLimit({
+	windowMs: config.api.rateLimit.windowMs,
+	max: config.api.rateLimit.max,
+	message: `Too many requests from this IP, please try again after ${windowInMinutes} minutes`,
+	standardHeaders: true,
+	legacyHeaders: false,
 });

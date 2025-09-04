@@ -1,0 +1,1 @@
+ALTER TABLE "api_keys" ADD COLUMN "key_hash" text NOT NULL;

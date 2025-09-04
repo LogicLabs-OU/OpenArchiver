@@ -35,3 +35,11 @@ export interface Role {
 	createdAt: Date;
 	updatedAt: Date;
 }
+
+export interface ApiKey {
+	id: string;
+	name: string;
+	key: string;
+	expiresAt: string;
+	createdAt: string;
+}

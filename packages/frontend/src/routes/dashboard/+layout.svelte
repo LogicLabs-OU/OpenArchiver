@@ -33,6 +33,10 @@
 					href: '/dashboard/settings/roles',
 					label: $t('app.layout.roles'),
 				},
+				{
+					href: '/dashboard/settings/api-keys',
+					label: $t('app.layout.api_keys'),
+				},
 			],
 		},
 	];

@@ -15,11 +15,11 @@ export class SettingsService {
 	 * If no settings exist, it initializes and returns the default settings.
 	 * @returns The system settings.
 	 */
-	public async getSettings(): Promise<SystemSettings> {
+	public async getSystemSettings(): Promise<SystemSettings> {
 		const settings = await db.select().from(systemSettings).limit(1);
 
 		if (settings.length === 0) {
-			return this.createDefaultSettings();
+			return this.createDefaultSystemSettings();
 		}
 
 		return settings[0].config;
@@ -30,8 +30,8 @@ export class SettingsService {
 	 * @param newConfig - A partial object of the new settings configuration.
 	 * @returns The updated system settings.
 	 */
-	public async updateSettings(newConfig: Partial<SystemSettings>): Promise<SystemSettings> {
-		const currentConfig = await this.getSettings();
+	public async updateSystemSettings(newConfig: Partial<SystemSettings>): Promise<SystemSettings> {
+		const currentConfig = await this.getSystemSettings();
 		const mergedConfig = { ...currentConfig, ...newConfig };
 
 		// Since getSettings ensures a record always exists, we can directly update.
@@ -45,7 +45,7 @@ export class SettingsService {
 	 * This is called internally when no settings are found.
 	 * @returns The newly created default settings.
 	 */
-	private async createDefaultSettings(): Promise<SystemSettings> {
+	private async createDefaultSystemSettings(): Promise<SystemSettings> {
 		const [result] = await db
 			.insert(systemSettings)
 			.values({ config: DEFAULT_SETTINGS })

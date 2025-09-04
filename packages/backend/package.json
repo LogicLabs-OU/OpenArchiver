@@ -60,7 +60,8 @@
 		"sqlite3": "^5.1.7",
 		"tsconfig-paths": "^4.2.0",
 		"xlsx": "^0.18.5",
-		"yauzl": "^3.2.0"
+		"yauzl": "^3.2.0",
+		"zod": "^4.1.5"
 	},
 	"devDependencies": {
 		"@bull-board/api": "^6.11.0",
