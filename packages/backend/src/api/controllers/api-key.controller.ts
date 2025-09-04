@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ApiKeyService } from '../../services/ApiKeyService';
 import { z } from 'zod';
+import { config } from '../../config';
 
 const generateApiKeySchema = z.object({
     name: z.string().min(1, 'API kay name must be more than 1 characters').max(255, 'API kay name must not be more than 255 characters'),
@@ -9,6 +10,9 @@ const generateApiKeySchema = z.object({
 
 export class ApiKeyController {
     public async generateApiKey(req: Request, res: Response) {
+        if (config.app.isDemo) {
+            return res.status(403).json({ message: req.t('errors.demoMode') });
+        }
         try {
             const { name, expiresInDays } = generateApiKeySchema.parse(req.body);
             if (!req.user || !req.user.sub) {
@@ -38,6 +42,9 @@ export class ApiKeyController {
     }
 
     public async deleteApiKey(req: Request, res: Response) {
+        if (config.app.isDemo) {
+            return res.status(403).json({ message: req.t('errors.demoMode') });
+        }
         const { id } = req.params;
         if (!req.user || !req.user.sub) {
             return res.status(401).json({ message: 'Unauthorized' });
