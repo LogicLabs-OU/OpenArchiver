@@ -71,6 +71,7 @@ export default defineConfig({
 				items: [
 					{ text: 'Overview', link: '/api/' },
 					{ text: 'Authentication', link: '/api/authentication' },
+					{ text: 'Rate Limiting', link: '/api/rate-limiting' },
 					{ text: 'Auth', link: '/api/auth' },
 					{ text: 'Archived Email', link: '/api/archived-email' },
 					{ text: 'Dashboard', link: '/api/dashboard' },
