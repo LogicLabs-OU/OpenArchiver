@@ -18,7 +18,7 @@
 			let finalTheme = $theme;
 
 			if (finalTheme === 'system') {
-				finalTheme = data.settings?.theme || 'system';
+				finalTheme = data.systemSettings?.theme || 'system';
 			}
 
 			const isDark =

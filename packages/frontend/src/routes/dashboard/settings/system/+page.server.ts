@@ -11,9 +11,9 @@ export const load: PageServerLoad = async (event) => {
 		throw error(response.status, message || 'Failed to fetch system settings');
 	}
 
-	const settings: SystemSettings = await response.json();
+	const systemSettings: SystemSettings = await response.json();
 	return {
-		settings,
+		systemSettings,
 	};
 };
 

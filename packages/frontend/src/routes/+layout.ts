@@ -8,8 +8,8 @@ export const load: LayoutLoad = async ({ url, data }) => {
 
 	let initLocale: SupportedLanguage = 'en'; // Default fallback
 
-	if (data.settings?.language) {
-		initLocale = data.settings.language;
+	if (data.systemSettings?.language) {
+		initLocale = data.systemSettings.language;
 	}
 
 	console.log(initLocale);

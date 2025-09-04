@@ -11,7 +11,7 @@
 	import { t } from '$lib/translations';
 
 	let { data, form }: { data: PageData; form: any } = $props();
-	let settings = $state(data.settings);
+	let settings = $state(data.systemSettings);
 	let isSaving = $state(false);
 
 	const languageOptions: { value: SupportedLanguage; label: string }[] = [

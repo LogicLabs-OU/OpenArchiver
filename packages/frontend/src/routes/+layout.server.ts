@@ -6,8 +6,9 @@ import type { SystemSettings } from '@open-archiver/types';
 
 export const load: LayoutServerLoad = async (event) => {
 	const { locals, url } = event;
-	try {
-		const response = await api('/auth/status', event);
+	const response = await api('/auth/status', event);
+
+	if (response.ok) {
 		const { needsSetup } = await response.json();
 
 		if (needsSetup && url.pathname !== '/setup') {
@@ -17,19 +18,24 @@ export const load: LayoutServerLoad = async (event) => {
 		if (!needsSetup && url.pathname === '/setup') {
 			throw redirect(307, '/signin');
 		}
-	} catch (error) {
-		throw error;
+	} else {
+		// if auth status check fails, we can't know if the setup is complete,
+		// so we redirect to signin page as a safe fallback.
+		if (url.pathname !== '/signin') {
+			console.error('Failed to get auth status:', await response.text());
+			throw redirect(307, '/signin');
+		}
 	}
 
-	const settingsResponse = await api('/settings', event);
-	const settings: SystemSettings | null = settingsResponse.ok
-		? await settingsResponse.json()
+	const systemSettingsResponse = await api('/settings/system', event);
+	const systemSettings: SystemSettings | null = systemSettingsResponse.ok
+		? await systemSettingsResponse.json()
 		: null;
 
 	return {
 		user: locals.user,
 		accessToken: locals.accessToken,
 		isDemo: process.env.IS_DEMO === 'true',
-		settings,
+		systemSettings,
 	};
 };
