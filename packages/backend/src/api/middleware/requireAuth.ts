@@ -32,7 +32,7 @@ export const requireAuth = (authService: AuthService) => {
 			req.user = {
 				sub: user.id,
 				email: user.email,
-				roles: user.role ? [user.role.name] : []
+				roles: user.role ? [user.role.name] : [],
 			};
 			return next();
 		}

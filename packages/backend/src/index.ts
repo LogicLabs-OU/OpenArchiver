@@ -95,10 +95,7 @@ app.use('/v1/upload', uploadRouter);
 // Middleware for all other routes
 app.use((req, res, next) => {
 	// exclude certain API endpoints from the rate limiter, for example status, system settings
-	const excludedPatterns = [
-		/^\/v\d+\/auth\/status$/,
-		/^\/v\d+\/settings\/system$/
-	];
+	const excludedPatterns = [/^\/v\d+\/auth\/status$/, /^\/v\d+\/settings\/system$/];
 	for (const pattern of excludedPatterns) {
 		if (pattern.test(req.path)) {
 			return next();

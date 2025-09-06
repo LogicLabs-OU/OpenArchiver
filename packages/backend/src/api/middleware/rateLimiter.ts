@@ -8,9 +8,9 @@ export const rateLimiter = rateLimit({
 	max: config.api.rateLimit.max,
 	message: {
 		status: 429,
-		message: `Too many requests from this IP, please try again after ${windowInMinutes} minutes`
+		message: `Too many requests from this IP, please try again after ${windowInMinutes} minutes`,
 	},
 	statusCode: 429,
 	standardHeaders: true,
-	legacyHeaders: false
+	legacyHeaders: false,
 });
