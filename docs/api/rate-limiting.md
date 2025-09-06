@@ -8,7 +8,7 @@ The rate limiter restricts the number of requests an IP address can make within 
 
 By default, the limits are:
 
-- **100 requests** per **15 minutes** per IP address.
+- **100 requests** per **1 minute** per IP address.
 
 If this limit is exceeded, the API will respond with an HTTP `429 Too Many Requests` status code.
 
@@ -27,7 +27,7 @@ When an IP address is rate-limited, the API will return a JSON response with the
 
 You can customize the rate-limiting settings by setting the following environment variables in your `.env` file:
 
-- `RATE_LIMIT_WINDOW_MS`: The time window in milliseconds. Defaults to `900000` (15 minutes).
+- `RATE_LIMIT_WINDOW_MS`: The time window in milliseconds. Defaults to `60000` (1 minute).
 - `RATE_LIMIT_MAX_REQUESTS`: The maximum number of requests allowed per IP address within the time window. Defaults to `100`.
 
 ## Handling Rate Limits
