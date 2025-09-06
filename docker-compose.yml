@@ -11,6 +11,9 @@ services:
             - .env
         volumes:
             - archiver-data:/var/data/open-archiver
+            # (Optional) Mount a host directory containing Tesseract language files for OCR.
+            # If you do not need OCR, you can safely comment out or remove the line below.
+            - ${TESSERACT_PATH:-./tessdata}:/usr/src/app/tessdata:ro
         depends_on:
             - postgres
             - valkey

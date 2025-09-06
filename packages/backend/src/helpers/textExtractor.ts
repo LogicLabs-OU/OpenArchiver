@@ -1,6 +1,9 @@
 import PDFParser from 'pdf2json';
 import mammoth from 'mammoth';
 import xlsx from 'xlsx';
+import { ocrService } from '../services/OcrService';
+import { logger } from '../config/logger';
+import { config } from '../config';
 
 function extractTextFromPdf(buffer: Buffer): Promise<string> {
 	return new Promise((resolve) => {
@@ -14,25 +17,47 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 			resolve(text);
 		};
 
-		pdfParser.on('pdfParser_dataError', () => finish(''));
+		pdfParser.on('pdfParser_dataError', (err) => {
+			logger.error({ err }, 'Error parsing PDF for text extraction');
+			finish('');
+		});
 		pdfParser.on('pdfParser_dataReady', () => finish(pdfParser.getRawTextContent()));
 
 		try {
 			pdfParser.parseBuffer(buffer);
 		} catch (err) {
-			console.error('Error parsing PDF buffer', err);
+			logger.error({ err }, 'Error parsing PDF buffer');
 			finish('');
 		}
 
-		// Prevent hanging if the parser never emits events
 		setTimeout(() => finish(''), 10000);
 	});
 }
 
+const OCR_SUPPORTED_MIME_TYPES = [
+	'image/jpeg',
+	'image/png',
+	'image/tiff',
+	'image/bmp',
+	'image/gif',
+];
+
 export async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
 	try {
 		if (mimeType === 'application/pdf') {
-			return await extractTextFromPdf(buffer);
+			let text = await extractTextFromPdf(buffer);
+			if ((!text || text.trim() === '') && config.app.ocrEnabled) {
+				logger.info(
+					{ mimeType },
+					'PDF text extraction returned empty. Attempting OCR fallback...'
+				);
+				text = await ocrService.recognize(buffer);
+			}
+			return text;
+		}
+
+		if (OCR_SUPPORTED_MIME_TYPES.includes(mimeType) && config.app.ocrEnabled) {
+			return await ocrService.recognize(buffer);
 		}
 
 		if (
@@ -61,10 +86,10 @@ export async function extractText(buffer: Buffer, mimeType: string): Promise<str
 			return buffer.toString('utf-8');
 		}
 	} catch (error) {
-		console.error(`Error extracting text from attachment with MIME type ${mimeType}:`, error);
-		return ''; // Return empty string on failure
+		logger.error({ err: error, mimeType }, 'Error extracting text from attachment');
+		return '';
 	}
 
-	console.warn(`Unsupported MIME type for text extraction: ${mimeType}`);
-	return ''; // Return empty string for unsupported types
+	logger.warn({ mimeType }, 'Unsupported MIME type for text extraction');
+	return '';
 }
