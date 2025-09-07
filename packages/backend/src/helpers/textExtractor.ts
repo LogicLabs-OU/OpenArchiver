@@ -4,33 +4,52 @@ import xlsx from 'xlsx';
 import { ocrService } from '../services/OcrService';
 import { logger } from '../config/logger';
 import { config } from '../config';
+import { pdfToPng } from 'pdf-to-png-converter';
 
-function extractTextFromPdf(buffer: Buffer): Promise<string> {
+interface PdfExtractResult {
+	text: string;
+	hasText: boolean;
+}
+
+function extractTextFromPdf(buffer: Buffer): Promise<PdfExtractResult> {
 	return new Promise((resolve) => {
 		const pdfParser = new PDFParser(null, true);
 		let completed = false;
 
-		const finish = (text: string) => {
+		const finish = (result: PdfExtractResult) => {
 			if (completed) return;
 			completed = true;
 			pdfParser.removeAllListeners();
-			resolve(text);
+			resolve(result);
 		};
 
 		pdfParser.on('pdfParser_dataError', (err) => {
 			logger.error({ err }, 'Error parsing PDF for text extraction');
-			finish('');
+			finish({ text: '', hasText: false });
 		});
-		pdfParser.on('pdfParser_dataReady', () => finish(pdfParser.getRawTextContent()));
+
+		pdfParser.on('pdfParser_dataReady', (pdfData) => {
+			let hasText = false;
+			if (pdfData?.Pages) {
+				for (const page of pdfData.Pages) {
+					if (page.Texts && page.Texts.length > 0) {
+						hasText = true;
+						break;
+					}
+				}
+			}
+			const text = pdfParser.getRawTextContent();
+			finish({ text, hasText });
+		});
 
 		try {
 			pdfParser.parseBuffer(buffer);
 		} catch (err) {
 			logger.error({ err }, 'Error parsing PDF buffer');
-			finish('');
+			finish({ text: '', hasText: false });
 		}
 
-		setTimeout(() => finish(''), 10000);
+		setTimeout(() => finish({ text: '', hasText: false }), 10000);
 	});
 }
 
@@ -39,21 +58,27 @@ const OCR_SUPPORTED_MIME_TYPES = [
 	'image/png',
 	'image/tiff',
 	'image/bmp',
-	'image/gif',
+	'image/webp',
+	'image/x-portable-bitmap',
 ];
 
 export async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
 	try {
 		if (mimeType === 'application/pdf') {
-			let text = await extractTextFromPdf(buffer);
-			if ((!text || text.trim() === '') && config.app.ocrEnabled) {
+			const pdfResult = await extractTextFromPdf(buffer);
+			if (!pdfResult.hasText && config.app.ocrEnabled) {
 				logger.info(
 					{ mimeType },
-					'PDF text extraction returned empty. Attempting OCR fallback...'
+					'PDF contains no selectable text. Attempting OCR fallback...'
 				);
-				text = await ocrService.recognize(buffer);
+				const pngPages = await pdfToPng(buffer);
+				let ocrText = '';
+				for (const pngPage of pngPages) {
+					ocrText += await ocrService.recognize(pngPage.content) + '\n';
+				}
+				return ocrText;
 			}
-			return text;
+			return pdfResult.text;
 		}
 
 		if (OCR_SUPPORTED_MIME_TYPES.includes(mimeType) && config.app.ocrEnabled) {

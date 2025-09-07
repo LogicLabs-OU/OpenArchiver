@@ -48,10 +48,10 @@ services:
             - archiver-data:/var/data/open-archiver
             # (Optional) Mount a host directory containing Tesseract language files for OCR.
             # If you do not need OCR, you can safely comment out or remove the line below.
-            - ${TESSERACT_PATH:-./tessdata}:/usr/src/app/tessdata:ro
+            - ${TESSERACT_PATH:-./tessdata}:/opt/open-archiver/tessdata:ro
 ```
 
-This line connects the host path specified in `TESSERACT_PATH` (defaulting to `./tessdata` if not set) to the fixed `/usr/src/app/tessdata` path inside the container. If you have disabled OCR, you can comment out or remove the volume mount line.
+This line connects the host path specified in `TESSERACT_PATH` (defaulting to `./tessdata` if not set) to the fixed `/opt/open-archiver/tessdata` path inside the container. If you have disabled OCR, you can comment out or remove the volume mount line.
 
 ## Performance Note
 

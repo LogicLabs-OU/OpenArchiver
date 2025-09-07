@@ -21,14 +21,14 @@ class OcrService {
             return;
         }
 
-        logger.info('Initializing OCR Service...');
+        logger.info({ languages: config.app.ocrLanguages }, 'Initializing OCR Service...');
         this.scheduler = createScheduler();
         const languages = config.app.ocrLanguages.split(',');
         const numWorkers = Math.max(1, require('os').cpus().length - 1);
 
         const workerPromises = Array.from({ length: numWorkers }).map(async () => {
             const worker = await createWorker(languages, 1, {
-                cachePath: '/usr/src/app/tessdata',
+                cachePath: '/opt/open-archiver/tessdata',
             });
             this.scheduler!.addWorker(worker);
         });

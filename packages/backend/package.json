@@ -50,6 +50,7 @@
 		"mammoth": "^1.9.1",
 		"meilisearch": "^0.51.0",
 		"multer": "^2.0.2",
+		"pdf-to-png-converter": "^3.7.1",
 		"pdf2json": "^3.1.6",
 		"pg": "^8.16.3",
 		"pino": "^9.7.0",
