@@ -163,7 +163,8 @@
 				"not_available": "Raw .eml file not available for this email."
 			},
 			"footer": {
-				"all_rights_reserved": "All rights reserved."
+				"all_rights_reserved": "All rights reserved.",
+				"new_version_available": "New version available"
 			},
 			"ingestion_source_form": {
 				"provider_generic_imap": "Generic IMAP",

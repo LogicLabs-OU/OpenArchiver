@@ -35,5 +35,5 @@
 	<main class="flex-1">
 		{@render children()}
 	</main>
-	<Footer />
+	<Footer currentVersion={data.currentVersion} newVersionInfo={data.newVersionInfo} />
 </div>

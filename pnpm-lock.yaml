@@ -229,6 +229,9 @@ importers:
       postal-mime:
         specifier: ^2.4.4
         version: 2.4.4
+      semver:
+        specifier: ^7.7.2
+        version: 7.7.2
       svelte-persisted-store:
         specifier: ^0.12.0
         version: 0.12.0(svelte@5.35.5)
@@ -263,6 +266,9 @@ importers:
       '@types/d3-shape':
         specifier: ^3.1.7
         version: 3.1.7
+      '@types/semver':
+        specifier: ^7.7.1
+        version: 7.7.1
       dotenv:
         specifier: ^17.2.0
         version: 17.2.0
@@ -1801,6 +1807,9 @@ packages:
 
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
+
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
 
   '@types/send@0.17.5':
     resolution: {integrity: sha512-z6F2D3cOStZvuk2SaP6YrwkNO65iTZcwA2ZkSABegdkAh/lf+Aa/YQndZVfmEXT5vgAp6zv06VQ3ejSVjAny4w==}
@@ -6556,6 +6565,8 @@ snapshots:
       '@types/node': 24.0.13
 
   '@types/resolve@1.20.2': {}
+
+  '@types/semver@7.7.1': {}
 
   '@types/send@0.17.5':
     dependencies:

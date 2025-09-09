@@ -3,6 +3,11 @@ import type { LayoutServerLoad } from './$types';
 import 'dotenv/config';
 import { api } from '$lib/server/api';
 import type { SystemSettings } from '@open-archiver/types';
+import { version } from '../../../../package.json';
+import semver from 'semver';
+
+let newVersionInfo: { version: string; description: string; url: string } | null = null;
+let lastChecked: Date | null = null;
 
 export const load: LayoutServerLoad = async (event) => {
 	const { locals, url } = event;
@@ -32,10 +37,33 @@ export const load: LayoutServerLoad = async (event) => {
 		? await systemSettingsResponse.json()
 		: null;
 
+	const now = new Date();
+	if (!lastChecked || now.getTime() - lastChecked.getTime() > 1000 * 60 * 60) {
+		try {
+			const res = await fetch('https://api.github.com/repos/LogicLabs-OU/OpenArchiver/releases/latest');
+			if (res.ok) {
+				const latestRelease = await res.json();
+				const latestVersion = latestRelease.tag_name.replace('v', '');
+				if (semver.gt(latestVersion, version)) {
+					newVersionInfo = {
+						version: latestVersion,
+						description: latestRelease.name,
+						url: latestRelease.html_url
+					};
+				}
+			}
+			lastChecked = now;
+		} catch (error) {
+			console.error('Failed to fetch latest version from GitHub:', error);
+		}
+	}
+
 	return {
 		user: locals.user,
 		accessToken: locals.accessToken,
 		isDemo: process.env.IS_DEMO === 'true',
 		systemSettings,
+		currentVersion: version,
+		newVersionInfo: newVersionInfo
 	};
 };
