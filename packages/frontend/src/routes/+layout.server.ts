@@ -40,7 +40,9 @@ export const load: LayoutServerLoad = async (event) => {
 	const now = new Date();
 	if (!lastChecked || now.getTime() - lastChecked.getTime() > 1000 * 60 * 60) {
 		try {
-			const res = await fetch('https://api.github.com/repos/LogicLabs-OU/OpenArchiver/releases/latest');
+			const res = await fetch(
+				'https://api.github.com/repos/LogicLabs-OU/OpenArchiver/releases/latest'
+			);
 			if (res.ok) {
 				const latestRelease = await res.json();
 				const latestVersion = latestRelease.tag_name.replace('v', '');
@@ -48,7 +50,7 @@ export const load: LayoutServerLoad = async (event) => {
 					newVersionInfo = {
 						version: latestVersion,
 						description: latestRelease.name,
-						url: latestRelease.html_url
+						url: latestRelease.html_url,
 					};
 				}
 			}
@@ -64,6 +66,6 @@ export const load: LayoutServerLoad = async (event) => {
 		isDemo: process.env.IS_DEMO === 'true',
 		systemSettings,
 		currentVersion: version,
-		newVersionInfo: newVersionInfo
+		newVersionInfo: newVersionInfo,
 	};
 };
