@@ -42,6 +42,10 @@ You must change the following placeholder values to secure your instance:
     openssl rand -hex 32
     ```
 
+### Attachment OCR Configuration
+
+Open Archiver can extract text from images and scanned documents using Optical Character Recognition (OCR). For detailed instructions on how to enable and configure this feature, please see the [Attachment OCR Guide](../services/indexing-service/ocr.md).
+
 ### Storage Configuration
 
 By default, the Docker Compose setup uses local filesystem storage, which is persisted using a Docker volume named `archiver-data`. This is suitable for most use cases.
@@ -102,6 +106,14 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `STORAGE_S3_SECRET_ACCESS_KEY` | The secret access key for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                       |                           |
 | `STORAGE_S3_REGION`            | The region for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                                  |                           |
 | `STORAGE_S3_FORCE_PATH_STYLE`  | Force path-style addressing for S3 (optional).                                                              | `false`                   |
+
+#### OCR Settings
+
+| Variable         | Description                                                                                   | Default Value |
+| ---------------- | --------------------------------------------------------------------------------------------- | ------------- |
+| `OCR_ENABLED`    | Enable or disable Optical Character Recognition for attachments.                              | `false`       |
+| `OCR_LANGUAGES`  | A comma-separated list of languages for OCR processing (e.g., `eng,fra,deu`).                 | `eng`         |
+| `TESSERACT_PATH` | The path on the host machine where Tesseract language data files (`.traineddata`) are stored. | `./tessdata`  |
 
 #### Security & Authentication
 

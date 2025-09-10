@@ -1,6 +1,8 @@
 import { Worker } from 'bullmq';
 import { connection } from '../config/redis';
 import indexEmailProcessor from '../jobs/processors/index-email.processor';
+import { ocrService } from '../services/OcrService';
+import { logger } from '../config/logger';
 
 const processor = async (job: any) => {
 	switch (job.name) {
@@ -22,7 +24,14 @@ const worker = new Worker('indexing', processor, {
 	},
 });
 
-console.log('Indexing worker started');
+logger.info('Indexing worker started');
 
-process.on('SIGINT', () => worker.close());
-process.on('SIGTERM', () => worker.close());
+const gracefulShutdown = async () => {
+	logger.info('Shutting down indexing worker...');
+	await worker.close();
+	await ocrService.terminate();
+	process.exit(0);
+};
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
