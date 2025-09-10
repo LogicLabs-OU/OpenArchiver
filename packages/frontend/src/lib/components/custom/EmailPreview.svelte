@@ -52,16 +52,16 @@
 
 <div class="mt-2 rounded-md border bg-white p-4">
 	{#if isLoading}
-		<p>{$t('components.email_preview.loading')}</p>
+		<p>{$t('app.components.email_preview.loading')}</p>
 	{:else if emailHtml}
 		<iframe
-			title={$t('archive.email_preview')}
+			title={$t('app.archive.email_preview')}
 			srcdoc={emailHtml()}
 			class="h-[600px] w-full border-none"
 		></iframe>
 	{:else if raw}
-		<p>{$t('components.email_preview.render_error')}</p>
+		<p>{$t('app.components.email_preview.render_error')}</p>
 	{:else}
-		<p class="text-gray-500">{$t('components.email_preview.not_available')}</p>
+		<p class="text-gray-500">{$t('app.components.email_preview.not_available')}</p>
 	{/if}
 </div>

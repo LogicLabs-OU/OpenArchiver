@@ -15,12 +15,14 @@
 					<Alert.Title class="flex items-center gap-2">
 						<Info class="h-4 w-4" />
 						{$t('app.components.footer.new_version_available')}
-					</Alert.Title>
-					<Alert.Description>
-						<a href={newVersionInfo.url} target="_blank" class="underline">
+						<a
+							href={newVersionInfo.url}
+							target="_blank"
+							class=" text-muted-foreground underline"
+						>
 							{newVersionInfo.description}
 						</a>
-					</Alert.Description>
+					</Alert.Title>
 				</Alert.Root>
 			{/if}
 			<p class="text-balance text-center text-xs font-medium leading-loose">
