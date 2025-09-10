@@ -1,6 +1,6 @@
 {
 	"name": "open-archiver",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"private": true,
 	"scripts": {
 		"dev": "dotenv -- pnpm --filter \"./packages/*\" --parallel dev",
