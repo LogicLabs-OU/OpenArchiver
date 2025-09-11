@@ -15,7 +15,7 @@
 	"dependencies": {
 		"@iconify/svelte": "^5.0.1",
 		"@open-archiver/types": "workspace:*",
-		"@sveltejs/kit": "^2.16.0",
+		"@sveltejs/kit": "^2.38.1",
 		"bits-ui": "^2.8.10",
 		"clsx": "^2.1.1",
 		"d3-shape": "^3.2.0",
