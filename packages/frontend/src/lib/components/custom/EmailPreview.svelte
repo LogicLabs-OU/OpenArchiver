@@ -2,6 +2,7 @@
 	import PostalMime, { type Email } from 'postal-mime';
 	import type { Buffer } from 'buffer';
 	import { t } from '$lib/translations';
+	import { encode } from 'html-entities';
 
 	let {
 		raw,
@@ -18,7 +19,9 @@
 		if (parsedEmail && parsedEmail.html) {
 			return `<base target="_blank" />${parsedEmail.html}`;
 		} else if (parsedEmail && parsedEmail.text) {
-			return `<base target="_blank" />${parsedEmail.text}`;
+			// display raw text email body in html
+			const safeHtmlContent: string = encode(parsedEmail.text);
+			return `<base target="_blank" /><div>${safeHtmlContent.replaceAll('\n', '<br>')}</div>`;
 		} else if (rawHtml) {
 			return `<base target="_blank" />${rawHtml}`;
 		}
@@ -53,7 +56,7 @@
 <div class="mt-2 rounded-md border bg-white p-4">
 	{#if isLoading}
 		<p>{$t('app.components.email_preview.loading')}</p>
-	{:else if emailHtml}
+	{:else if emailHtml()}
 		<iframe
 			title={$t('app.archive.email_preview')}
 			srcdoc={emailHtml()}

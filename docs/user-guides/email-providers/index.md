@@ -9,3 +9,4 @@ Choose your provider from the list below to get started:
 - [Generic IMAP Server](./imap.md)
 - [EML Import](./eml.md)
 - [PST Import](./pst.md)
+- [Mbox Import](./mbox.md)

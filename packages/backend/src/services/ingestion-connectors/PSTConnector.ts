@@ -193,6 +193,14 @@ export class PSTConnector implements IEmailConnector {
 			throw error;
 		} finally {
 			pstFile?.close();
+			try {
+				await this.storage.delete(this.credentials.uploadedFilePath);
+			} catch (error) {
+				logger.error(
+					{ error, file: this.credentials.uploadedFilePath },
+					'Failed to delete PST file after processing.'
+				);
+			}
 		}
 	}
 
@@ -273,8 +281,8 @@ export class PSTConnector implements IEmailConnector {
 					emlBuffer ?? Buffer.from(parsedEmail.text || parsedEmail.html || '', 'utf-8')
 				)
 				.digest('hex')}-${createHash('sha256')
-				.update(emlBuffer ?? Buffer.from(msg.subject || '', 'utf-8'))
-				.digest('hex')}-${msg.clientSubmitTime?.getTime()}`;
+					.update(emlBuffer ?? Buffer.from(msg.subject || '', 'utf-8'))
+					.digest('hex')}-${msg.clientSubmitTime?.getTime()}`;
 		}
 		return {
 			id: messageId,

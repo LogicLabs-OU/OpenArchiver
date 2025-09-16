@@ -26,6 +26,7 @@ import { SearchService } from './SearchService';
 import { DatabaseService } from './DatabaseService';
 import { config } from '../config/index';
 import { FilterBuilder } from './FilterBuilder';
+import e from 'express';
 
 export class IngestionService {
 	private static decryptSource(
@@ -47,7 +48,7 @@ export class IngestionService {
 	}
 
 	public static returnFileBasedIngestions(): IngestionProvider[] {
-		return ['pst_import', 'eml_import'];
+		return ['pst_import', 'eml_import', 'mbox_import'];
 	}
 
 	public static async create(
@@ -76,9 +77,13 @@ export class IngestionService {
 		const connector = EmailProviderFactory.createConnector(decryptedSource);
 
 		try {
-			await connector.testConnection();
+			const connectionValid = await connector.testConnection();
 			// If connection succeeds, update status to auth_success, which triggers the initial import.
-			return await this.update(decryptedSource.id, { status: 'auth_success' });
+			if (connectionValid) {
+				return await this.update(decryptedSource.id, { status: 'auth_success' });
+			} else {
+				throw Error('Ingestion authentication failed.')
+			}
 		} catch (error) {
 			// If connection fails, delete the newly created source and throw the error.
 			await this.delete(decryptedSource.id);

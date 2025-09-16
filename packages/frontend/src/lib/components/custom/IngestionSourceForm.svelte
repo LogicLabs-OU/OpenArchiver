@@ -41,6 +41,10 @@
 			value: 'eml_import',
 			label: $t('app.components.ingestion_source_form.provider_eml_import'),
 		},
+		{
+			value: 'mbox_import',
+			label: $t('app.components.ingestion_source_form.provider_mbox_import'),
+		},
 	];
 
 	let formData: CreateIngestionSourceDto = $state({
@@ -55,7 +59,6 @@
 
 	$effect(() => {
 		formData.providerConfig.type = formData.provider;
-		console.log(formData);
 	});
 
 	const triggerContent = $derived(
@@ -101,7 +104,6 @@
 
 			formData.providerConfig.uploadedFilePath = result.filePath;
 			formData.providerConfig.uploadedFileName = file.name;
-
 			fileUploading = false;
 		} catch (error) {
 			fileUploading = false;
@@ -224,10 +226,13 @@
 			<Checkbox id="secure" bind:checked={formData.providerConfig.secure} />
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="secure" class="text-left"
+			<Label for="allowInsecureCert" class="text-left"
 				>{$t('app.components.ingestion_source_form.allow_insecure_cert')}</Label
 			>
-			<Checkbox id="secure" bind:checked={formData.providerConfig.allowInsecureCert} />
+			<Checkbox
+				id="allowInsecureCert"
+				bind:checked={formData.providerConfig.allowInsecureCert}
+			/>
 		</div>
 	{:else if formData.provider === 'pst_import'}
 		<div class="grid grid-cols-4 items-center gap-4">
@@ -258,6 +263,24 @@
 					type="file"
 					class=""
 					accept=".zip"
+					onchange={handleFileChange}
+				/>
+				{#if fileUploading}
+					<span class=" text-primary animate-spin"><Loader2 /></span>
+				{/if}
+			</div>
+		</div>
+	{:else if formData.provider === 'mbox_import'}
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="mbox-file" class="text-left"
+				>{$t('app.components.ingestion_source_form.mbox_file')}</Label
+			>
+			<div class="col-span-3 flex flex-row items-center space-x-2">
+				<Input
+					id="mbox-file"
+					type="file"
+					class=""
+					accept=".mbox"
 					onchange={handleFileChange}
 				/>
 				{#if fileUploading}

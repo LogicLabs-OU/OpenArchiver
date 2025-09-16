@@ -52,6 +52,7 @@ export default defineConfig({
 							},
 							{ text: 'EML Import', link: '/user-guides/email-providers/eml' },
 							{ text: 'PST Import', link: '/user-guides/email-providers/pst' },
+							{ text: 'Mbox Import', link: '/user-guides/email-providers/mbox' },
 						],
 					},
 					{
@@ -61,6 +62,20 @@ export default defineConfig({
 							{
 								text: 'System',
 								link: '/user-guides/settings/system',
+							},
+						],
+					},
+					{
+						text: 'Upgrading and Migration',
+						collapsed: true,
+						items: [
+							{
+								text: 'Upgrading',
+								link: '/user-guides/upgrade-and-migration/upgrade',
+							},
+							{
+								text: 'Meilisearch Upgrade',
+								link: '/user-guides/upgrade-and-migration/meilisearch-upgrade',
 							},
 						],
 					},

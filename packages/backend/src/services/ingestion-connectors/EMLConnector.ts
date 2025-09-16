@@ -69,7 +69,7 @@ export class EMLConnector implements IEmailConnector {
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject | null> {
 		const fileStream = await this.storage.get(this.credentials.uploadedFilePath);
-		const tempDir = await fs.mkdtemp(join('/tmp', 'eml-import-'));
+		const tempDir = await fs.mkdtemp(join('/tmp', `eml-import-${new Date().getTime()}`));
 		const unzippedPath = join(tempDir, 'unzipped');
 		await fs.mkdir(unzippedPath);
 		const zipFilePath = join(tempDir, 'eml.zip');
@@ -115,6 +115,14 @@ export class EMLConnector implements IEmailConnector {
 			throw error;
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true });
+			try {
+				await this.storage.delete(this.credentials.uploadedFilePath);
+			} catch (error) {
+				logger.error(
+					{ error, file: this.credentials.uploadedFilePath },
+					'Failed to delete EML file after processing.'
+				);
+			}
 		}
 	}
 

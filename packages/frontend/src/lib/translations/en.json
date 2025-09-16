@@ -172,6 +172,7 @@
 				"provider_microsoft_365": "Microsoft 365",
 				"provider_pst_import": "PST Import",
 				"provider_eml_import": "EML Import",
+				"provider_mbox_import": "Mbox Import",
 				"select_provider": "Select a provider",
 				"service_account_key": "Service Account Key (JSON)",
 				"service_account_key_placeholder": "Paste your service account key JSON content",
@@ -187,6 +188,7 @@
 				"allow_insecure_cert": "Allow insecure cert",
 				"pst_file": "PST File",
 				"eml_file": "EML File",
+				"mbox_file": "Mbox File",
 				"heads_up": "Heads up!",
 				"org_wide_warning": "Please note that this is an organization-wide operation. This kind of ingestions will import and index <b>all</b> email inboxes in your organization. If you want to import only specific email inboxes, use the IMAP connector.",
 				"upload_failed": "Upload Failed, please try again"

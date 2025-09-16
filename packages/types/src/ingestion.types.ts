@@ -23,7 +23,8 @@ export type IngestionProvider =
 	| 'microsoft_365'
 	| 'generic_imap'
 	| 'pst_import'
-	| 'eml_import';
+	| 'eml_import'
+	| 'mbox_import';
 
 export type IngestionStatus =
 	| 'active'
@@ -81,13 +82,20 @@ export interface EMLImportCredentials extends BaseIngestionCredentials {
 	uploadedFilePath: string;
 }
 
+export interface MboxImportCredentials extends BaseIngestionCredentials {
+	type: 'mbox_import';
+	uploadedFileName: string;
+	uploadedFilePath: string;
+}
+
 // Discriminated union for all possible credential types
 export type IngestionCredentials =
 	| GenericImapCredentials
 	| GoogleWorkspaceCredentials
 	| Microsoft365Credentials
 	| PSTImportCredentials
-	| EMLImportCredentials;
+	| EMLImportCredentials
+	| MboxImportCredentials;
 
 export interface IngestionSource {
 	id: string;

@@ -435,7 +435,12 @@
 </div>
 
 <Dialog.Root bind:open={isDialogOpen}>
-	<Dialog.Content class="sm:max-w-120 md:max-w-180">
+	<Dialog.Content
+		class="sm:max-w-120 md:max-w-180"
+		onInteractOutside={(e) => {
+			e.preventDefault();
+		}}
+	>
 		<Dialog.Header>
 			<Dialog.Title
 				>{selectedSource ? $t('app.ingestions.edit') : $t('app.ingestions.create')}{' '}

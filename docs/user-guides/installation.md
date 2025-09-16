@@ -138,7 +138,9 @@ docker compose ps
 
 Once the services are running, you can access the Open Archiver web interface by navigating to `http://localhost:3000` in your web browser.
 
-You can log in with the `ADMIN_EMAIL` and `ADMIN_PASSWORD` you configured in your `.env` file.
+Upon first visit, you will be redirected to the `/setup` page where you can set up your admin account. Make sure you are the first person who accesses the instance.
+
+If you are not redirected to the `/setup` page but instead see the login page, there might be something wrong with the database. Restart the service and try again.
 
 ## 5. Next Steps
 
@@ -212,9 +214,9 @@ If you are using local storage to store your emails, based on your `docker-compo
 
 Run this command to see all the volumes on your system:
 
-    ```bash
-    docker volume ls
-    ```
+```bash
+docker volume ls
+```
 
 2.  **Identify the correct volume**:
 
@@ -224,28 +226,28 @@ Look through the list for a volume name that ends with `_archiver-data`. The par
 
 Once you've identified the correct volume name, use it in the `inspect` command. For example:
 
-    ```bash
-    docker volume inspect <your_volume_name_here>
-    ```
+```bash
+docker volume inspect <your_volume_name_here>
+```
 
 This will give you the correct `Mountpoint` path where your data is being stored. It will look something like this (the exact path will vary depending on your system):
 
-    ```json
-    {
-        "CreatedAt": "2025-07-25T11:22:19Z",
-        "Driver": "local",
-        "Labels": {
-            "com.docker.compose.config-hash": "---",
-            "com.docker.compose.project": "---",
-            "com.docker.compose.version": "2.38.2",
-            "com.docker.compose.volume": "us8wwos0o4ok4go4gc8cog84_archiver-data"
-        },
-        "Mountpoint": "/var/lib/docker/volumes/us8wwos0o4ok4go4gc8cog84_archiver-data/_data",
-        "Name": "us8wwos0o4ok4go4gc8cog84_archiver-data",
-        "Options": null,
-        "Scope": "local"
-    }
-    ```
+```json
+{
+	"CreatedAt": "2025-07-25T11:22:19Z",
+	"Driver": "local",
+	"Labels": {
+		"com.docker.compose.config-hash": "---",
+		"com.docker.compose.project": "---",
+		"com.docker.compose.version": "2.38.2",
+		"com.docker.compose.volume": "us8wwos0o4ok4go4gc8cog84_archiver-data"
+	},
+	"Mountpoint": "/var/lib/docker/volumes/us8wwos0o4ok4go4gc8cog84_archiver-data/_data",
+	"Name": "us8wwos0o4ok4go4gc8cog84_archiver-data",
+	"Options": null,
+	"Scope": "local"
+}
+```
 
 In this example, the data is located at `/var/lib/docker/volumes/us8wwos0o4ok4go4gc8cog84_archiver-data/_data`. You can then `cd` into that directory to see your files.
 
@@ -259,44 +261,44 @@ Here’s how you can do it:
 
 Open the `docker-compose.yml` file and find the `open-archiver` service. You're going to change the `volumes` section.
 
-    **Change this:**
+**Change this:**
 
-    ```yaml
-    services:
-      open-archiver:
-        # ... other config
-        volumes:
-          - archiver-data:/var/data/open-archiver
-    ```
+```yaml
+services:
+    open-archiver:
+    # ... other config
+    volumes:
+        - archiver-data:/var/data/open-archiver
+```
 
-    **To this:**
+**To this:**
 
-    ```yaml
-    services:
-      open-archiver:
-        # ... other config
-        volumes:
-          - ./data/open-archiver:/var/data/open-archiver
-    ```
+```yaml
+services:
+    open-archiver:
+    # ... other config
+    volumes:
+        - ./data/open-archiver:/var/data/open-archiver
+```
 
 You'll also want to remove the `archiver-data` volume definition at the bottom of the file, since it's no longer needed.
 
-    **Remove this whole block:**
+**Remove this whole block:**
 
-    ```yaml
-    volumes:
-      # ... other volumes
-      archiver-data:
-          driver: local
-    ```
+```yaml
+volumes:
+    # ... other volumes
+    archiver-data:
+        driver: local
+```
 
 2.  **Restart your containers**:
 
 After you've saved the changes, run the following command in your terminal to apply them. The `--force-recreate` flag will ensure the container is recreated with the new volume settings.
 
-    ```bash
-    docker-compose up -d --force-recreate
-    ```
+```bash
+docker-compose up -d --force-recreate
+```
 
 After this, any new data will be saved directly into the `./data/open-archiver` folder in your project directory.
 

@@ -7,6 +7,7 @@ import { config } from '../../config/index';
 export const uploadFile = async (req: Request, res: Response) => {
 	const storage = new StorageService();
 	const bb = busboy({ headers: req.headers });
+	const uploads: Promise<void>[] = [];
 	let filePath = '';
 	let originalFilename = '';
 
@@ -14,10 +15,11 @@ export const uploadFile = async (req: Request, res: Response) => {
 		originalFilename = filename.filename;
 		const uuid = randomUUID();
 		filePath = `${config.storage.openArchiverFolderName}/tmp/${uuid}-${originalFilename}`;
-		storage.put(filePath, file);
+		uploads.push(storage.put(filePath, file));
 	});
 
-	bb.on('finish', () => {
+	bb.on('finish', async () => {
+		await Promise.all(uploads);
 		res.json({ filePath });
 	});
 
