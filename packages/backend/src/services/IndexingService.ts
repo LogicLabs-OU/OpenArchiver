@@ -287,6 +287,10 @@ export class IndexingService {
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
+
+        /**
+         * Creates a search document from a raw email object and its attachments.
+         */
 	private async createEmailDocumentFromRawForBatch(
 		email: EmailObject,
 		ingestionSourceId: string,

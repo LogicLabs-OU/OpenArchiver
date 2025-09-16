@@ -56,8 +56,6 @@ services:
         image: apache/tika:3.2.2.0-full
         container_name: tika
         restart: always
-        ports:
-            - '9998:9998'
         networks:
             - open-archiver-net
 

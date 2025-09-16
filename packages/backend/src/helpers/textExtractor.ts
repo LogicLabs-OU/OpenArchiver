@@ -1,9 +1,10 @@
 import PDFParser from 'pdf2json';
 import mammoth from 'mammoth';
 import xlsx from 'xlsx';
+import { logger } from '../config/logger';
 import crypto from 'crypto';
 
-// Einfacher LRU-Cache für Tika-Ergebnisse mit Statistiken
+// Simple LRU cache for Tika results with statistics
 class TikaCache {
     private cache = new Map<string, string>();
     private maxSize = 50;
@@ -14,7 +15,7 @@ class TikaCache {
         const value = this.cache.get(key);
         if (value !== undefined) {
             this.hits++;
-            // LRU: Element nach hinten verschieben
+            // LRU: Move element to the end
             this.cache.delete(key);
             this.cache.set(key, value);
         } else {
@@ -24,11 +25,11 @@ class TikaCache {
     }
 
     set(key: string, value: string): void {
-        // Falls schon vorhanden, erstmal löschen
+        // If already exists, delete first
         if (this.cache.has(key)) {
             this.cache.delete(key);
         }
-        // Falls Cache voll, ältestes Element entfernen
+        // If cache is full, remove oldest element
         else if (this.cache.size >= this.maxSize) {
             const firstKey = this.cache.keys().next().value;
             if (firstKey !== undefined) {
@@ -47,7 +48,7 @@ class TikaCache {
             maxSize: this.maxSize,
             hits: this.hits,
             misses: this.misses,
-            hitRate: Math.round(hitRate * 100) / 100 // 2 Dezimalstellen
+            hitRate: Math.round(hitRate * 100) / 100 // 2 decimal places
         };
     }
 
@@ -58,17 +59,17 @@ class TikaCache {
     }
 }
 
-// Semaphor für laufende Tika-Anfragen
+// Semaphore for running Tika requests
 class TikaSemaphore {
     private inProgress = new Map<string, Promise<string>>();
     private waitCount = 0;
 
     async acquire(key: string, operation: () => Promise<string>): Promise<string> {
-        // Prüfen ob bereits eine Anfrage für diesen Key läuft
+        // Check if a request for this key is already running
         const existingPromise = this.inProgress.get(key);
         if (existingPromise) {
             this.waitCount++;
-            console.debug(`Waiting for in-progress Tika request (${key.slice(0, 8)}...)`);
+            logger.debug(`Waiting for in-progress Tika request (${key.slice(0, 8)}...)`);
             try {
                 return await existingPromise;
             } finally {
@@ -76,14 +77,14 @@ class TikaSemaphore {
             }
         }
 
-        // Neue Anfrage starten
+        // Start new request
         const promise = this.executeOperation(key, operation);
         this.inProgress.set(key, promise);
         
         try {
             return await promise;
         } finally {
-            // Promise aus der Map entfernen wenn fertig
+            // Remove promise from map when finished
             this.inProgress.delete(key);
         }
     }
@@ -92,8 +93,8 @@ class TikaSemaphore {
         try {
             return await operation();
         } catch (error) {
-            // Auch bei Fehlern Promise aus Map entfernen
-            console.error(`Tika operation failed for key ${key.slice(0, 8)}...`, error);
+            // Remove promise from map even on errors
+            logger.error(`Tika operation failed for key ${key.slice(0, 8)}...`, error);
             throw error;
         }
     }
@@ -115,35 +116,35 @@ class TikaSemaphore {
 const tikaCache = new TikaCache();
 const tikaSemaphore = new TikaSemaphore();
 
-// Tika-basierte Text-Extraktion mit Cache und Semaphor
+// Tika-based text extraction with cache and semaphore
 async function extractTextWithTika(buffer: Buffer, mimeType: string): Promise<string> {
     const tikaUrl = process.env.TIKA_URL;
     if (!tikaUrl) {
         throw new Error('TIKA_URL environment variable not set');
     }
 
-    // Cache-Key: SHA-256 Hash des Buffers
+    // Cache key: SHA-256 hash of the buffer
     const hash = crypto.createHash('sha256').update(buffer).digest('hex');
 
-    // Cache-Lookup (vor Semaphor!)
+    // Cache lookup (before semaphore!)
     const cachedResult = tikaCache.get(hash);
     if (cachedResult !== undefined) {
-        console.debug(`Tika cache hit for ${mimeType} (${buffer.length} bytes)`);
+        logger.debug(`Tika cache hit for ${mimeType} (${buffer.length} bytes)`);
         return cachedResult;
     }
 
-    // Semaphor verwenden um parallele Anfragen zu deduplizieren
+    // Use semaphore to deduplicate parallel requests
     return await tikaSemaphore.acquire(hash, async () => {
-        // Nochmal Cache prüfen (könnte durch parallele Anfrage gefüllt worden sein)
+        // Check cache again (might have been filled by parallel request)
         const cachedAfterWait = tikaCache.get(hash);
         if (cachedAfterWait !== undefined) {
-            console.debug(`Tika cache hit after wait for ${mimeType} (${buffer.length} bytes)`);
+            logger.debug(`Tika cache hit after wait for ${mimeType} (${buffer.length} bytes)`);
             return cachedAfterWait;
         }
 
-        console.debug(`Executing Tika request for ${mimeType} (${buffer.length} bytes)`);
+        logger.debug(`Executing Tika request for ${mimeType} (${buffer.length} bytes)`);
 
-        // DNS-Fallback: Bei "tika" Hostname versuche auch localhost
+        // DNS fallback: If "tika" hostname, also try localhost
         const urlsToTry = [
             `${tikaUrl}/tika`,
             // Fallback falls DNS-Problem mit "tika" hostname
@@ -152,7 +153,7 @@ async function extractTextWithTika(buffer: Buffer, mimeType: string): Promise<st
 
         for (const url of urlsToTry) {
             try {
-                console.debug(`Trying Tika URL: ${url}`);
+                logger.debug(`Trying Tika URL: ${url}`);
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
@@ -165,35 +166,35 @@ async function extractTextWithTika(buffer: Buffer, mimeType: string): Promise<st
                 });
 
                 if (!response.ok) {
-                    console.warn(`Tika extraction failed at ${url}: ${response.status} ${response.statusText}`);
+                    logger.warn(`Tika extraction failed at ${url}: ${response.status} ${response.statusText}`);
                     continue; // Try next URL
                 }
 
                 const text = await response.text();
                 const result = text.trim();
 
-                // Ergebnis cachen (auch leere Strings, um wiederholte Versuche zu vermeiden)
+                // Cache result (also empty strings to avoid repeated attempts)
                 tikaCache.set(hash, result);
 
                 const cacheStats = tikaCache.getStats();
                 const semaphoreStats = tikaSemaphore.getStats();
-                console.debug(`Tika extraction successful - Cache: ${cacheStats.hits}H/${cacheStats.misses}M (${cacheStats.hitRate}%) - Semaphore: ${semaphoreStats.inProgress} active, ${semaphoreStats.waitCount} waiting`);
+                logger.debug(`Tika extraction successful - Cache: ${cacheStats.hits}H/${cacheStats.misses}M (${cacheStats.hitRate}%) - Semaphore: ${semaphoreStats.inProgress} active, ${semaphoreStats.waitCount} waiting`);
 
                 return result;
             } catch (error) {
-                console.warn(`Tika extraction error at ${url}:`, error instanceof Error ? error.message : 'Unknown error');
+                logger.warn(`Tika extraction error at ${url}:`, error instanceof Error ? error.message : 'Unknown error');
                 // Continue to next URL
             }
         }
 
-        // Alle URLs fehlgeschlagen - auch das cachen wir (als leeren String)
-        console.error('All Tika URLs failed');
+        // All URLs failed - cache this too (as empty string)
+        logger.error('All Tika URLs failed');
         tikaCache.set(hash, '');
         return '';
     });
 }
 
-// Legacy PDF-Extraktion (mit verbessertem Memory Management)
+// Legacy PDF extraction (with improved memory management)
 function extractTextFromPdf(buffer: Buffer): Promise<string> {
     return new Promise((resolve) => {
         const pdfParser = new PDFParser(null, true);
@@ -203,7 +204,7 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
             if (completed) return;
             completed = true;
 
-            // Explizites Cleanup
+            // explicit cleanup
             try {
                 pdfParser.removeAllListeners();
             } catch (e) {
@@ -214,7 +215,7 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
         };
 
         pdfParser.on('pdfParser_dataError', (err: any) => {
-            console.warn('PDF parsing error:', err?.parserError || 'Unknown error');
+            logger.warn('PDF parsing error:', err?.parserError || 'Unknown error');
             finish('');
         });
 
@@ -223,7 +224,7 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
                 const text = pdfParser.getRawTextContent();
                 finish(text || '');
             } catch (err) {
-                console.warn('Error getting PDF text content:', err);
+                logger.warn('Error getting PDF text content:', err);
                 finish('');
             }
         });
@@ -231,25 +232,25 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
         try {
             pdfParser.parseBuffer(buffer);
         } catch (err) {
-            console.error('Error parsing PDF buffer:', err);
+            logger.error('Error parsing PDF buffer:', err);
             finish('');
         }
 
-        // Timeout reduziert für bessere Performance
+        // reduced Timeout for better performance
         setTimeout(() => {
-            console.warn('PDF parsing timed out');
+            logger.warn('PDF parsing timed out');
             finish('');
         }, 5000);
     });
 }
 
-// Legacy Text-Extraktion für verschiedene Formate
+// Legacy text extraction for various formats
 async function extractTextLegacy(buffer: Buffer, mimeType: string): Promise<string> {
     try {
         if (mimeType === 'application/pdf') {
-            // PDF-Größe prüfen (Memory-Protection)
+            // Check PDF size (memory protection)
             if (buffer.length > 50 * 1024 * 1024) { // 50MB Limit
-                console.warn('PDF too large for legacy extraction, skipping');
+                logger.warn('PDF too large for legacy extraction, skipping');
                 return '';
             }
             return await extractTextFromPdf(buffer);
@@ -281,7 +282,7 @@ async function extractTextLegacy(buffer: Buffer, mimeType: string): Promise<stri
 
         return '';
     } catch (error) {
-        console.error(`Error extracting text from attachment with MIME type ${mimeType}:`, error);
+        logger.error(`Error extracting text from attachment with MIME type ${mimeType}:`, error);
 
         // Force garbage collection if available
         if (global.gc) {
@@ -292,51 +293,51 @@ async function extractTextLegacy(buffer: Buffer, mimeType: string): Promise<stri
     }
 }
 
-// Haupt-Extraktionsfunktion
+// Main extraction function
 export async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
-    // Eingabe-Validierung
+    // Input validation
     if (!buffer || buffer.length === 0) {
         return '';
     }
 
     if (!mimeType) {
-        console.warn('No MIME type provided for text extraction');
+        logger.warn('No MIME type provided for text extraction');
         return '';
     }
 
-    // Allgemeines Größenlimit
-    const maxSize = process.env.TIKA_URL ? 100 * 1024 * 1024 : 50 * 1024 * 1024; // 100MB für Tika, 50MB für Legacy
+    // General size limit
+    const maxSize = process.env.TIKA_URL ? 100 * 1024 * 1024 : 50 * 1024 * 1024; // 100MB for Tika, 50MB for Legacy
     if (buffer.length > maxSize) {
-        console.warn(`File too large for text extraction: ${buffer.length} bytes (limit: ${maxSize})`);
+        logger.warn(`File too large for text extraction: ${buffer.length} bytes (limit: ${maxSize})`);
         return '';
     }
 
-    // Tika vs Legacy entscheiden
+    // Decide between Tika and legacy
     const tikaUrl = process.env.TIKA_URL;
 
     if (tikaUrl) {
-        // Tika entscheidet selbst was es parsen kann (inkl. OCR für Bilder!)
-        console.debug(`Using Tika for text extraction: ${mimeType}`);
+        // Tika decides what it can parse (including OCR for images!)
+        logger.debug(`Using Tika for text extraction: ${mimeType}`);
         return await extractTextWithTika(buffer, mimeType);
     } else {
-        // Nur bei Legacy-Modus MIME-Type-Filterung
+        // Only filter MIME types in legacy mode
         const unsupportedTypes = ['image/', 'video/', 'audio/'];
         if (unsupportedTypes.some(type => mimeType.startsWith(type))) {
-            console.warn(`Unsupported MIME type for legacy extraction: ${mimeType}`);
+            logger.warn(`Unsupported MIME type for legacy extraction: ${mimeType}`);
             return '';
         }
-        console.debug(`Using legacy extraction for: ${mimeType}`);
+        logger.debug(`Using legacy extraction for: ${mimeType}`);
         const result = await extractTextLegacy(buffer, mimeType);
 
         if (!result && mimeType !== 'application/pdf') {
-            console.warn(`Unsupported MIME type for text extraction: ${mimeType}`);
+            logger.warn(`Unsupported MIME type for text extraction: ${mimeType}`);
         }
 
         return result;
     }
 }
 
-// Helper-Funktion um zu prüfen ob Tika verfügbar ist
+// Helper function to check Tika availability
 export async function checkTikaAvailability(): Promise<boolean> {
     const tikaUrl = process.env.TIKA_URL;
     if (!tikaUrl) {
@@ -346,51 +347,51 @@ export async function checkTikaAvailability(): Promise<boolean> {
     try {
         const response = await fetch(`${tikaUrl}/version`, {
             method: 'GET',
-            signal: AbortSignal.timeout(5000) // 5 Sekunden Timeout
+            signal: AbortSignal.timeout(5000) // 5 seconds timeout
         });
 
         if (response.ok) {
             const version = await response.text();
-            console.info(`Tika server available, version: ${version.trim()}`);
+            logger.info(`Tika server available, version: ${version.trim()}`);
             return true;
         }
 
         return false;
     } catch (error) {
-        console.warn('Tika server not available:', error instanceof Error ? error.message : 'Unknown error');
+        logger.warn('Tika server not available:', error instanceof Error ? error.message : 'Unknown error');
         return false;
     }
 }
 
-// Optional: Tika-Health-Check beim Start
+// Optional: Tika health check on startup
 export async function initializeTextExtractor(): Promise<void> {
     const tikaUrl = process.env.TIKA_URL;
 
     if (tikaUrl) {
         const isAvailable = await checkTikaAvailability();
         if (!isAvailable) {
-            console.error(`Tika server configured but not available at: ${tikaUrl}`);
-            console.error('Text extraction will fall back to legacy methods or fail');
+            logger.error(`Tika server configured but not available at: ${tikaUrl}`);
+            logger.error('Text extraction will fall back to legacy methods or fail');
         }
     } else {
-        console.info('Using legacy text extraction methods (pdf2json, mammoth, xlsx)');
-        console.info('Set TIKA_URL environment variable to use Apache Tika for better extraction');
+        logger.info('Using legacy text extraction methods (pdf2json, mammoth, xlsx)');
+        logger.info('Set TIKA_URL environment variable to use Apache Tika for better extraction');
     }
 }
 
-// Cache-Statistiken abrufen
+// Get cache statistics
 export function getTikaCacheStats(): { size: number; maxSize: number; hits: number; misses: number; hitRate: number } {
     return tikaCache.getStats();
 }
 
-// Semaphor-Statistiken abrufen
+// Get semaphore statistics
 export function getTikaSemaphoreStats(): { inProgress: number; waitCount: number } {
     return tikaSemaphore.getStats();
 }
 
-// Cache leeren (z.B. für Tests oder manuelles Reset)
+// Clear cache (e.g. for tests or manual reset)
 export function clearTikaCache(): void {
     tikaCache.reset();
     tikaSemaphore.clear();
-    console.info('Tika cache and semaphore cleared');
+    logger.info('Tika cache and semaphore cleared');
 }
