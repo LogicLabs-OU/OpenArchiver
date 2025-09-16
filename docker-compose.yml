@@ -52,6 +52,13 @@ services:
         networks:
             - open-archiver-net
 
+    tika:
+        image: apache/tika:3.2.2.0-full
+        container_name: tika
+        restart: always
+        networks:
+            - open-archiver-net
+
 volumes:
     pgdata:
         driver: local

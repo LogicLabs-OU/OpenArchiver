@@ -7,6 +7,7 @@ import { archivedEmails, attachments, emailAttachments } from '../database/schem
 import { eq } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
 import { simpleParser } from 'mailparser';
+import { logger } from '../config/logger';
 
 interface DbRecipients {
 	to: { name: string; address: string }[];
@@ -20,14 +21,83 @@ type AttachmentsType = {
 	mimeType: string;
 }[];
 
+interface PendingEmail {
+	email: EmailObject;
+	sourceId: string;
+	archivedId: string;
+	userEmail: string;
+}
+
+/**
+ * Sanitizes text content by removing invalid characters that could cause JSON serialization issues
+ */
+function sanitizeText(text: string): string {
+	if (!text) return '';
+
+	// Remove control characters and invalid UTF-8 sequences
+	return text
+		.replace(/\uFFFD/g, '') // Replacement character for invalid UTF-8 sequences
+		.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control characters
+		.trim();
+}
+
+/**
+ * Recursively sanitize all string values in an object to prevent JSON issues
+ */
+function sanitizeObject<T>(obj: T): T {
+	if (typeof obj === 'string') {
+		return sanitizeText(obj) as unknown as T;
+	} else if (Array.isArray(obj)) {
+		return obj.map(sanitizeObject) as unknown as T;
+	} else if (obj !== null && typeof obj === 'object') {
+		const sanitized: any = {};
+		for (const key in obj) {
+			if (Object.prototype.hasOwnProperty.call(obj, key)) {
+				sanitized[key] = sanitizeObject((obj as any)[key]);
+			}
+		}
+		return sanitized;
+	}
+	return obj;
+}
+
+/**
+ * Ensures all required fields are present in EmailDocument
+ */
+function ensureEmailDocumentFields(doc: Partial<EmailDocument>): EmailDocument {
+	return {
+		id: doc.id || 'missing-id',
+		userEmail: doc.userEmail || 'unknown',
+		from: doc.from || '',
+		to: Array.isArray(doc.to) ? doc.to : [],
+		cc: Array.isArray(doc.cc) ? doc.cc : [],
+		bcc: Array.isArray(doc.bcc) ? doc.bcc : [],
+		subject: doc.subject || '',
+		body: doc.body || '',
+		attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
+		timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
+		ingestionSourceId: doc.ingestionSourceId || 'unknown',
+	};
+}
+
+/**
+ * Validates if the given object is a valid EmailDocument that can be serialized to JSON
+ */
+function isValidEmailDocument(doc: any): boolean {
+	try {
+		JSON.stringify(doc);
+		return true;
+	} catch (error) {
+		logger.error({ doc, error: (error as Error).message }, 'Invalid EmailDocument detected');
+		return false;
+	}
+}
+
 export class IndexingService {
 	private dbService: DatabaseService;
 	private searchService: SearchService;
 	private storageService: StorageService;
 
-	/**
-	 * Initializes the service with its dependencies.
-	 */
 	constructor(
 		dbService: DatabaseService,
 		searchService: SearchService,
@@ -39,8 +109,125 @@ export class IndexingService {
 	}
 
 	/**
-	 * Fetches an email by its ID from the database, creates a search document, and indexes it.
+	 * Index multiple emails in a single batch operation for better performance
 	 */
+	public async indexEmailBatch(emails: PendingEmail[]): Promise<void> {
+		if (emails.length === 0) {
+			return;
+		}
+
+		logger.info({ batchSize: emails.length }, 'Starting batch indexing of emails');
+
+		try {
+			const CONCURRENCY_LIMIT = 10;
+			const rawDocuments: EmailDocument[] = [];
+
+			for (let i = 0; i < emails.length; i += CONCURRENCY_LIMIT) {
+				const batch = emails.slice(i, i + CONCURRENCY_LIMIT);
+
+				const batchDocuments = await Promise.allSettled(
+					batch.map(async ({ email, sourceId, archivedId, userEmail }) => {
+						try {
+							return await this.createEmailDocumentFromRawForBatch(
+								email,
+								sourceId,
+								archivedId,
+								userEmail
+							);
+						} catch (error) {
+							logger.error(
+								{
+									emailId: archivedId,
+									sourceId,
+									userEmail,
+									rawEmailData: JSON.stringify(email, null, 2),
+									error: error instanceof Error ? error.message : String(error),
+								},
+								'Failed to create document for email in batch'
+							);
+							throw error;
+						}
+					})
+				);
+
+				for (const result of batchDocuments) {
+					if (result.status === 'fulfilled') {
+						rawDocuments.push(result.value);
+					} else {
+						logger.error({ error: result.reason }, 'Failed to process email in batch');
+					}
+				}
+			}
+
+			if (rawDocuments.length === 0) {
+				logger.warn('No documents created from email batch');
+				return;
+			}
+
+			// Sanitize all documents
+			const sanitizedDocuments = rawDocuments.map((doc) => sanitizeObject(doc));
+
+			// Ensure all required fields are present
+			const completeDocuments = sanitizedDocuments.map((doc) =>
+				ensureEmailDocumentFields(doc)
+			);
+
+			// Validate each document and separate valid from invalid ones
+			const validDocuments: EmailDocument[] = [];
+			const invalidDocuments: { doc: any; reason: string }[] = [];
+
+			for (const doc of completeDocuments) {
+				if (isValidEmailDocument(doc)) {
+					validDocuments.push(doc);
+				} else {
+					invalidDocuments.push({ doc, reason: 'JSON.stringify failed' });
+					logger.warn({ document: doc }, 'Skipping invalid EmailDocument');
+				}
+			}
+
+			// Log detailed information for invalid documents
+			if (invalidDocuments.length > 0) {
+				for (const { doc } of invalidDocuments) {
+					logger.error(
+						{
+							emailId: doc.id,
+							document: JSON.stringify(doc, null, 2),
+						},
+						'Invalid EmailDocument details'
+					);
+				}
+			}
+
+			if (validDocuments.length === 0) {
+				logger.warn('No valid documents to index in batch.');
+				return;
+			}
+
+			logger.debug({ documentCount: validDocuments.length }, 'Sending batch to Meilisearch');
+
+			await this.searchService.addDocuments('emails', validDocuments, 'id');
+
+			logger.info(
+				{
+					batchSize: emails.length,
+					successfulDocuments: validDocuments.length,
+					failedDocuments: emails.length - validDocuments.length,
+					invalidDocuments: invalidDocuments.length,
+				},
+				'Successfully indexed email batch'
+			);
+		} catch (error) {
+			logger.error(
+				{
+					batchSize: emails.length,
+					error: error instanceof Error ? error.message : String(error),
+				},
+				'Failed to index email batch'
+			);
+			throw error;
+		}
+	}
+
 	public async indexEmailById(emailId: string): Promise<void> {
 		const email = await this.dbService.db.query.archivedEmails.findFirst({
 			where: eq(archivedEmails.id, emailId),
@@ -74,9 +261,6 @@ export class IndexingService {
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
-	/**
-	 * Indexes an email object directly, creates a search document, and indexes it.
-	 */
 	public async indexByEmail(
 		email: EmailObject,
 		ingestionSourceId: string,
@@ -103,9 +287,86 @@ export class IndexingService {
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
-	/**
-	 * Creates a search document from a raw email object and its attachments.
-	 */
+
+        /**
+         * Creates a search document from a raw email object and its attachments.
+         */
+	private async createEmailDocumentFromRawForBatch(
+		email: EmailObject,
+		ingestionSourceId: string,
+		archivedEmailId: string,
+		userEmail: string
+	): Promise<EmailDocument> {
+		const extractedAttachments: { filename: string; content: string }[] = [];
+
+		if (email.attachments && email.attachments.length > 0) {
+			const ATTACHMENT_CONCURRENCY = 3;
+
+			for (let i = 0; i < email.attachments.length; i += ATTACHMENT_CONCURRENCY) {
+				const attachmentBatch = email.attachments.slice(i, i + ATTACHMENT_CONCURRENCY);
+
+				const attachmentResults = await Promise.allSettled(
+					attachmentBatch.map(async (attachment) => {
+						try {
+							if (!this.shouldExtractText(attachment.contentType)) {
+								return null;
+							}
+
+							const textContent = await extractText(
+								attachment.content,
+								attachment.contentType || ''
+							);
+
+							return {
+								filename: attachment.filename,
+								content: textContent || '',
+							};
+						} catch (error) {
+							logger.warn(
+								{
+									filename: attachment.filename,
+									mimeType: attachment.contentType,
+									emailId: archivedEmailId,
+									error: error instanceof Error ? error.message : String(error),
+								},
+								'Failed to extract text from attachment'
+							);
+							return null;
+						}
+					})
+				);
+
+				for (const result of attachmentResults) {
+					if (result.status === 'fulfilled' && result.value) {
+						extractedAttachments.push(result.value);
+					}
+				}
+			}
+		}
+
+		const allAttachmentText = extractedAttachments
+			.map((att) => sanitizeText(att.content))
+			.join(' ');
+
+		const enhancedBody = [sanitizeText(email.body || email.html || ''), allAttachmentText]
+			.filter(Boolean)
+			.join('\n\n--- Attachments ---\n\n');
+
+		return {
+			id: archivedEmailId,
+			userEmail: userEmail,
+			from: email.from[0]?.address || '',
+			to: email.to?.map((addr: EmailAddress) => addr.address) || [],
+			cc: email.cc?.map((addr: EmailAddress) => addr.address) || [],
+			bcc: email.bcc?.map((addr: EmailAddress) => addr.address) || [],
+			subject: email.subject || '',
+			body: enhancedBody,
+			attachments: extractedAttachments,
+			timestamp: new Date(email.receivedAt).getTime(),
+			ingestionSourceId: ingestionSourceId,
+		};
+	}
+
 	private async createEmailDocumentFromRaw(
 		email: EmailObject,
 		attachments: AttachmentsType,
@@ -126,7 +387,6 @@ export class IndexingService {
 					`Failed to extract text from attachment: ${attachment.filename}`,
 					error
 				);
-				//  skip attachment or fail the job
 			}
 		}
 		// console.log('email.userEmail', userEmail);
@@ -145,9 +405,6 @@ export class IndexingService {
 		};
 	}
 
-	/**
-	 * Creates a search document from a database email record and its attachments.
-	 */
 	private async createEmailDocument(
 		email: typeof archivedEmails.$inferSelect,
 		attachments: Attachment[],
@@ -181,9 +438,6 @@ export class IndexingService {
 		};
 	}
 
-	/**
-	 * Extracts text content from a list of attachments.
-	 */
 	private async extractAttachmentContents(
 		attachments: Attachment[]
 	): Promise<{ filename: string; content: string }[]> {
@@ -202,9 +456,34 @@ export class IndexingService {
 					`Failed to extract text from attachment: ${attachment.filename}`,
 					error
 				);
-				//  skip attachment or fail the job
 			}
 		}
 		return extractedAttachments;
+	}
+
+	private shouldExtractText(mimeType: string): boolean {
+		if (process.env.TIKA_URL) {
+			return true;
+		}
+
+		if (!mimeType) return false;
+
+		const extractableTypes = [
+			'application/pdf',
+			'application/msword',
+			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			'application/vnd.ms-excel',
+			'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+			'application/vnd.ms-powerpoint',
+			'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+			'text/plain',
+			'text/html',
+			'text/rtf',
+			'application/rtf',
+			'text/csv',
+			'application/csv',
+		];
+
+		return extractableTypes.some((type) => mimeType.toLowerCase().includes(type));
 	}
 }
