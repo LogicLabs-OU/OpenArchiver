@@ -1,9 +1,19 @@
 import { Job } from 'bullmq';
-import { IProcessMailboxJob, SyncState, ProcessMailboxError } from '@open-archiver/types';
+import {
+	IProcessMailboxJob,
+	SyncState,
+	ProcessMailboxError,
+	PendingEmail,
+} from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
 import { logger } from '../../config/logger';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
 import { StorageService } from '../../services/StorageService';
+import { IndexingService } from '../../services/IndexingService';
+import { SearchService } from '../../services/SearchService';
+import { DatabaseService } from '../../services/DatabaseService';
+import { config } from '../../config';
+
 
 /**
  * This processor handles the ingestion of emails for a single user's mailbox.
@@ -15,8 +25,15 @@ import { StorageService } from '../../services/StorageService';
  */
 export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncState, string>) => {
 	const { ingestionSourceId, userEmail } = job.data;
+	const BATCH_SIZE: number = config.meili.indexingBatchSize;
+	let emailBatch: PendingEmail[] = [];
 
 	logger.info({ ingestionSourceId, userEmail }, `Processing mailbox for user`);
+
+	const searchService = new SearchService();
+	const storageService = new StorageService();
+	const databaseService = new DatabaseService();
+	const indexingService = new IndexingService(databaseService, searchService, storageService);
 
 	try {
 		const source = await IngestionService.findById(ingestionSourceId);
@@ -26,22 +43,38 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 
 		const connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
-		const storageService = new StorageService();
 
-		// Pass the sync state for the entire source, the connector will handle per-user logic if necessary
 		for await (const email of connector.fetchEmails(userEmail, source.syncState)) {
 			if (email) {
-				await ingestionService.processEmail(email, source, storageService, userEmail);
+				const processedEmail = await ingestionService.processEmail(
+					email,
+					source,
+					storageService,
+					userEmail
+				);
+				if (processedEmail) {
+					emailBatch.push(processedEmail);
+					if (emailBatch.length >= BATCH_SIZE) {
+						await indexingService.indexEmailBatch(emailBatch);
+						emailBatch = [];
+					}
+				}
 			}
 		}
 
+		if (emailBatch.length > 0) {
+			await indexingService.indexEmailBatch(emailBatch);
+			emailBatch = [];
+		}
+
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
-
 		logger.info({ ingestionSourceId, userEmail }, `Finished processing mailbox for user`);
-
-		// Return the new sync state to be aggregated by the parent flow
 		return newSyncState;
 	} catch (error) {
+		if (emailBatch.length > 0) {
+			await indexingService.indexEmailBatch(emailBatch);
+		}
+
 		logger.error({ err: error, ingestionSourceId, userEmail }, 'Error processing mailbox');
 		const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
 		const processMailboxError: ProcessMailboxError = {

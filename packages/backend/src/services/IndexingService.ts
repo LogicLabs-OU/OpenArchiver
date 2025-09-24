@@ -1,4 +1,10 @@
-import { Attachment, EmailAddress, EmailDocument, EmailObject } from '@open-archiver/types';
+import {
+	Attachment,
+	EmailAddress,
+	EmailDocument,
+	EmailObject,
+	PendingEmail,
+} from '@open-archiver/types';
 import { SearchService } from './SearchService';
 import { StorageService } from './StorageService';
 import { extractText } from '../helpers/textExtractor';
@@ -20,13 +26,6 @@ type AttachmentsType = {
 	buffer: Buffer;
 	mimeType: string;
 }[];
-
-interface PendingEmail {
-	email: EmailObject;
-	sourceId: string;
-	archivedId: string;
-	userEmail: string;
-}
 
 /**
  * Sanitizes text content by removing invalid characters that could cause JSON serialization issues
@@ -61,37 +60,6 @@ function sanitizeObject<T>(obj: T): T {
 	return obj;
 }
 
-/**
- * Ensures all required fields are present in EmailDocument
- */
-function ensureEmailDocumentFields(doc: Partial<EmailDocument>): EmailDocument {
-	return {
-		id: doc.id || 'missing-id',
-		userEmail: doc.userEmail || 'unknown',
-		from: doc.from || '',
-		to: Array.isArray(doc.to) ? doc.to : [],
-		cc: Array.isArray(doc.cc) ? doc.cc : [],
-		bcc: Array.isArray(doc.bcc) ? doc.bcc : [],
-		subject: doc.subject || '',
-		body: doc.body || '',
-		attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
-		timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
-		ingestionSourceId: doc.ingestionSourceId || 'unknown',
-	};
-}
-
-/**
- * Validates if the given object is a valid EmailDocument that can be serialized to JSON
- */
-function isValidEmailDocument(doc: any): boolean {
-	try {
-		JSON.stringify(doc);
-		return true;
-	} catch (error) {
-		logger.error({ doc, error: (error as Error).message }, 'Invalid EmailDocument detected');
-		return false;
-	}
-}
 
 export class IndexingService {
 	private dbService: DatabaseService;
@@ -126,20 +94,20 @@ export class IndexingService {
 				const batch = emails.slice(i, i + CONCURRENCY_LIMIT);
 
 				const batchDocuments = await Promise.allSettled(
-					batch.map(async ({ email, sourceId, archivedId, userEmail }) => {
+					batch.map(async ({ email, sourceId, archivedId }) => {
 						try {
 							return await this.createEmailDocumentFromRawForBatch(
 								email,
 								sourceId,
 								archivedId,
-								userEmail
+								email.userEmail || ''
 							);
 						} catch (error) {
 							logger.error(
 								{
 									emailId: archivedId,
 									sourceId,
-									userEmail,
+									userEmail: email.userEmail || '',
 									rawEmailData: JSON.stringify(email, null, 2),
 									error: error instanceof Error ? error.message : String(error),
 								},
@@ -169,7 +137,7 @@ export class IndexingService {
 
 			// Ensure all required fields are present
 			const completeDocuments = sanitizedDocuments.map((doc) =>
-				ensureEmailDocumentFields(doc)
+				this.ensureEmailDocumentFields(doc)
 			);
 
 			// Validate each document and separate valid from invalid ones
@@ -177,7 +145,7 @@ export class IndexingService {
 			const invalidDocuments: { doc: any; reason: string }[] = [];
 
 			for (const doc of completeDocuments) {
-				if (isValidEmailDocument(doc)) {
+				if (this.isValidEmailDocument(doc)) {
 					validDocuments.push(doc);
 				} else {
 					invalidDocuments.push({ doc, reason: 'JSON.stringify failed' });
@@ -228,7 +196,10 @@ export class IndexingService {
 		}
 	}
 
-	public async indexEmailById(emailId: string): Promise<void> {
+	/**
+	 * @deprecated
+	 */
+	private async indexEmailById(emailId: string): Promise<void> {
 		const email = await this.dbService.db.query.archivedEmails.findFirst({
 			where: eq(archivedEmails.id, emailId),
 		});
@@ -261,14 +232,15 @@ export class IndexingService {
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
-	public async indexByEmail(
-		email: EmailObject,
-		ingestionSourceId: string,
-		archivedEmailId: string
+	/**
+	 * @deprecated
+	 */
+	private async indexByEmail(
+		pendingEmail: PendingEmail
 	): Promise<void> {
 		const attachments: AttachmentsType = [];
-		if (email.attachments && email.attachments.length > 0) {
-			for (const attachment of email.attachments) {
+		if (pendingEmail.email.attachments && pendingEmail.email.attachments.length > 0) {
+			for (const attachment of pendingEmail.email.attachments) {
 				attachments.push({
 					buffer: attachment.content,
 					filename: attachment.filename,
@@ -277,20 +249,20 @@ export class IndexingService {
 			}
 		}
 		const document = await this.createEmailDocumentFromRaw(
-			email,
+			pendingEmail.email,
 			attachments,
-			ingestionSourceId,
-			archivedEmailId,
-			email.userEmail || ''
+			pendingEmail.sourceId,
+			pendingEmail.archivedId,
+			pendingEmail.email.userEmail || ''
 		);
 		// console.log(document);
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
 
 
-        /**
-         * Creates a search document from a raw email object and its attachments.
-         */
+	/**
+	 * Creates a search document from a raw email object and its attachments.
+	 */
 	private async createEmailDocumentFromRawForBatch(
 		email: EmailObject,
 		ingestionSourceId: string,
@@ -467,7 +439,7 @@ export class IndexingService {
 		}
 
 		if (!mimeType) return false;
-
+		// Tika supported mime types: https://tika.apache.org/2.4.1/formats.html
 		const extractableTypes = [
 			'application/pdf',
 			'application/msword',
@@ -478,12 +450,68 @@ export class IndexingService {
 			'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 			'text/plain',
 			'text/html',
+			'application/rss+xml',
+			'application/xml',
+			'application/json',
 			'text/rtf',
 			'application/rtf',
 			'text/csv',
+			'text/tsv',
 			'application/csv',
+			'image/bpg',
+			'image/png',
+			'image/vnd.wap.wbmp',
+			'image/x-jbig2',
+			'image/bmp',
+			'image/x-xcf',
+			'image/gif',
+			'image/x-icon',
+			'image/jpeg',
+			'image/x-ms-bmp',
+			'image/webp',
+			'image/tiff',
+			'image/svg+xml',
+			'application/vnd.apple.pages',
+			'application/vnd.apple.numbers',
+			'application/vnd.apple.keynote',
+			'image/heic',
+			'image/heif',
 		];
 
+
+
 		return extractableTypes.some((type) => mimeType.toLowerCase().includes(type));
+	}
+
+	/**
+ * Ensures all required fields are present in EmailDocument
+ */
+	private ensureEmailDocumentFields(doc: Partial<EmailDocument>): EmailDocument {
+		return {
+			id: doc.id || 'missing-id',
+			userEmail: doc.userEmail || 'unknown',
+			from: doc.from || '',
+			to: Array.isArray(doc.to) ? doc.to : [],
+			cc: Array.isArray(doc.cc) ? doc.cc : [],
+			bcc: Array.isArray(doc.bcc) ? doc.bcc : [],
+			subject: doc.subject || '',
+			body: doc.body || '',
+			attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
+			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
+			ingestionSourceId: doc.ingestionSourceId || 'unknown',
+		};
+	}
+
+	/**
+	 * Validates if the given object is a valid EmailDocument that can be serialized to JSON
+	 */
+	private isValidEmailDocument(doc: any): boolean {
+		try {
+			JSON.stringify(doc);
+			return true;
+		} catch (error) {
+			logger.error({ doc, error: (error as Error).message }, 'Invalid EmailDocument detected');
+			return false;
+		}
 	}
 }

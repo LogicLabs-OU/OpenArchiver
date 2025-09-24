@@ -6,6 +6,7 @@ import type {
 	IngestionSource,
 	IngestionCredentials,
 	IngestionProvider,
+	PendingEmail,
 } from '@open-archiver/types';
 import { and, desc, eq } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
@@ -302,7 +303,7 @@ export class IngestionService {
 		source: IngestionSource,
 		storage: StorageService,
 		userEmail: string
-	): Promise<void> {
+	): Promise<PendingEmail | null> {
 		try {
 			// Generate a unique message ID for the email. If the email already has a message-id header, use that.
 			// Otherwise, generate a new one based on the email's hash, source ID, and email ID.
@@ -331,7 +332,7 @@ export class IngestionService {
 					{ messageId, ingestionSourceId: source.id },
 					'Skipping duplicate email'
 				);
-				return;
+				return null;
 			}
 
 			const emlBuffer = email.eml ?? Buffer.from(email.body, 'utf-8');
@@ -398,23 +399,14 @@ export class IngestionService {
 						.onConflictDoNothing();
 				}
 			}
-			// adding to indexing queue
-			//Instead: index by email (raw email object, ingestion id)
-			logger.info({ emailId: archivedEmail.id }, 'Indexing email');
-			// await indexingQueue.add('index-email', {
-			//     emailId: archivedEmail.id,
-			// });
-			const searchService = new SearchService();
-			const storageService = new StorageService();
-			const databaseService = new DatabaseService();
-			const indexingService = new IndexingService(
-				databaseService,
-				searchService,
-				storageService
-			);
-			//assign userEmail
+
 			email.userEmail = userEmail;
-			await indexingService.indexByEmail(email, source.id, archivedEmail.id);
+
+			return {
+				email,
+				sourceId: source.id,
+				archivedId: archivedEmail.id,
+			};
 		} catch (error) {
 			logger.error({
 				message: `Failed to process email ${email.id} for source ${source.id}`,
@@ -422,6 +414,7 @@ export class IngestionService {
 				emailId: email.id,
 				ingestionSourceId: source.id,
 			});
+			return null;
 		}
 	}
 }

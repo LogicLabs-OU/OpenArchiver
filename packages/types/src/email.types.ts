@@ -55,6 +55,16 @@ export interface EmailObject {
 	tags?: string[];
 }
 
+/**
+ * Represents an email that has been processed and is ready for indexing.
+ * This interface defines the shape of the data that is passed to the batch indexing function.
+ */
+export interface PendingEmail {
+	email: EmailObject;
+	sourceId: string;
+	archivedId: string;
+}
+
 // Define the structure of the document to be indexed in Meilisearch
 export interface EmailDocument {
 	id: string; // The unique ID of the email

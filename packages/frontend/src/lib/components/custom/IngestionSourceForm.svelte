@@ -211,7 +211,7 @@
 			<Input id="username" bind:value={formData.providerConfig.username} class="col-span-3" />
 		</div>
 		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="password" class="text-left">{$t('auth.password')}</Label>
+			<Label for="password" class="text-left">{$t('app.auth.password')}</Label>
 			<Input
 				id="password"
 				type="password"
