@@ -8,6 +8,7 @@ const scheduleContinuousSync = async () => {
 		'schedule-continuous-sync',
 		{},
 		{
+			jobId: 'schedule-continuous-sync',
 			repeat: {
 				pattern: config.app.syncFrequency,
 			},
