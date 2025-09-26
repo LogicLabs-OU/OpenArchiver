@@ -100,6 +100,7 @@ export default defineConfig({
 				items: [
 					{ text: 'Overview', link: '/services/' },
 					{ text: 'Storage Service', link: '/services/storage-service' },
+					{ text: 'OCR Service', link: '/services/ocr-service' },
 					{
 						text: 'IAM Service',
 						items: [{ text: 'IAM Policies', link: '/services/iam-service/iam-policy' }],

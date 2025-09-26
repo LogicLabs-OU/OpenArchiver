@@ -76,18 +76,19 @@ Here is a complete list of environment variables available for configuration:
 
 These variables are used by `docker-compose.yml` to configure the services.
 
-| Variable            | Description                                     | Default Value                                            |
-| ------------------- | ----------------------------------------------- | -------------------------------------------------------- |
-| `POSTGRES_DB`       | The name of the PostgreSQL database.            | `open_archive`                                           |
-| `POSTGRES_USER`     | The username for the PostgreSQL database.       | `admin`                                                  |
-| `POSTGRES_PASSWORD` | The password for the PostgreSQL database.       | `password`                                               |
-| `DATABASE_URL`      | The connection URL for the PostgreSQL database. | `postgresql://admin:password@postgres:5432/open_archive` |
-| `MEILI_MASTER_KEY`  | The master key for Meilisearch.                 | `aSampleMasterKey`                                       |
-| `MEILI_HOST`        | The host for the Meilisearch service.           | `http://meilisearch:7700`                                |
-| `REDIS_HOST`        | The host for the Valkey (Redis) service.        | `valkey`                                                 |
-| `REDIS_PORT`        | The port for the Valkey (Redis) service.        | `6379`                                                   |
-| `REDIS_PASSWORD`    | The password for the Valkey (Redis) service.    | `defaultredispassword`                                   |
-| `REDIS_TLS_ENABLED` | Enable or disable TLS for Redis.                | `false`                                                  |
+| Variable               | Description                                          | Default Value                                            |
+| ---------------------- | ---------------------------------------------------- | -------------------------------------------------------- |
+| `POSTGRES_DB`          | The name of the PostgreSQL database.                 | `open_archive`                                           |
+| `POSTGRES_USER`        | The username for the PostgreSQL database.            | `admin`                                                  |
+| `POSTGRES_PASSWORD`    | The password for the PostgreSQL database.            | `password`                                               |
+| `DATABASE_URL`         | The connection URL for the PostgreSQL database.      | `postgresql://admin:password@postgres:5432/open_archive` |
+| `MEILI_MASTER_KEY`     | The master key for Meilisearch.                      | `aSampleMasterKey`                                       |
+| `MEILI_HOST`           | The host for the Meilisearch service.                | `http://meilisearch:7700`                                |
+| `MEILI_INDEXING_BATCH` | The number of emails to batch together for indexing. | `500`                                                    |
+| `REDIS_HOST`           | The host for the Valkey (Redis) service.             | `valkey`                                                 |
+| `REDIS_PORT`           | The port for the Valkey (Redis) service.             | `6379`                                                   |
+| `REDIS_PASSWORD`       | The password for the Valkey (Redis) service.         | `defaultredispassword`                                   |
+| `REDIS_TLS_ENABLED`    | Enable or disable TLS for Redis.                     | `false`                                                  |
 
 #### Storage Settings
 
@@ -113,6 +114,12 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `RATE_LIMIT_WINDOW_MS`           | The window in milliseconds for which API requests are checked.                                                                                 | `900000` (15 minutes)                      |
 | `RATE_LIMIT_MAX_REQUESTS`        | The maximum number of API requests allowed from an IP within the window.                                                                       | `100`                                      |
 | `ENCRYPTION_KEY`                 | A 32-byte hex string for encrypting sensitive data in the database.                                                                            |                                            |
+
+#### Apache Tika Integration
+
+| Variable   | Description                                                                                                                                                                          | Default Value      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| `TIKA_URL` | Optional. The URL of an Apache Tika server for advanced text extraction from attachments. If not set, the application falls back to built-in parsers for PDF, Word, and Excel files. | `http://tika:9998` |
 
 ## 3. Run the Application
 
