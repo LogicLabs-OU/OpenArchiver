@@ -23,6 +23,72 @@ const streamToBuffer = (stream: Readable): Promise<Buffer> => {
 	});
 };
 
+// helpers
+const looksLikeSmtp = (s?: string) => !!s && s.includes('@');
+const q = (s?: string) => (s ? s.replace(/[\r\n"]/g, '').trim() : '');
+const needs2047 = (s: string) => /[^\x00-\x7F]/.test(s);
+const enc2047 = (s: string) => `=?UTF-8?B?${Buffer.from(s, 'utf8').toString('base64')}?=`;
+const nameForHeader = (s?: string) => {
+  const t = q(s);
+  return t && needs2047(t) ? enc2047(t) : t;
+};
+
+
+function buildFromHeader(msg: PSTMessage): string | null {
+  const name = nameForHeader(msg.senderName);
+  const addrType = (msg.senderAddrtype || '').toUpperCase();
+  const raw = msg.senderEmailAddress;
+
+  if (addrType === 'SMTP' && looksLikeSmtp(raw)) {
+    return `${name || raw} <${raw}>`;
+  }
+
+  // Try raw internet headers if present
+  const hdrs = (msg.transportMessageHeaders || '').replace(/\r?\n([ \t]+)/g, ' ');
+  const m = hdrs.match(/^From:\s*(.+)$/mi);
+  if (m) return m[1].trim();
+
+  if (looksLikeSmtp(raw)) return `${name || raw} <${raw}>`;
+
+  // last resort: name only (don’t emit LegacyDN in <>)
+  return name || 'Unknown Sender';
+}
+
+function buildRecipientHeaders(msg: PSTMessage) {
+  const to: string[] = [];
+  const cc: string[] = [];
+  const bcc: string[] = [];
+  const RECIP_BCC = 3; // PR_RECIPIENT_TYPE = 3
+
+  for (let i = 0; i < msg.numberOfRecipients; i++) {
+    const r = msg.getRecipient(i) as any as import('pst-extractor').PSTRecipient;
+
+    // Use displayName from PSTObject; there is no 'name'
+    const recName = nameForHeader((r as any).displayName);
+
+    const addrType = (r.addrType || '').toUpperCase();
+    const smtp =
+      r.smtpAddress ||
+      (addrType === 'SMTP' && looksLikeSmtp(r.emailAddress) ? r.emailAddress : undefined);
+
+    // If we don't have a real SMTP address, skip this recipient (avoid names-only)
+    if (!smtp) continue;
+
+    const formatted = recName && recName !== smtp ? `${recName} <${smtp}>` : `${smtp}`;
+
+    if (r.recipientType === PSTMessage.RECIPIENT_TYPE_TO) {
+      to.push(formatted);
+    } else if (r.recipientType === PSTMessage.RECIPIENT_TYPE_CC) {
+      cc.push(formatted);
+    } else if (r.recipientType === RECIP_BCC) {
+      bcc.push(formatted);
+    }
+  }
+
+  return { to, cc, bcc };
+}
+
+
 // We have to hardcode names for deleted and trash folders here as current lib doesn't support looking into PST properties.
 const DELETED_FOLDERS = new Set([
 	// English
@@ -309,18 +375,23 @@ export class PSTConnector implements IEmailConnector {
 
 		let headers = '';
 
-		if (msg.senderName || msg.senderEmailAddress) {
-			headers += `From: ${msg.senderName} <${msg.senderEmailAddress}>\n`;
-		}
-		if (msg.displayTo) {
-			headers += `To: ${msg.displayTo}\n`;
-		}
-		if (msg.displayCC) {
-			headers += `Cc: ${msg.displayCC}\n`;
-		}
-		if (msg.displayBCC) {
-			headers += `Bcc: ${msg.displayBCC}\n`;
-		}
+        const fromLine = buildFromHeader(msg);
+
+        const { to, cc, bcc } = buildRecipientHeaders(msg);
+
+        if (fromLine) {
+            headers += `From: ${fromLine}\n`;
+        }
+
+        if (to.length) {
+            headers += `To: ${to.join(', ')}\n`;
+        }
+        if (cc.length) {
+            headers += `Cc: ${cc.join(', ')}\n`;
+        }
+        if (bcc.length) {
+            headers += `Bcc: ${bcc.join(', ')}\n`;
+        }
 		if (msg.subject) {
 			headers += `Subject: ${msg.subject}\n`;
 		}
