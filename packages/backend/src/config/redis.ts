@@ -10,6 +10,10 @@ const connectionOptions: any = {
 	enableReadyCheck: true,
 };
 
+if (process.env.REDIS_USER !== undefined || process.env.REDIS_USER === '') {
+	connectionOptions.username = process.env.REDIS_USER;
+}
+
 if (process.env.REDIS_TLS_ENABLED === 'true') {
 	connectionOptions.tls = {
 		rejectUnauthorized: false,
