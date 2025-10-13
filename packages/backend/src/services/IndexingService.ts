@@ -60,7 +60,6 @@ function sanitizeObject<T>(obj: T): T {
 	return obj;
 }
 
-
 export class IndexingService {
 	private dbService: DatabaseService;
 	private searchService: SearchService;
@@ -235,9 +234,7 @@ export class IndexingService {
 	/**
 	 * @deprecated
 	 */
-	private async indexByEmail(
-		pendingEmail: PendingEmail
-	): Promise<void> {
+	private async indexByEmail(pendingEmail: PendingEmail): Promise<void> {
 		const attachments: AttachmentsType = [];
 		if (pendingEmail.email.attachments && pendingEmail.email.attachments.length > 0) {
 			for (const attachment of pendingEmail.email.attachments) {
@@ -258,7 +255,6 @@ export class IndexingService {
 		// console.log(document);
 		await this.searchService.addDocuments('emails', [document], 'id');
 	}
-
 
 	/**
 	 * Creates a search document from a raw email object and its attachments.
@@ -478,14 +474,12 @@ export class IndexingService {
 			'image/heif',
 		];
 
-
-
 		return extractableTypes.some((type) => mimeType.toLowerCase().includes(type));
 	}
 
 	/**
- * Ensures all required fields are present in EmailDocument
- */
+	 * Ensures all required fields are present in EmailDocument
+	 */
 	private ensureEmailDocumentFields(doc: Partial<EmailDocument>): EmailDocument {
 		return {
 			id: doc.id || 'missing-id',
@@ -510,7 +504,10 @@ export class IndexingService {
 			JSON.stringify(doc);
 			return true;
 		} catch (error) {
-			logger.error({ doc, error: (error as Error).message }, 'Invalid EmailDocument detected');
+			logger.error(
+				{ doc, error: (error as Error).message },
+				'Invalid EmailDocument detected'
+			);
 			return false;
 		}
 	}

@@ -59,14 +59,17 @@ async function extractTextLegacy(buffer: Buffer, mimeType: string): Promise<stri
 	try {
 		if (mimeType === 'application/pdf') {
 			// Check PDF size (memory protection)
-			if (buffer.length > 50 * 1024 * 1024) { // 50MB Limit
+			if (buffer.length > 50 * 1024 * 1024) {
+				// 50MB Limit
 				logger.warn('PDF too large for legacy extraction, skipping');
 				return '';
 			}
 			return await extractTextFromPdf(buffer);
 		}
 
-		if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+		if (
+			mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+		) {
 			const { value } = await mammoth.extractRawText({ buffer });
 			return value;
 		}
@@ -118,7 +121,9 @@ export async function extractText(buffer: Buffer, mimeType: string): Promise<str
 	// General size limit
 	const maxSize = process.env.TIKA_URL ? 100 * 1024 * 1024 : 50 * 1024 * 1024; // 100MB for Tika, 50MB for Legacy
 	if (buffer.length > maxSize) {
-		logger.warn(`File too large for text extraction: ${buffer.length} bytes (limit: ${maxSize})`);
+		logger.warn(
+			`File too large for text extraction: ${buffer.length} bytes (limit: ${maxSize})`
+		);
 		return '';
 	}
 
@@ -128,12 +133,12 @@ export async function extractText(buffer: Buffer, mimeType: string): Promise<str
 	if (tikaUrl) {
 		// Tika decides what it can parse
 		logger.debug(`Using Tika for text extraction: ${mimeType}`);
-		const ocrService = new OcrService()
+		const ocrService = new OcrService();
 		try {
 			return await ocrService.extractTextWithTika(buffer, mimeType);
 		} catch (error) {
-			logger.error({ error }, "OCR text extraction failed, returning empty string")
-			return ''
+			logger.error({ error }, 'OCR text extraction failed, returning empty string');
+			return '';
 		}
 	} else {
 		// extract using legacy mode

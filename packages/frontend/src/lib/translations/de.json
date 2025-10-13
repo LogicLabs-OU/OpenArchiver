@@ -254,7 +254,11 @@
 			"view": "Ansehen",
 			"no_emails_found": "Keine archivierten E-Mails gefunden.",
 			"prev": "Zurück",
-			"next": "Weiter"
+			"next": "Weiter",
+			"folders": "Ordner",
+			"filtered_by_path": "Gefiltert nach Pfad:",
+			"loading_folders": "Ordner werden geladen...",
+			"no_folders_available": "Keine Ordner verfügbar."
 		}
 	}
 }

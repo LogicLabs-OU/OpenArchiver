@@ -225,7 +225,7 @@
 		},
 		"archived_emails_page": {
 			"title": "Αρχειοθετημένα email",
-			"header": "Αρχειοθετημένα email",
+			"header": "Αρχειοθετημένα Email",
 			"select_ingestion_source": "Επιλέξτε μια πηγή εισαγωγής",
 			"date": "Ημερομηνία",
 			"subject": "Θέμα",
@@ -236,7 +236,11 @@
 			"view": "Προβολή",
 			"no_emails_found": "Δεν βρέθηκαν αρχειοθετημένα email.",
 			"prev": "Προηγούμενο",
-			"next": "Επόμενο"
+			"next": "Επόμενο",
+			"folders": "Φάκελοι",
+			"filtered_by_path": "Φιλτραρισμένο κατά διαδρομή:",
+			"loading_folders": "Φόρτωση φακέλων...",
+			"no_folders_available": "Δεν υπάρχουν διαθέσιμοι φάκελοι."
 		},
 		"dashboard_page": {
 			"title": "Πίνακας ελέγχου",

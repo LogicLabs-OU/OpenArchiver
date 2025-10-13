@@ -265,7 +265,11 @@
 			"view": "Visualizza",
 			"no_emails_found": "Nessuna email archiviata trovata.",
 			"prev": "Prec",
-			"next": "Succ"
+			"next": "Succ",
+			"folders": "Cartelle",
+			"filtered_by_path": "Filtrato per percorso:",
+			"loading_folders": "Caricamento cartelle...",
+			"no_folders_available": "Nessuna cartella disponibile."
 		},
 		"dashboard_page": {
 			"title": "Dashboard",

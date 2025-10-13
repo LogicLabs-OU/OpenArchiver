@@ -254,7 +254,11 @@
 			"view": "Vaade",
 			"no_emails_found": "Arhiveeritud e-kirju ei leitud.",
 			"prev": "Eelmine",
-			"next": "Järgmine"
+			"next": "Järgmine",
+			"folders": "Kaustad",
+			"filtered_by_path": "Filtreeritud tee järgi:",
+			"loading_folders": "Kaustu laadimine...",
+			"no_folders_available": "Kaustu pole saadaval."
 		}
 	}
 }

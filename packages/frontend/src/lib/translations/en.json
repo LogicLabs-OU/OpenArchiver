@@ -268,7 +268,11 @@
 			"view": "View",
 			"no_emails_found": "No archived emails found.",
 			"prev": "Prev",
-			"next": "Next"
+			"next": "Next",
+			"folders": "Folders",
+			"filtered_by_path": "Filtered by path:",
+			"loading_folders": "Loading folders...",
+			"no_folders_available": "No folders available."
 		},
 		"dashboard_page": {
 			"title": "Dashboard",

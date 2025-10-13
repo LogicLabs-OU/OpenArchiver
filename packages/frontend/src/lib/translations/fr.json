@@ -254,7 +254,11 @@
 			"view": "Voir",
 			"no_emails_found": "Aucun e-mail archivé trouvé.",
 			"prev": "Préc",
-			"next": "Suiv"
+			"next": "Suiv",
+			"folders": "Dossiers",
+			"filtered_by_path": "Filtré par chemin:",
+			"loading_folders": "Chargement des dossiers...",
+			"no_folders_available": "Aucun dossier disponible."
 		}
 	}
 }

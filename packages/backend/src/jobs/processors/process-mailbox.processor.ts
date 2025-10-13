@@ -14,7 +14,6 @@ import { SearchService } from '../../services/SearchService';
 import { DatabaseService } from '../../services/DatabaseService';
 import { config } from '../../config';
 
-
 /**
  * This processor handles the ingestion of emails for a single user's mailbox.
  * If an error occurs during processing (e.g., an API failure),

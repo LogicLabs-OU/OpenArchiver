@@ -1,7 +1,7 @@
 import { api } from '$lib/server/api';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { IngestionSource, PaginatedArchivedEmails } from '@open-archiver/types';
+import type { IngestionSource, PaginatedArchivedEmails, EmailFolder } from '@open-archiver/types';
 
 export const load: PageServerLoad = async (event) => {
 	const { url } = event;
@@ -48,9 +48,21 @@ export const load: PageServerLoad = async (event) => {
 		archivedEmails = responseText;
 	}
 
+	let folders: EmailFolder[] = [];
+	if (selectedIngestionSourceId) {
+		const foldersResponse = await api(
+			`/archived-emails/ingestion-source/${selectedIngestionSourceId}/folders`,
+			event
+		);
+		if (foldersResponse.ok) {
+			folders = await foldersResponse.json();
+		}
+	}
+
 	return {
 		ingestionSources,
 		archivedEmails,
 		selectedIngestionSourceId,
+		folders,
 	};
 };

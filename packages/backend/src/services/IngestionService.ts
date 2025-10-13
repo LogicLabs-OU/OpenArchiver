@@ -83,7 +83,7 @@ export class IngestionService {
 			if (connectionValid) {
 				return await this.update(decryptedSource.id, { status: 'auth_success' });
 			} else {
-				throw Error('Ingestion authentication failed.')
+				throw Error('Ingestion authentication failed.');
 			}
 		} catch (error) {
 			// If connection fails, delete the newly created source and throw the error.

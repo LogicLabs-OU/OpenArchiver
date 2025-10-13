@@ -254,7 +254,11 @@
 			"view": "Ver",
 			"no_emails_found": "No se encontraron correos electrónicos archivados.",
 			"prev": "Anterior",
-			"next": "Siguiente"
+			"next": "Siguiente",
+			"folders": "Carpetas",
+			"filtered_by_path": "Filtrado por ruta:",
+			"loading_folders": "Cargando carpetas...",
+			"no_folders_available": "No hay carpetas disponibles."
 		}
 	}
 }
