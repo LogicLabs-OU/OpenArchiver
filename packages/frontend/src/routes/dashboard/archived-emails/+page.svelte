@@ -236,16 +236,6 @@
 			{/if}
 		</div>
 
-		<!-- Show selected path or default indicator -->
-		{#if selectedPath}
-			<p class="text-muted-foreground mb-4 text-sm">
-				{$t('app.archived_emails_page.filtered_by_path')}
-				{selectedPath}
-			</p>
-		{:else if selectedIngestionSourceId}
-			<p class="text-muted-foreground mb-4 text-sm">Showing all emails from this source</p>
-		{/if}
-
 		<div class="rounded-md border">
 			<Table.Root>
 				<Table.Header>
