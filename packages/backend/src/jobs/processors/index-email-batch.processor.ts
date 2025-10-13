@@ -11,7 +11,7 @@ const databaseService = new DatabaseService();
 const indexingService = new IndexingService(databaseService, searchService, storageService);
 
 export default async function (job: Job<{ emails: PendingEmail[] }>) {
-    const { emails } = job.data;
-    console.log(`Indexing email batch with ${emails.length} emails`);
-    await indexingService.indexEmailBatch(emails);
+	const { emails } = job.data;
+	console.log(`Indexing email batch with ${emails.length} emails`);
+	await indexingService.indexEmailBatch(emails);
 }

@@ -20,6 +20,12 @@ export const createArchivedEmailRouter = (
 	);
 
 	router.get(
+		'/ingestion-source/:ingestionSourceId/folders',
+		requirePermission('read', 'archive'),
+		archivedEmailController.getFolders
+	);
+
+	router.get(
 		'/:id',
 		requirePermission('read', 'archive'),
 		archivedEmailController.getArchivedEmailById

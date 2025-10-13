@@ -254,7 +254,11 @@
 			"view": "Bekijken",
 			"no_emails_found": "Geen gearchiveerde e-mails gevonden.",
 			"prev": "Vorige",
-			"next": "Volgende"
+			"next": "Volgende",
+			"folders": "Mappen",
+			"filtered_by_path": "Gefilterd op pad:",
+			"loading_folders": "Mappen laden...",
+			"no_folders_available": "Geen mappen beschikbaar."
 		}
 	}
 }

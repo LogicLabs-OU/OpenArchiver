@@ -1,4 +1,4 @@
-import { count, desc, eq, asc, and } from 'drizzle-orm';
+import { count, desc, eq, asc, and, sql } from 'drizzle-orm';
 import { db } from '../database';
 import {
 	archivedEmails,
@@ -13,6 +13,8 @@ import type {
 	ArchivedEmail,
 	Recipient,
 	ThreadEmail,
+	ArchivedEmailsQuery,
+	EmailFolder,
 } from '@open-archiver/types';
 import { StorageService } from './StorageService';
 import { SearchService } from './SearchService';
@@ -46,14 +48,33 @@ export class ArchivedEmailService {
 	}
 
 	public static async getArchivedEmails(
-		ingestionSourceId: string,
-		page: number,
-		limit: number,
+		query: ArchivedEmailsQuery,
 		userId: string
 	): Promise<PaginatedArchivedEmails> {
+		const {
+			ingestionSourceId,
+			page,
+			limit,
+			path,
+			sortBy = 'sentAt',
+			sortOrder = 'desc',
+		} = query;
 		const offset = (page - 1) * limit;
 		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
-		const where = and(eq(archivedEmails.ingestionSourceId, ingestionSourceId), drizzleFilter);
+
+		const conditions = [eq(archivedEmails.ingestionSourceId, ingestionSourceId), drizzleFilter];
+
+		// Only add path filtering if path is explicitly provided (not undefined)
+		if (path !== undefined) {
+			if (path === null || path === 'null') {
+				conditions.push(sql`${archivedEmails.path} IS NULL`);
+			} else {
+				conditions.push(eq(archivedEmails.path, path));
+			}
+		}
+		// If path is undefined, don't add any path filter - return all emails
+
+		const where = and(...conditions.filter(Boolean));
 
 		const countQuery = db
 			.select({
@@ -68,11 +89,15 @@ export class ArchivedEmailService {
 
 		const [total] = await countQuery;
 
+		// Dynamic sorting
+		const orderByClause =
+			sortOrder === 'desc' ? desc(archivedEmails[sortBy]) : asc(archivedEmails[sortBy]);
+
 		const itemsQuery = db
 			.select()
 			.from(archivedEmails)
 			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id))
-			.orderBy(desc(archivedEmails.sentAt))
+			.orderBy(orderByClause)
 			.limit(limit)
 			.offset(offset);
 
@@ -94,6 +119,75 @@ export class ArchivedEmailService {
 			page,
 			limit,
 		};
+	}
+
+	public static async getFolderStructure(
+		ingestionSourceId: string,
+		userId: string
+	): Promise<EmailFolder[]> {
+		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+		const where = and(eq(archivedEmails.ingestionSourceId, ingestionSourceId), drizzleFilter);
+
+		const pathsQuery = db
+			.select({
+				path: archivedEmails.path,
+				count: sql<number>`count(*)::int`,
+			})
+			.from(archivedEmails)
+			.where(where)
+			.groupBy(archivedEmails.path);
+
+		const paths = await pathsQuery;
+
+		// Build folder tree
+		const folderMap = new Map<string, EmailFolder>();
+		const rootFolders: EmailFolder[] = [];
+
+		// Add root folder for emails without path
+		const nullPathFolder = paths.find((p) => p.path === null);
+		if (nullPathFolder) {
+			rootFolders.push({
+				path: '',
+				name: 'Inbox',
+				count: nullPathFolder.count,
+				children: [],
+			});
+		}
+
+		// Process all paths
+		paths.forEach(({ path, count }) => {
+			if (!path) return;
+
+			const parts = path.split('/').filter(Boolean);
+			let currentPath = '';
+
+			parts.forEach((part, index) => {
+				const parentPath = currentPath;
+				currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+				if (!folderMap.has(currentPath)) {
+					const folder: EmailFolder = {
+						path: currentPath,
+						name: part,
+						count: index === parts.length - 1 ? count : 0,
+						children: [],
+					};
+
+					folderMap.set(currentPath, folder);
+
+					if (parentPath) {
+						const parent = folderMap.get(parentPath);
+						if (parent) {
+							parent.children.push(folder);
+						}
+					} else {
+						rootFolders.push(folder);
+					}
+				}
+			});
+		});
+
+		return rootFolders;
 	}
 
 	public static async getArchivedEmailById(

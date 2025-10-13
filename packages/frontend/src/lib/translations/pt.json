@@ -254,7 +254,11 @@
 			"view": "Visualizar",
 			"no_emails_found": "Nenhum e-mail arquivado encontrado.",
 			"prev": "Anterior",
-			"next": "Próximo"
+			"next": "Próximo",
+			"folders": "Pastas",
+			"filtered_by_path": "Filtrado por caminho:",
+			"loading_folders": "Carregando pastas...",
+			"no_folders_available": "Nenhuma pasta disponível."
 		}
 	}
 }

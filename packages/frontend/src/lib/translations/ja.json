@@ -254,7 +254,11 @@
 			"view": "表示",
 			"no_emails_found": "アーカイブされたメールは見つかりませんでした。",
 			"prev": "前へ",
-			"next": "次へ"
+			"next": "次へ",
+			"folders": "フォルダー",
+			"filtered_by_path": "パスでフィルタリング:",
+			"loading_folders": "フォルダーを読み込んでいます...",
+			"no_folders_available": "利用可能なフォルダーがありません。"
 		}
 	}
 }

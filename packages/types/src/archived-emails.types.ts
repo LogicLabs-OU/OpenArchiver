@@ -60,3 +60,25 @@ export interface PaginatedArchivedEmails {
 	page: number;
 	limit: number;
 }
+
+/**
+ * Query parameters for filtering and sorting archived emails
+ */
+export interface ArchivedEmailsQuery {
+	ingestionSourceId: string;
+	page: number;
+	limit: number;
+	path?: string | null;
+	sortBy?: 'sentAt' | 'senderEmail' | 'subject';
+	sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Represents a folder in the email hierarchy
+ */
+export interface EmailFolder {
+	path: string;
+	name: string;
+	count: number;
+	children: EmailFolder[];
+}
