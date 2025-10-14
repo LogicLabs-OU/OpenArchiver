@@ -9,7 +9,7 @@ import type { IEmailConnector } from '../EmailProviderFactory';
 import { FetchMessageObject, ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { logger } from '../../config/logger';
-import { getDate, getThreadId } from './helpers/utils';
+import { getMailDate, getThreadId } from './helpers/utils';
 
 export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow;
@@ -292,7 +292,7 @@ export class ImapConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || getDate(msg.internalDate) || new Date(),
+			receivedAt: getMailDate(parsedEmail, msg),
 			eml: msg.source,
 			path: mailboxPath,
 		};
