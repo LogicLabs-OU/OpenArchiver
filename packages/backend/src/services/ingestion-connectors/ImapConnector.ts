@@ -6,10 +6,10 @@ import type {
 	MailboxUser,
 } from '@open-archiver/types';
 import type { IEmailConnector } from '../EmailProviderFactory';
-import { ImapFlow } from 'imapflow';
+import { FetchMessageObject, ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { logger } from '../../config/logger';
-import { getThreadId } from './helpers/utils';
+import { getDate, getThreadId } from './helpers/utils';
 
 export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow;
@@ -215,6 +215,7 @@ export class ImapConnector implements IEmailConnector {
 								envelope: true,
 								source: true,
 								bodyStructure: true,
+								internalDate: true,
 								uid: true,
 							})) {
 								if (lastUid && msg.uid <= lastUid) {
@@ -258,8 +259,8 @@ export class ImapConnector implements IEmailConnector {
 		}
 	}
 
-	private async parseMessage(msg: any, mailboxPath: string): Promise<EmailObject> {
-		const parsedEmail: ParsedMail = await simpleParser(msg.source);
+	private async parseMessage(msg: FetchMessageObject, mailboxPath: string): Promise<EmailObject> {
+		const parsedEmail: ParsedMail = await simpleParser(msg.source!);
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
 			filename: attachment.filename || 'untitled',
 			contentType: attachment.contentType,
@@ -291,7 +292,7 @@ export class ImapConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt: parsedEmail.date || getDate(msg.internalDate) || new Date(),
 			eml: msg.source,
 			path: mailboxPath,
 		};

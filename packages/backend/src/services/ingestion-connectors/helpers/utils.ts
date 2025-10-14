@@ -52,3 +52,17 @@ export function getThreadId(headers: Headers): string | undefined {
 	console.warn('No thread ID found, returning undefined');
 	return undefined;
 }
+
+export function getDate(value: string | Date | undefined): Date | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	let date = value instanceof Date ? value : new Date(value);
+
+	if (date.toString() === 'Invalid Date') {
+		return undefined;
+	}
+
+	return date;
+}
