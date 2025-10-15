@@ -188,6 +188,7 @@ export class ImapConnector implements IEmailConnector {
 					);
 					const lastUid = syncState?.imap?.[mailboxPath]?.maxUid;
 					let currentMaxUid = lastUid || 0;
+					let minUid = 1;
 
 					if (mailbox.exists > 0) {
 						const lastMessage = await this.client.fetchOne(String(mailbox.exists), {
@@ -195,6 +196,11 @@ export class ImapConnector implements IEmailConnector {
 						});
 						if (lastMessage && lastMessage.uid > currentMaxUid) {
 							currentMaxUid = lastMessage.uid;
+						}
+
+						const firstMessage = await this.client.fetchOne('1', { uid: true });
+						if (firstMessage) {
+							minUid = firstMessage.uid;
 						}
 					}
 
@@ -204,7 +210,7 @@ export class ImapConnector implements IEmailConnector {
 					// Only fetch if the mailbox has messages, to avoid errors on empty mailboxes with some IMAP servers.
 					if (mailbox.exists > 0) {
 						const BATCH_SIZE = 250; // A configurable batch size
-						let startUid = (lastUid || 0) + 1;
+						let startUid = lastUid ? lastUid + 1 : minUid;
 						const maxUidToFetch = currentMaxUid;
 
 						while (startUid <= maxUidToFetch) {
