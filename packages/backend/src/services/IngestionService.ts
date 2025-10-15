@@ -83,7 +83,7 @@ export class IngestionService {
 			if (connectionValid) {
 				return await this.update(decryptedSource.id, { status: 'auth_success' });
 			} else {
-				throw Error('Ingestion authentication failed.')
+				throw Error('Ingestion authentication failed.');
 			}
 		} catch (error) {
 			// If connection fails, delete the newly created source and throw the error.
@@ -328,10 +328,36 @@ export class IngestionService {
 			});
 
 			if (existingEmail) {
-				logger.info(
-					{ messageId, ingestionSourceId: source.id },
-					'Skipping duplicate email'
-				);
+				// Check if the email has been moved to a different folder
+				const newPath = email.path || '';
+				const existingPath = existingEmail.path || '';
+
+				if (newPath !== existingPath) {
+					logger.info(
+						{
+							messageId,
+							ingestionSourceId: source.id,
+							oldPath: existingPath,
+							newPath: newPath,
+						},
+						'Email moved to different folder, updating path'
+					);
+
+					// Update the path in the database
+					await db
+						.update(archivedEmails)
+						.set({ path: newPath })
+						.where(eq(archivedEmails.id, existingEmail.id));
+
+					// Note: We don't need to move the physical file or update the search index
+					// because the storagePath includes the folder in the path already and is not changed.
+					// The 'path' field is just metadata about which folder the email is in on the source server.
+				} else {
+					logger.debug(
+						{ messageId, ingestionSourceId: source.id },
+						'Skipping duplicate email with unchanged path'
+					);
+				}
 				return null;
 			}
 
