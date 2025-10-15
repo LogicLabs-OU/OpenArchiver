@@ -40,7 +40,8 @@ export class StorageController {
 
 			const fileStream = await this.storageService.get(safePath);
 			const fileName = path.basename(safePath);
-			res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+			const encodedFileName = encodeURIComponent(fileName);
+			res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
 			fileStream.pipe(res);
 		} catch (error) {
 			console.error('Error downloading file:', error);
