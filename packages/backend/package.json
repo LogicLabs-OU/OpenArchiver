@@ -2,7 +2,7 @@
 	"name": "@open-archiver/backend",
 	"version": "0.1.0",
 	"private": true,
-	"license": "SEE LICENSE IN LICENSE-AGPL.txt",
+	"license": "SEE LICENSE IN LICENSE file",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
