@@ -1,8 +1,0 @@
-{
-	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "dist"
-	},
-	"include": ["./**/*.ts"],
-	"references": [{ "path": "../../packages/backend" }, { "path": "../../packages/enterprise" }]
-}
