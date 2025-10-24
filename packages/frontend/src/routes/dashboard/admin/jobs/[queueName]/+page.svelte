@@ -58,7 +58,7 @@
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>{$t('app.jobs.jobs')}</Card.Title>
-			<div class="flex space-x-2">
+			<div class="flex flex-wrap space-x-2 space-y-2">
 				{#each jobStatuses as status}
 					<Button
 						variant={selectedStatus === status ? 'default' : 'outline'}
