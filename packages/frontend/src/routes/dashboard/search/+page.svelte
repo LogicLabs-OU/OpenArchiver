@@ -201,38 +201,44 @@
 									<div use:shadowRender={_formatted.subject || hit.subject}></div>
 								{/if}
 							</CardTitle>
-							<CardDescription class="flex items-center space-x-1">
-								<span>{$t('app.search.from')}:</span>
-								{#if !isMounted}
-									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-									></span>
-								{:else}
-									<span
-										class="inline-block"
-										use:shadowRender={_formatted.from || hit.from}
-									></span>
-								{/if}
-								<span class="mx-2">|</span>
-								<span>{$t('app.search.to')}:</span>
-								{#if !isMounted}
-									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-									></span>
-								{:else}
-									<span
-										class="inline-block"
-										use:shadowRender={_formatted.to?.join(', ') ||
-											hit.to.join(', ')}
-									></span>
-								{/if}
-								<span class="mx-2">|</span>
-								{#if !isMounted}
-									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-									></span>
-								{:else}
-									<span class="inline-block">
-										{new Date(hit.timestamp).toLocaleString()}
-									</span>
-								{/if}
+							<CardDescription
+								class="divide-forground flex flex-wrap items-center space-x-2 divide-x"
+							>
+								<span class="pr-2">
+									<span>{$t('app.search.from')}:</span>
+									{#if !isMounted}
+										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+										></span>
+									{:else}
+										<span
+											class="inline-block"
+											use:shadowRender={_formatted.from || hit.from}
+										></span>
+									{/if}
+								</span>
+								<span class="pr-2">
+									<span>{$t('app.search.to')}:</span>
+									{#if !isMounted}
+										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+										></span>
+									{:else}
+										<span
+											class="inline-block"
+											use:shadowRender={_formatted.to?.join(', ') ||
+												hit.to.join(', ')}
+										></span>
+									{/if}
+								</span>
+								<span>
+									{#if !isMounted}
+										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+										></span>
+									{:else}
+										<span class="inline-block">
+											{new Date(hit.timestamp).toLocaleString()}
+										</span>
+									{/if}
+								</span>
 							</CardDescription>
 						</CardHeader>
 						<CardContent class="space-y-2">
