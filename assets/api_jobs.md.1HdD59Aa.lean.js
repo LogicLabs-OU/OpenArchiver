@@ -1,0 +1,1 @@
+import{_ as i,c as a,o as t,ag as n}from"./chunks/framework.S-Qvb3wi.js";const E=JSON.parse('{"title":"Jobs API","description":"","frontmatter":{},"headers":[],"relativePath":"api/jobs.md","filePath":"api/jobs.md"}'),e={name:"api/jobs.md"};function l(h,s,p,k,o,r){return t(),a("div",null,s[0]||(s[0]=[n("",20)]))}const u=i(e,[["render",l]]);export{E as __pageData,u as default};
