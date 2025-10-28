@@ -186,7 +186,7 @@ export class IngestionService {
 				(key) =>
 					key !== 'providerConfig' &&
 					originalSource[key as keyof IngestionSource] !==
-					decryptedSource[key as keyof IngestionSource]
+						decryptedSource[key as keyof IngestionSource]
 			);
 			if (changedFields.length > 0) {
 				await this.auditService.createAuditLog({

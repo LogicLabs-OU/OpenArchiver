@@ -95,7 +95,9 @@ export class IndexingService {
 				const batchDocuments = await Promise.allSettled(
 					batch.map(async (pendingEmail) => {
 						try {
-							const document = await this.indexEmailById(pendingEmail.archivedEmailId);
+							const document = await this.indexEmailById(
+								pendingEmail.archivedEmailId
+							);
 							if (document) {
 								return document;
 							}
@@ -119,7 +121,10 @@ export class IndexingService {
 					} else if (result.status === 'rejected') {
 						logger.error({ error: result.reason }, 'Failed to process email in batch');
 					} else {
-						logger.error({ result: result }, 'Failed to process email in batch, reason unknown.');
+						logger.error(
+							{ result: result },
+							'Failed to process email in batch, reason unknown.'
+						);
 					}
 				}
 			}

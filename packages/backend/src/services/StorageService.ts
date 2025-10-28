@@ -117,7 +117,7 @@ export class StorageService implements IStorageProvider {
 		if (!prefix.equals(ENCRYPTION_PREFIX)) {
 			// File is not encrypted, return a new stream containing the buffered prefix and the rest of the original stream
 			const combinedStream = new Readable({
-				read() { },
+				read() {},
 			});
 			combinedStream.push(prefixAndIvBuffer);
 			stream.on('data', (chunk) => {

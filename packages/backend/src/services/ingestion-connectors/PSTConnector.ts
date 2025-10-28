@@ -139,7 +139,6 @@ export class PSTConnector implements IEmailConnector {
 			if (!fileExist) {
 				throw Error('PST file upload not finished yet, please wait.');
 			}
-
 			return true;
 		} catch (error) {
 			logger.error({ error, credentials: this.credentials }, 'PST file validation failed.');
@@ -289,8 +288,8 @@ export class PSTConnector implements IEmailConnector {
 					emlBuffer ?? Buffer.from(parsedEmail.text || parsedEmail.html || '', 'utf-8')
 				)
 				.digest('hex')}-${createHash('sha256')
-					.update(emlBuffer ?? Buffer.from(msg.subject || '', 'utf-8'))
-					.digest('hex')}-${msg.clientSubmitTime?.getTime()}`;
+				.update(emlBuffer ?? Buffer.from(msg.subject || '', 'utf-8'))
+				.digest('hex')}-${msg.clientSubmitTime?.getTime()}`;
 		}
 		return {
 			id: messageId,
