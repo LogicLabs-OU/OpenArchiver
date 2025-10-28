@@ -10,9 +10,46 @@ import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser'
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 import { StorageService } from '../StorageService';
-import { Readable } from 'stream';
+import { Readable, Transform } from 'stream';
 import { createHash } from 'crypto';
-import { streamToBuffer } from '../../helpers/streamToBuffer';
+
+class MboxSplitter extends Transform {
+	private buffer: Buffer = Buffer.alloc(0);
+	private delimiter: Buffer = Buffer.from('\nFrom ');
+	private firstChunk: boolean = true;
+
+	_transform(chunk: Buffer, encoding: string, callback: Function) {
+		if (this.firstChunk) {
+			// Check if the file starts with "From ". If not, prepend it to the first email.
+			if (chunk.subarray(0, 5).toString() !== 'From ') {
+				this.push(Buffer.from('From '));
+			}
+			this.firstChunk = false;
+		}
+
+		let currentBuffer = Buffer.concat([this.buffer, chunk]);
+		let position;
+
+		while ((position = currentBuffer.indexOf(this.delimiter)) > -1) {
+			const email = currentBuffer.subarray(0, position);
+			if (email.length > 0) {
+				this.push(email);
+			}
+			// The next email starts with "From ", which is what the parser expects.
+			currentBuffer = currentBuffer.subarray(position + 1);
+		}
+
+		this.buffer = currentBuffer;
+		callback();
+	}
+
+	_flush(callback: Function) {
+		if (this.buffer.length > 0) {
+			this.push(this.buffer);
+		}
+		callback();
+	}
+}
 
 export class MboxConnector implements IEmailConnector {
 	private storage: StorageService;
@@ -57,30 +94,15 @@ export class MboxConnector implements IEmailConnector {
 		userEmail: string,
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject | null> {
+		const fileStream = await this.storage.getStream(this.credentials.uploadedFilePath);
+		const mboxSplitter = new MboxSplitter();
+		const emailStream = fileStream.pipe(mboxSplitter);
+
 		try {
-			const fileStream = await this.storage.get(this.credentials.uploadedFilePath);
-			const fileBuffer = await streamToBuffer(fileStream as Readable);
-			const mboxContent = fileBuffer.toString('utf-8');
-			const emailDelimiter = '\nFrom ';
-			const emails = mboxContent.split(emailDelimiter);
-
-			// The first split part might be empty or part of the first email's header, so we adjust.
-			if (emails.length > 0 && !mboxContent.startsWith('From ')) {
-				emails.shift(); // Adjust if the file doesn't start with "From "
-			}
-
-			logger.info(`Found ${emails.length} potential emails in the mbox file.`);
-			let emailCount = 0;
-
-			for (const email of emails) {
+			for await (const emailBuffer of emailStream) {
 				try {
-					// Re-add the "From " delimiter for the parser, except for the very first email
-					const emailWithDelimiter =
-						emailCount > 0 || mboxContent.startsWith('From ') ? `From ${email}` : email;
-					const emailBuffer = Buffer.from(emailWithDelimiter, 'utf-8');
-					const emailObject = await this.parseMessage(emailBuffer, '');
+					const emailObject = await this.parseMessage(emailBuffer as Buffer, '');
 					yield emailObject;
-					emailCount++;
 				} catch (error) {
 					logger.error(
 						{ error, file: this.credentials.uploadedFilePath },
@@ -88,8 +110,31 @@ export class MboxConnector implements IEmailConnector {
 					);
 				}
 			}
-			logger.info(`Finished processing mbox file. Total emails processed: ${emailCount}`);
 		} finally {
+			// Ensure all streams are properly closed before deleting the file.
+			if (fileStream instanceof Readable) {
+				fileStream.destroy();
+			}
+			if (emailStream instanceof Readable) {
+				emailStream.destroy();
+			}
+			// Wait for the streams to fully close to prevent race conditions with file deletion.
+			await new Promise((resolve) => {
+				if (fileStream instanceof Readable) {
+					fileStream.on('close', resolve);
+				} else {
+					resolve(true);
+				}
+			});
+
+			await new Promise((resolve) => {
+				if (emailStream instanceof Readable) {
+					emailStream.on('close', resolve);
+				} else {
+					resolve(true);
+				}
+			});
+
 			try {
 				await this.storage.delete(this.credentials.uploadedFilePath);
 			} catch (error) {

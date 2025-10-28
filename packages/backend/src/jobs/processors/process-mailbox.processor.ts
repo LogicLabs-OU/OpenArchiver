@@ -33,7 +33,6 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 	const searchService = new SearchService();
 	const storageService = new StorageService();
 	const databaseService = new DatabaseService();
-	const indexingService = new IndexingService(databaseService, searchService, storageService);
 
 	try {
 		const source = await IngestionService.findById(ingestionSourceId);
@@ -72,7 +71,8 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 		return newSyncState;
 	} catch (error) {
 		if (emailBatch.length > 0) {
-			await indexingService.indexEmailBatch(emailBatch);
+			await indexingQueue.add('index-email-batch', { emails: emailBatch });
+			emailBatch = [];
 		}
 
 		logger.error({ err: error, ingestionSourceId, userEmail }, 'Error processing mailbox');

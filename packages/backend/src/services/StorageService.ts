@@ -81,6 +81,79 @@ export class StorageService implements IStorageProvider {
 		return Readable.from(decryptedContent);
 	}
 
+	public async getStream(path: string): Promise<NodeJS.ReadableStream> {
+		const stream = await this.provider.get(path);
+		if (!this.encryptionKey) {
+			return stream;
+		}
+
+		// For encrypted files, we need to read the prefix and IV first.
+		// This part still buffers a small, fixed amount of data, which is acceptable.
+		const prefixAndIvBuffer = await new Promise<Buffer>((resolve, reject) => {
+			const chunks: Buffer[] = [];
+			let totalLength = 0;
+			const targetLength = ENCRYPTION_PREFIX.length + 16;
+
+			const onData = (chunk: Buffer) => {
+				chunks.push(chunk);
+				totalLength += chunk.length;
+				if (totalLength >= targetLength) {
+					stream.removeListener('data', onData);
+					resolve(Buffer.concat(chunks));
+				}
+			};
+
+			stream.on('data', onData);
+			stream.on('error', reject);
+			stream.on('end', () => {
+				// Handle cases where the file is smaller than the prefix + IV
+				if (totalLength < targetLength) {
+					resolve(Buffer.concat(chunks));
+				}
+			});
+		});
+
+		const prefix = prefixAndIvBuffer.subarray(0, ENCRYPTION_PREFIX.length);
+		if (!prefix.equals(ENCRYPTION_PREFIX)) {
+			// File is not encrypted, return a new stream containing the buffered prefix and the rest of the original stream
+			const combinedStream = new Readable({
+				read() { },
+			});
+			combinedStream.push(prefixAndIvBuffer);
+			stream.on('data', (chunk) => {
+				combinedStream.push(chunk);
+			});
+			stream.on('end', () => {
+				combinedStream.push(null); // No more data
+			});
+			stream.on('error', (err) => {
+				combinedStream.emit('error', err);
+			});
+			return combinedStream;
+		}
+
+		try {
+			const iv = prefixAndIvBuffer.subarray(
+				ENCRYPTION_PREFIX.length,
+				ENCRYPTION_PREFIX.length + 16
+			);
+			const decipher = createDecipheriv(this.algorithm, this.encryptionKey, iv);
+
+			// Push the remaining part of the initial buffer to the decipher
+			const remainingBuffer = prefixAndIvBuffer.subarray(ENCRYPTION_PREFIX.length + 16);
+			if (remainingBuffer.length > 0) {
+				decipher.write(remainingBuffer);
+			}
+
+			// Pipe the rest of the stream
+			stream.pipe(decipher);
+
+			return decipher;
+		} catch (error) {
+			throw new Error('Failed to decrypt file. It may be corrupted or the key is incorrect.');
+		}
+	}
+
 	delete(path: string): Promise<void> {
 		return this.provider.delete(path);
 	}

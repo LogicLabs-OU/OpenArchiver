@@ -1,4 +1,4 @@
-# Email Integrity Check
+# Integrity Check
 
 Open Archiver allows you to verify the integrity of your archived emails and their attachments. This guide explains how the integrity check works and what the results mean.
 

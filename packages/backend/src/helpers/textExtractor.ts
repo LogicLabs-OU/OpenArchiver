@@ -47,10 +47,10 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 		}
 
 		// reduced Timeout for better performance
-		setTimeout(() => {
-			logger.warn('PDF parsing timed out');
-			finish('');
-		}, 5000);
+		// setTimeout(() => {
+		// 	logger.warn('PDF parsing timed out');
+		// 	finish('');
+		// }, 5000);
 	});
 }
 

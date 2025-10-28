@@ -13,15 +13,8 @@ import { getThreadId } from './helpers/utils';
 import { StorageService } from '../StorageService';
 import { Readable } from 'stream';
 import { createHash } from 'crypto';
-
-const streamToBuffer = (stream: Readable): Promise<Buffer> => {
-	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = [];
-		stream.on('data', (chunk) => chunks.push(chunk));
-		stream.on('error', reject);
-		stream.on('end', () => resolve(Buffer.concat(chunks)));
-	});
-};
+import { join } from 'path';
+import { createWriteStream, promises as fs } from 'fs';
 
 // We have to hardcode names for deleted and trash folders here as current lib doesn't support looking into PST properties.
 const DELETED_FOLDERS = new Set([
@@ -113,20 +106,25 @@ const JUNK_FOLDERS = new Set([
 
 export class PSTConnector implements IEmailConnector {
 	private storage: StorageService;
-	private pstFile: PSTFile | null = null;
 
 	constructor(private credentials: PSTImportCredentials) {
 		this.storage = new StorageService();
 	}
 
-	private async loadPstFile(): Promise<PSTFile> {
-		if (this.pstFile) {
-			return this.pstFile;
-		}
-		const fileStream = await this.storage.get(this.credentials.uploadedFilePath);
-		const buffer = await streamToBuffer(fileStream as Readable);
-		this.pstFile = new PSTFile(buffer);
-		return this.pstFile;
+	private async loadPstFile(): Promise<{ pstFile: PSTFile; tempDir: string }> {
+		const fileStream = await this.storage.getStream(this.credentials.uploadedFilePath);
+		const tempDir = await fs.mkdtemp(join('/tmp', `pst-import-${new Date().getTime()}`));
+		const tempFilePath = join(tempDir, 'temp.pst');
+
+		await new Promise<void>((resolve, reject) => {
+			const dest = createWriteStream(tempFilePath);
+			fileStream.pipe(dest);
+			dest.on('finish', resolve);
+			dest.on('error', reject);
+		});
+
+		const pstFile = new PSTFile(tempFilePath);
+		return { pstFile, tempDir };
 	}
 
 	public async testConnection(): Promise<boolean> {
@@ -156,8 +154,11 @@ export class PSTConnector implements IEmailConnector {
 	 */
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
 		let pstFile: PSTFile | null = null;
+		let tempDir: string | null = null;
 		try {
-			pstFile = await this.loadPstFile();
+			const loadResult = await this.loadPstFile();
+			pstFile = loadResult.pstFile;
+			tempDir = loadResult.tempDir;
 			const root = pstFile.getRootFolder();
 			const displayName: string =
 				root.displayName || pstFile.pstFilename || String(new Date().getTime());
@@ -171,10 +172,12 @@ export class PSTConnector implements IEmailConnector {
 			};
 		} catch (error) {
 			logger.error({ error }, 'Failed to list users from PST file.');
-			pstFile?.close();
 			throw error;
 		} finally {
 			pstFile?.close();
+			if (tempDir) {
+				await fs.rm(tempDir, { recursive: true, force: true });
+			}
 		}
 	}
 
@@ -183,16 +186,21 @@ export class PSTConnector implements IEmailConnector {
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject | null> {
 		let pstFile: PSTFile | null = null;
+		let tempDir: string | null = null;
 		try {
-			pstFile = await this.loadPstFile();
+			const loadResult = await this.loadPstFile();
+			pstFile = loadResult.pstFile;
+			tempDir = loadResult.tempDir;
 			const root = pstFile.getRootFolder();
 			yield* this.processFolder(root, '', userEmail);
 		} catch (error) {
 			logger.error({ error }, 'Failed to fetch email.');
-			pstFile?.close();
 			throw error;
 		} finally {
 			pstFile?.close();
+			if (tempDir) {
+				await fs.rm(tempDir, { recursive: true, force: true });
+			}
 			try {
 				await this.storage.delete(this.credentials.uploadedFilePath);
 			} catch (error) {
@@ -281,8 +289,8 @@ export class PSTConnector implements IEmailConnector {
 					emlBuffer ?? Buffer.from(parsedEmail.text || parsedEmail.html || '', 'utf-8')
 				)
 				.digest('hex')}-${createHash('sha256')
-				.update(emlBuffer ?? Buffer.from(msg.subject || '', 'utf-8'))
-				.digest('hex')}-${msg.clientSubmitTime?.getTime()}`;
+					.update(emlBuffer ?? Buffer.from(msg.subject || '', 'utf-8'))
+					.digest('hex')}-${msg.clientSubmitTime?.getTime()}`;
 		}
 		return {
 			id: messageId,

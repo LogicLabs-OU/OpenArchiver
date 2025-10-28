@@ -131,6 +131,7 @@ export class ImapConnector implements IEmailConnector {
 			} catch (err: any) {
 				logger.error({ err, attempt }, `IMAP operation failed on attempt ${attempt}`);
 				this.isConnected = false; // Force reconnect on next attempt
+				this.client = this.createClient(); // Create a new client instance for the next retry
 				if (attempt === maxRetries) {
 					logger.error({ err }, 'IMAP operation failed after all retries.');
 					throw err;
