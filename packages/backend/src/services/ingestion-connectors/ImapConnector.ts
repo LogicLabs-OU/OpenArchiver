@@ -15,7 +15,6 @@ import { getThreadId } from './helpers/utils';
 export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
-	private isConnected = false;
 	private statusMessage: string | undefined;
 
 	constructor(private credentials: GenericImapCredentials) {
@@ -41,7 +40,6 @@ export class ImapConnector implements IEmailConnector {
 		// Handles client-level errors, like unexpected disconnects, to prevent crashes.
 		client.on('error', (err) => {
 			logger.error({ err }, 'IMAP client error');
-			this.isConnected = false;
 		});
 
 		return client;
@@ -51,20 +49,17 @@ export class ImapConnector implements IEmailConnector {
 	 * Establishes a connection to the IMAP server if not already connected.
 	 */
 	private async connect(): Promise<void> {
-		if (this.isConnected && this.client.usable) {
+		// If the client is already connected and usable, do nothing.
+		if (this.client.usable) {
 			return;
 		}
 
-		// If the client is not usable (e.g., after a logout), create a new one.
-		if (!this.client.usable) {
-			this.client = this.createClient();
-		}
+		// If the client is not usable (e.g., after a logout or an error), create a new one.
+		this.client = this.createClient();
 
 		try {
 			await this.client.connect();
-			this.isConnected = true;
 		} catch (err: any) {
-			this.isConnected = false;
 			logger.error({ err }, 'IMAP connection failed');
 			if (err.responseText) {
 				throw new Error(`IMAP Connection Error: ${err.responseText}`);
@@ -77,9 +72,8 @@ export class ImapConnector implements IEmailConnector {
 	 * Disconnects from the IMAP server if the connection is active.
 	 */
 	private async disconnect(): Promise<void> {
-		if (this.isConnected && this.client.usable) {
+		if (this.client.usable) {
 			await this.client.logout();
-			this.isConnected = false;
 		}
 	}
 
@@ -130,8 +124,7 @@ export class ImapConnector implements IEmailConnector {
 				return await action();
 			} catch (err: any) {
 				logger.error({ err, attempt }, `IMAP operation failed on attempt ${attempt}`);
-				this.isConnected = false; // Force reconnect on next attempt
-				this.client = this.createClient(); // Create a new client instance for the next retry
+				// The client is no longer usable, a new one will be created on the next attempt.
 				if (attempt === maxRetries) {
 					logger.error({ err }, 'IMAP operation failed after all retries.');
 					throw err;
@@ -156,6 +149,10 @@ export class ImapConnector implements IEmailConnector {
 			const mailboxes = await this.withRetry(async () => await this.client.list());
 
 			const processableMailboxes = mailboxes.filter((mailbox) => {
+				// Exclude mailboxes that cannot be selected.
+				if (mailbox.flags.has('\\Noselect')) {
+					return false;
+				}
 				if (config.app.allInclusiveArchive) {
 					return true;
 				}

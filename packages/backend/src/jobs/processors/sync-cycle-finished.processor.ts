@@ -49,10 +49,9 @@ export default async (job: Job<ISyncCycleFinishedJob, any, string>) => {
 		// if data doesn't have error property, it is a successful job with SyncState
 		const successfulJobs = allChildJobs.filter((v) => !v || !(v as any).error) as SyncState[];
 
-		const finalSyncState =
-			successfulJobs.length > 0
-				? deepmerge(...successfulJobs.filter((s) => s && Object.keys(s).length > 0))
-				: {};
+		const finalSyncState = deepmerge(
+			...successfulJobs.filter((s) => s && Object.keys(s).length > 0)
+		) as SyncState;
 
 		const source = await IngestionService.findById(ingestionSourceId);
 		let status: IngestionStatus = 'active';

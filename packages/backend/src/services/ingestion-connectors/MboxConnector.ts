@@ -98,51 +98,28 @@ export class MboxConnector implements IEmailConnector {
 		const mboxSplitter = new MboxSplitter();
 		const emailStream = fileStream.pipe(mboxSplitter);
 
-		try {
-			for await (const emailBuffer of emailStream) {
-				try {
-					const emailObject = await this.parseMessage(emailBuffer as Buffer, '');
-					yield emailObject;
-				} catch (error) {
-					logger.error(
-						{ error, file: this.credentials.uploadedFilePath },
-						'Failed to process a single message from mbox file. Skipping.'
-					);
-				}
-			}
-		} finally {
-			// Ensure all streams are properly closed before deleting the file.
-			if (fileStream instanceof Readable) {
-				fileStream.destroy();
-			}
-			if (emailStream instanceof Readable) {
-				emailStream.destroy();
-			}
-			// Wait for the streams to fully close to prevent race conditions with file deletion.
-			await new Promise((resolve) => {
-				if (fileStream instanceof Readable) {
-					fileStream.on('close', resolve);
-				} else {
-					resolve(true);
-				}
-			});
-
-			await new Promise((resolve) => {
-				if (emailStream instanceof Readable) {
-					emailStream.on('close', resolve);
-				} else {
-					resolve(true);
-				}
-			});
-
+		for await (const emailBuffer of emailStream) {
 			try {
-				await this.storage.delete(this.credentials.uploadedFilePath);
+				const emailObject = await this.parseMessage(emailBuffer as Buffer, '');
+				yield emailObject;
 			} catch (error) {
 				logger.error(
 					{ error, file: this.credentials.uploadedFilePath },
-					'Failed to delete mbox file after processing.'
+					'Failed to process a single message from mbox file. Skipping.'
 				);
 			}
+		}
+
+		// After the stream is fully consumed, delete the file.
+		// The `for await...of` loop ensures streams are properly closed on completion,
+		// so we can safely delete the file here without causing a hang.
+		try {
+			await this.storage.delete(this.credentials.uploadedFilePath);
+		} catch (error) {
+			logger.error(
+				{ error, file: this.credentials.uploadedFilePath },
+				'Failed to delete mbox file after processing.'
+			);
 		}
 	}
 
