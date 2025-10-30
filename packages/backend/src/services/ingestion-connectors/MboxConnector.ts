@@ -12,6 +12,7 @@ import { getThreadId } from './helpers/utils';
 import { StorageService } from '../StorageService';
 import { Readable, Transform } from 'stream';
 import { createHash } from 'crypto';
+import { promises as fs, createReadStream } from 'fs';
 
 class MboxSplitter extends Transform {
 	private buffer: Buffer = Buffer.alloc(0);
@@ -60,15 +61,28 @@ export class MboxConnector implements IEmailConnector {
 
 	public async testConnection(): Promise<boolean> {
 		try {
-			if (!this.credentials.uploadedFilePath) {
+			const filePath = this.getFilePath();
+			if (!filePath) {
 				throw Error('Mbox file path not provided.');
 			}
-			if (!this.credentials.uploadedFilePath.includes('.mbox')) {
+			if (!filePath.includes('.mbox')) {
 				throw Error('Provided file is not in the MBOX format.');
 			}
-			const fileExist = await this.storage.exists(this.credentials.uploadedFilePath);
+
+			let fileExist = false;
+			if (this.credentials.localFilePath) {
+				try {
+					await fs.access(this.credentials.localFilePath);
+					fileExist = true;
+				} catch {
+					fileExist = false;
+				}
+			} else {
+				fileExist = await this.storage.exists(filePath);
+			}
+
 			if (!fileExist) {
-				throw Error('Mbox file upload not finished yet, please wait.');
+				throw Error('Mbox file not found or upload not finished yet, please wait.');
 			}
 
 			return true;
@@ -78,9 +92,19 @@ export class MboxConnector implements IEmailConnector {
 		}
 	}
 
+	private getFilePath(): string {
+		return this.credentials.localFilePath || this.credentials.uploadedFilePath || '';
+	}
+
+	private async getFileStream(): Promise<NodeJS.ReadableStream> {
+		if (this.credentials.localFilePath) {
+			return createReadStream(this.credentials.localFilePath);
+		}
+		return this.storage.getStream(this.getFilePath());
+	}
+
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		const displayName =
-			this.credentials.uploadedFileName || `mbox-import-${new Date().getTime()}`;
+		const displayName = this.getDisplayName();
 		logger.info(`Found potential mailbox: ${displayName}`);
 		const constructedPrimaryEmail = `${displayName.replace(/ /g, '.').toLowerCase()}@mbox.local`;
 		yield {
@@ -90,11 +114,23 @@ export class MboxConnector implements IEmailConnector {
 		};
 	}
 
+	private getDisplayName(): string {
+		if (this.credentials.uploadedFileName) {
+			return this.credentials.uploadedFileName;
+		}
+		if (this.credentials.localFilePath) {
+			const parts = this.credentials.localFilePath.split('/');
+			return parts[parts.length - 1].replace('.mbox', '');
+		}
+		return `mbox-import-${new Date().getTime()}`;
+	}
+
 	public async *fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject | null> {
-		const fileStream = await this.storage.getStream(this.credentials.uploadedFilePath);
+		const filePath = this.getFilePath();
+		const fileStream = await this.getFileStream();
 		const mboxSplitter = new MboxSplitter();
 		const emailStream = fileStream.pipe(mboxSplitter);
 
@@ -104,22 +140,21 @@ export class MboxConnector implements IEmailConnector {
 				yield emailObject;
 			} catch (error) {
 				logger.error(
-					{ error, file: this.credentials.uploadedFilePath },
+					{ error, file: filePath },
 					'Failed to process a single message from mbox file. Skipping.'
 				);
 			}
 		}
 
-		// After the stream is fully consumed, delete the file.
-		// The `for await...of` loop ensures streams are properly closed on completion,
-		// so we can safely delete the file here without causing a hang.
-		try {
-			await this.storage.delete(this.credentials.uploadedFilePath);
-		} catch (error) {
-			logger.error(
-				{ error, file: this.credentials.uploadedFilePath },
-				'Failed to delete mbox file after processing.'
-			);
+		if (this.credentials.uploadedFilePath && !this.credentials.localFilePath) {
+			try {
+				await this.storage.delete(filePath);
+			} catch (error) {
+				logger.error(
+					{ error, file: filePath },
+					'Failed to delete mbox file after processing.'
+				);
+			}
 		}
 	}
 

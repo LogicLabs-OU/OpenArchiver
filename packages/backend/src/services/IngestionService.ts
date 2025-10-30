@@ -219,7 +219,8 @@ export class IngestionService {
 
 		if (
 			(source.credentials.type === 'pst_import' ||
-				source.credentials.type === 'eml_import') &&
+				source.credentials.type === 'eml_import' ||
+				source.credentials.type === 'mbox_import') &&
 			source.credentials.uploadedFilePath &&
 			(await storage.exists(source.credentials.uploadedFilePath))
 		) {
