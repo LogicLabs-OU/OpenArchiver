@@ -32,17 +32,52 @@ export class EMLConnector implements IEmailConnector {
 		this.storage = new StorageService();
 	}
 
+	private getFilePath(): string {
+		return this.credentials.localFilePath || this.credentials.uploadedFilePath || '';
+	}
+
+	private getDisplayName(): string {
+		if (this.credentials.uploadedFileName) {
+			return this.credentials.uploadedFileName;
+		}
+		if (this.credentials.localFilePath) {
+			const parts = this.credentials.localFilePath.split('/');
+			return parts[parts.length - 1].replace('.zip', '');
+		}
+		return `eml-import-${new Date().getTime()}`;
+	}
+
+	private async getFileStream(): Promise<NodeJS.ReadableStream> {
+		if (this.credentials.localFilePath) {
+			return createReadStream(this.credentials.localFilePath);
+		}
+		return this.storage.get(this.getFilePath());
+	}
+
 	public async testConnection(): Promise<boolean> {
 		try {
-			if (!this.credentials.uploadedFilePath) {
+			const filePath = this.getFilePath();
+			if (!filePath) {
 				throw Error('EML file path not provided.');
 			}
-			if (!this.credentials.uploadedFilePath.includes('.zip')) {
+			if (!filePath.includes('.zip')) {
 				throw Error('Provided file is not in the ZIP format.');
 			}
-			const fileExist = await this.storage.exists(this.credentials.uploadedFilePath);
+
+			let fileExist = false;
+			if (this.credentials.localFilePath) {
+				try {
+					await fs.access(this.credentials.localFilePath);
+					fileExist = true;
+				} catch {
+					fileExist = false;
+				}
+			} else {
+				fileExist = await this.storage.exists(filePath);
+			}
+
 			if (!fileExist) {
-				throw Error('EML file upload not finished yet, please wait.');
+				throw Error('EML file not found or upload not finished yet, please wait.');
 			}
 
 			return true;
@@ -53,8 +88,7 @@ export class EMLConnector implements IEmailConnector {
 	}
 
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		const displayName =
-			this.credentials.uploadedFileName || `eml-import-${new Date().getTime()}`;
+		const displayName = this.getDisplayName();
 		logger.info(`Found potential mailbox: ${displayName}`);
 		const constructedPrimaryEmail = `${displayName.replace(/ /g, '.').toLowerCase()}@eml.local`;
 		yield {
@@ -68,7 +102,7 @@ export class EMLConnector implements IEmailConnector {
 		userEmail: string,
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject | null> {
-		const fileStream = await this.storage.get(this.credentials.uploadedFilePath);
+		const fileStream = await this.getFileStream();
 		const tempDir = await fs.mkdtemp(join('/tmp', `eml-import-${new Date().getTime()}`));
 		const unzippedPath = join(tempDir, 'unzipped');
 		await fs.mkdir(unzippedPath);
@@ -115,13 +149,15 @@ export class EMLConnector implements IEmailConnector {
 			throw error;
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true });
-			try {
-				await this.storage.delete(this.credentials.uploadedFilePath);
-			} catch (error) {
-				logger.error(
-					{ error, file: this.credentials.uploadedFilePath },
-					'Failed to delete EML file after processing.'
-				);
+			if (this.credentials.uploadedFilePath && !this.credentials.localFilePath) {
+				try {
+					await this.storage.delete(this.credentials.uploadedFilePath);
+				} catch (error) {
+					logger.error(
+						{ error, file: this.credentials.uploadedFilePath },
+						'Failed to delete EML file after processing.'
+					);
+				}
 			}
 		}
 	}
