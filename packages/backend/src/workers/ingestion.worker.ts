@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import { connection } from '../config/redis';
+import { logger } from '../config/logger';
 import initialImportProcessor from '../jobs/processors/initial-import.processor';
 import continuousSyncProcessor from '../jobs/processors/continuous-sync.processor';
 import scheduleContinuousSyncProcessor from '../jobs/processors/schedule-continuous-sync.processor';
@@ -25,6 +26,8 @@ const processor = async (job: any) => {
 
 const worker = new Worker('ingestion', processor, {
 	connection,
+	concurrency: 5,
+	lockDuration: 1000 * 60 * 30, // 30 minutes
 	removeOnComplete: {
 		count: 100, // keep last 100 jobs
 	},
@@ -33,7 +36,11 @@ const worker = new Worker('ingestion', processor, {
 	},
 });
 
-console.log('Ingestion worker started');
+worker.on('error', (err) => {
+	logger.error(err, 'Ingestion worker connection error');
+});
+
+logger.info('Ingestion worker started');
 
 process.on('SIGINT', () => worker.close());
 process.on('SIGTERM', () => worker.close());
