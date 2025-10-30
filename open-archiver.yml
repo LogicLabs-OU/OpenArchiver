@@ -22,6 +22,7 @@ services:
             - MEILI_HOST=http://meilisearch:7700
             - REDIS_HOST=valkey
             - REDIS_PORT=6379
+            - REDIS_USER=default
             - REDIS_PASSWORD=${SERVICE_PASSWORD_VALKEY}
             - REDIS_TLS_ENABLED=false
             - STORAGE_TYPE=${STORAGE_TYPE:-local}
