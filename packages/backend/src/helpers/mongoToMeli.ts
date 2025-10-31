@@ -46,6 +46,54 @@ export async function mongoToMeli(query: Record<string, any>): Promise<string> {
 
 		const column = getMeliColumn(key);
 
+        // Normalize case for userEmail fields.
+        const keyLower = key.replace(/\./g, '').toLowerCase();
+        if (keyLower === 'useremail') {
+            if (typeof value === 'object' && value !== null) {
+                const operator = Object.keys(value)[0];
+                const operand = (value as any)[operator];
+                const lowerOperand =
+                    typeof operand === 'string' ? operand.toLowerCase() : operand;
+                switch (operator) {
+                    case '$eq':
+                        conditions.push(`lower(${column}) = ${quoteIfString(lowerOperand)}`);
+                        break;
+                    case '$ne':
+                        conditions.push(`lower(${column}) != ${quoteIfString(lowerOperand)}`);
+                        break;
+                    case '$in':
+                        if (Array.isArray(operand)) {
+                            const lowerArray = operand.map((item: any) =>
+                                typeof item === 'string' ? item.toLowerCase() : item,
+                            );
+                            conditions.push(
+                                `lower(${column}) IN [${lowerArray.map(quoteIfString).join(', ')}]`,
+                            );
+                        }
+                        break;
+                    case '$nin':
+                        if (Array.isArray(operand)) {
+                            const lowerArray = operand.map((item: any) =>
+                                typeof item === 'string' ? item.toLowerCase() : item,
+                            );
+                            conditions.push(
+                                `lower(${column}) NOT IN [${lowerArray
+                                    .map(quoteIfString)
+                                    .join(', ')}]`,
+                            );
+                        }
+                        break;
+                    default:
+                        // Fallback for unsupported operators on userEmail
+                        conditions.push(`lower(${column}) = ${quoteIfString(lowerOperand)}`);
+                }
+            } else {
+                const lowerValue = typeof value === 'string' ? value.toLowerCase() : value;
+                conditions.push(`lower(${column}) = ${quoteIfString(lowerValue)}`);
+            }
+            continue;
+        }
+
 		if (typeof value === 'object' && value !== null) {
 			const operator = Object.keys(value)[0];
 			const operand = value[operator];

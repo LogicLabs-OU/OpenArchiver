@@ -62,7 +62,7 @@ export class IamService {
 		});
 
 		if (!user) {
-			// Or handle this case as you see fit, maybe return an ability with no permissions
+			// Handle this case as appropraite
 			throw new Error('User not found');
 		}
 
@@ -76,9 +76,31 @@ export class IamService {
 		return createAbilityFor(interpolatedPolicies);
 	}
 
-	private interpolatePolicies(policies: CaslPolicy[], user: User): CaslPolicy[] {
-		const userPoliciesString = JSON.stringify(policies);
-		const interpolatedPoliciesString = userPoliciesString.replace(/\$\{user\.id\}/g, user.id);
-		return JSON.parse(interpolatedPoliciesString);
-	}
+    private interpolatePolicies(policies: CaslPolicy[], user: User): CaslPolicy[] {
+        // Convert the policies to a JSON string for a simple search/replace
+        const userPoliciesString = JSON.stringify(policies);
+
+		// Set up replacements for supported variables. We lowercase the user's email
+		// so that access checks aren’t affected by case differences when matching
+		// archived records. If the user’s email isn’t available, we leave the placeholder
+		// as-is and log a warning.
+        const replacements: Record<string, string> = {
+            '${user.id}': user.id,
+        };
+        if (user.email) {
+            // Normalize email to lower case
+            replacements['${user.email}'] = user.email.toLowerCase();
+        } else {
+            // Log a warning when email is unavailable; 
+            console.warn('IAM interpolation: user.email is undefined, leaving placeholder intact');
+        }
+
+        let interpolated = userPoliciesString;
+        for (const placeholder of Object.keys(replacements)) {
+			const value = replacements[placeholder];
+			
+            interpolated = interpolated.split(placeholder).join(value);
+        }
+        return JSON.parse(interpolated);
+    }
 }
