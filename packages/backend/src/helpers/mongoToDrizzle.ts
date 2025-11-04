@@ -47,6 +47,49 @@ export function mongoToDrizzle(query: Record<string, any>): SQL | undefined {
 
 		const column = getDrizzleColumn(key);
 
+        // Handle case-insensitive comparison for email fields.
+        const keyLower = key.replace(/\./g, '').toLowerCase();
+        if (keyLower === 'useremail') {
+            // Normalize comparison for equality and inequality
+            if (typeof value === 'object' && value !== null) {
+                const operator = Object.keys(value)[0];
+                const operand = (value as any)[operator];
+                const lowerOperand =
+                    typeof operand === 'string' ? operand.toLowerCase() : operand;
+                switch (operator) {
+                    case '$eq':
+                        conditions.push(sql`lower(${column}) = ${lowerOperand}`);
+                        break;
+                    case '$ne':
+                        conditions.push(not(sql`lower(${column}) = ${lowerOperand}`));
+                        break;
+                    case '$in':
+                        if (Array.isArray(operand)) {
+                            const lowerArray = operand.map((item: any) =>
+                                typeof item === 'string' ? item.toLowerCase() : item,
+                            );
+                            conditions.push(inArray(sql`lower(${column})`, lowerArray));
+                        }
+                        break;
+                    case '$nin':
+                        if (Array.isArray(operand)) {
+                            const lowerArray = operand.map((item: any) =>
+                                typeof item === 'string' ? item.toLowerCase() : item,
+                            );
+                            conditions.push(not(inArray(sql`lower(${column})`, lowerArray)));
+                        }
+                        break;
+                    default:
+                        // For unsupported operators on userEmail fall back to simple equality
+                        conditions.push(sql`lower(${column}) = ${lowerOperand}`);
+                }
+            } else {
+                const lowerValue = typeof value === 'string' ? value.toLowerCase() : value;
+                conditions.push(sql`lower(${column}) = ${lowerValue}`);
+            }
+            continue;
+		}
+		
 		if (typeof value === 'object' && value !== null) {
 			const operator = Object.keys(value)[0];
 			const operand = value[operator];
