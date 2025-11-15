@@ -10,10 +10,20 @@ const handleRequest: RequestHandler = async ({ request, params, fetch }) => {
 	const targetUrl = `${BACKEND_URL}/${slug}${url.search}`;
 
 	try {
+		let body: ArrayBuffer | null = null;
+		const headers = new Headers(request.headers);
+
+		if (request.method !== 'GET' && request.method !== 'HEAD') {
+			body = await request.arrayBuffer();
+			if (body.byteLength > 0) {
+				headers.set('Content-Length', String(body.byteLength));
+			}
+		}
+
 		const proxyRequest = new Request(targetUrl, {
 			method: request.method,
-			headers: request.headers,
-			body: request.body,
+			headers: headers,
+			body: body,
 			duplex: 'half',
 		} as RequestInit);
 

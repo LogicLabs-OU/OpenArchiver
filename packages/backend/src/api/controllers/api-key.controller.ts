@@ -16,7 +16,7 @@ const generateApiKeySchema = z.object({
 });
 export class ApiKeyController {
 	private userService = new UserService();
-	public async generateApiKey(req: Request, res: Response) {
+	public generateApiKey = async (req: Request, res: Response) => {
 		try {
 			const { name, expiresInDays } = generateApiKeySchema.parse(req.body);
 			if (!req.user || !req.user.sub) {
@@ -45,9 +45,9 @@ export class ApiKeyController {
 			}
 			res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
-	}
+	};
 
-	public async getApiKeys(req: Request, res: Response) {
+	public getApiKeys = async (req: Request, res: Response) => {
 		if (!req.user || !req.user.sub) {
 			return res.status(401).json({ message: 'Unauthorized' });
 		}
@@ -55,9 +55,9 @@ export class ApiKeyController {
 		const keys = await ApiKeyService.getKeys(userId);
 
 		res.status(200).json(keys);
-	}
+	};
 
-	public async deleteApiKey(req: Request, res: Response) {
+	public deleteApiKey = async (req: Request, res: Response) => {
 		const { id } = req.params;
 		if (!req.user || !req.user.sub) {
 			return res.status(401).json({ message: 'Unauthorized' });
@@ -70,5 +70,5 @@ export class ApiKeyController {
 		await ApiKeyService.deleteKey(id, userId, actor, req.ip || 'unknown');
 
 		res.status(204).send({ message: req.t('apiKeys.deleteSuccess') });
-	}
+	};
 }

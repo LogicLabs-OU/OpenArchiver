@@ -20,16 +20,17 @@ export class ApiKeyService {
 		expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 		const keyHash = createHash('sha256').update(key).digest('hex');
 
-		await db.insert(apiKeys).values({
-			userId,
-			name,
-			key: CryptoService.encrypt(key),
-			keyHash,
-			expiresAt,
-		});
+		try {
+			await db.insert(apiKeys).values({
+				userId,
+				name,
+				key: CryptoService.encrypt(key),
+				keyHash,
+				expiresAt,
+			});
 
-		await this.auditService.createAuditLog({
-			actorIdentifier: actor.id,
+			await this.auditService.createAuditLog({
+				actorIdentifier: actor.id,
 			actionType: 'GENERATE',
 			targetType: 'ApiKey',
 			targetId: name,
@@ -40,6 +41,9 @@ export class ApiKeyService {
 		});
 
 		return key;
+		} catch (error) {
+			throw error;
+		}
 	}
 
 	public static async getKeys(userId: string): Promise<ApiKey[]> {
