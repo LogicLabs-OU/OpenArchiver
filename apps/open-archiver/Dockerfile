@@ -35,6 +35,11 @@ RUN pnpm build:oss
 # 2. Production Stage: Install only production dependencies and copy built artifacts
 FROM base AS production
 
+# Install production dependencies (pre-built for offline operation)
+ENV PNPM_HOME="/pnpm"
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --shamefully-hoist --frozen-lockfile --prod
+
 # Copy built application from build stage
 COPY --from=build /app/packages/backend/dist ./packages/backend/dist
 COPY --from=build /app/packages/backend/drizzle.config.ts ./packages/backend/drizzle.config.ts
