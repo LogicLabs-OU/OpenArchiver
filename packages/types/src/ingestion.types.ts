@@ -61,6 +61,11 @@ export interface GoogleWorkspaceCredentials extends BaseIngestionCredentials {
 	 * The email of the super-admin user to impersonate for domain-wide operations.
 	 */
 	impersonatedAdminEmail: string;
+	/**
+	 * Optional list of user emails to archive. If empty or not provided, all users will be archived.
+	 * When provided, only users whose email addresses are in this list will be archived.
+	 */
+	allowedUserEmails?: string[];
 }
 
 export interface Microsoft365Credentials extends BaseIngestionCredentials {

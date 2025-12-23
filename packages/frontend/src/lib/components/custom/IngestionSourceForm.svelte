@@ -47,6 +47,14 @@
 		},
 	];
 
+	// Convert allowedUserEmails array to text for display (one email per line)
+	const getInitialAllowedUserEmailsText = () => {
+		if (source?.credentials?.type === 'google_workspace' && source.credentials.allowedUserEmails) {
+			return source.credentials.allowedUserEmails.join('\n');
+		}
+		return '';
+	};
+
 	let formData: CreateIngestionSourceDto = $state({
 		name: source?.name ?? '',
 		provider: source?.provider ?? 'generic_imap',
@@ -54,8 +62,14 @@
 			type: source?.provider ?? 'generic_imap',
 			secure: true,
 			allowInsecureCert: false,
+			allowedUserEmailsText: getInitialAllowedUserEmailsText(),
 		},
 	});
+
+	// Initialize allowedUserEmailsText if editing an existing source
+	if (source?.credentials?.type === 'google_workspace') {
+		formData.providerConfig.allowedUserEmailsText = getInitialAllowedUserEmailsText();
+	}
 
 	$effect(() => {
 		formData.providerConfig.type = formData.provider;
@@ -74,6 +88,17 @@
 		event.preventDefault();
 		isSubmitting = true;
 		try {
+			// For Google Workspace, convert the text field to an array
+			if (formData.provider === 'google_workspace' && formData.providerConfig.allowedUserEmailsText) {
+				const emailsText = formData.providerConfig.allowedUserEmailsText as string;
+				const emails = emailsText
+					.split(/[\n,]/)
+					.map((email: string) => email.trim())
+					.filter((email: string) => email.length > 0);
+				formData.providerConfig.allowedUserEmails = emails;
+			}
+			// Remove the temporary text field before submitting
+			delete formData.providerConfig.allowedUserEmailsText;
 			await onSubmit(formData);
 		} finally {
 			isSubmitting = false;
@@ -160,6 +185,19 @@
 				id="impersonatedAdminEmail"
 				bind:value={formData.providerConfig.impersonatedAdminEmail}
 				class="col-span-3"
+			/>
+		</div>
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="allowedUserEmails" class="text-left"
+				>{$t('app.components.ingestion_source_form.allowed_user_emails')}</Label
+			>
+			<Textarea
+				placeholder={$t(
+					'app.components.ingestion_source_form.allowed_user_emails_placeholder'
+				)}
+				id="allowedUserEmails"
+				bind:value={formData.providerConfig.allowedUserEmailsText}
+				class="col-span-3 max-h-24"
 			/>
 		</div>
 	{:else if formData.provider === 'microsoft_365'}

@@ -198,8 +198,10 @@
 				"eml_file": "EML File",
 				"mbox_file": "Mbox File",
 				"heads_up": "Heads up!",
-				"org_wide_warning": "Please note that this is an organization-wide operation. This kind of ingestions will import and index <b>all</b> email inboxes in your organization. If you want to import only specific email inboxes, use the IMAP connector.",
-				"upload_failed": "Upload Failed, please try again"
+				"org_wide_warning": "Please note that this is an organization-wide operation. This kind of ingestions will import and index <b>all</b> email inboxes in your organization (unless you specify allowed users below). If you want to import only specific email inboxes, use the IMAP connector.",
+				"upload_failed": "Upload Failed, please try again",
+				"allowed_user_emails": "Allowed User Emails",
+				"allowed_user_emails_placeholder": "Enter email addresses to archive (one per line). Leave empty to archive all users."
 			},
 			"role_form": {
 				"policies_json": "Policies (JSON)",
