@@ -20,6 +20,9 @@
 		onSubmit: (data: CreateIngestionSourceDto) => Promise<void>;
 	} = $props();
 
+	// Track if we're editing an existing source (credentials won't be returned from API for security)
+	const isEditing = $derived(!!source?.id);
+
 	const providerOptions = [
 		{
 			value: 'generic_imap',
@@ -99,6 +102,18 @@
 			}
 			// Remove the temporary text field before submitting
 			delete formData.providerConfig.allowedUserEmailsText;
+
+			// When editing, only include providerConfig if user entered new credentials
+			if (isEditing && formData.provider === 'google_workspace') {
+				const hasNewCredentials = formData.providerConfig.serviceAccountKeyJson ||
+					formData.providerConfig.impersonatedAdminEmail ||
+					(formData.providerConfig.allowedUserEmails && formData.providerConfig.allowedUserEmails.length > 0);
+				if (!hasNewCredentials) {
+					// Don't send empty providerConfig - keep existing credentials
+					delete (formData as any).providerConfig;
+				}
+			}
+
 			await onSubmit(formData);
 		} finally {
 			isSubmitting = false;
@@ -164,14 +179,21 @@
 	</div>
 
 	{#if formData.provider === 'google_workspace'}
+		{#if isEditing}
+			<Alert.Root class="mb-2">
+				<Alert.Description>
+					{$t('app.components.ingestion_source_form.credentials_hidden_notice')}
+				</Alert.Description>
+			</Alert.Root>
+		{/if}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="serviceAccountKeyJson" class="text-left"
 				>{$t('app.components.ingestion_source_form.service_account_key')}</Label
 			>
 			<Textarea
-				placeholder={$t(
-					'app.components.ingestion_source_form.service_account_key_placeholder'
-				)}
+				placeholder={isEditing
+					? $t('app.components.ingestion_source_form.credentials_configured')
+					: $t('app.components.ingestion_source_form.service_account_key_placeholder')}
 				id="serviceAccountKeyJson"
 				bind:value={formData.providerConfig.serviceAccountKeyJson}
 				class="col-span-3 max-h-32"
@@ -182,6 +204,9 @@
 				>{$t('app.components.ingestion_source_form.impersonated_admin_email')}</Label
 			>
 			<Input
+				placeholder={isEditing
+					? $t('app.components.ingestion_source_form.credentials_configured')
+					: ''}
 				id="impersonatedAdminEmail"
 				bind:value={formData.providerConfig.impersonatedAdminEmail}
 				class="col-span-3"
@@ -192,9 +217,9 @@
 				>{$t('app.components.ingestion_source_form.allowed_user_emails')}</Label
 			>
 			<Textarea
-				placeholder={$t(
-					'app.components.ingestion_source_form.allowed_user_emails_placeholder'
-				)}
+				placeholder={isEditing
+					? $t('app.components.ingestion_source_form.allowed_emails_configured')
+					: $t('app.components.ingestion_source_form.allowed_user_emails_placeholder')}
 				id="allowedUserEmails"
 				bind:value={formData.providerConfig.allowedUserEmailsText}
 				class="col-span-3 max-h-24"

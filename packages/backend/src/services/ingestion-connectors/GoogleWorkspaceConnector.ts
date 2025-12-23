@@ -112,6 +112,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			);
 		}
 
+		let totalUsersFound = 0;
+
 		do {
 			const res: Common.GaxiosResponseWithHTTP2<admin_directory_v1.Schema$Users> =
 				await admin.users.list({
@@ -124,11 +126,20 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			const users = res.data.users;
 			if (users) {
 				for (const user of users) {
+					totalUsersFound++;
 					if (user.id && user.primaryEmail && user.name?.fullName) {
 						// If filter is configured, only yield users whose email is in the allowed list
 						if (hasFilter && !allowedEmails.includes(user.primaryEmail.toLowerCase())) {
+							logger.debug(
+								{ email: user.primaryEmail },
+								'Skipping user - not in allowed list'
+							);
 							continue;
 						}
+						logger.info(
+							{ email: user.primaryEmail },
+							'User matched filter, will process mailbox'
+						);
 						yield {
 							id: user.id,
 							primaryEmail: user.primaryEmail,
@@ -139,6 +150,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			}
 			pageToken = res.data.nextPageToken ?? undefined;
 		} while (pageToken);
+
+		logger.info({ totalUsersFound, hasFilter }, 'Finished listing Google Workspace users');
 	}
 
 	/**
