@@ -19,7 +19,7 @@ The request body should be a `CreateIngestionSourceDto` object.
 ```typescript
 interface CreateIngestionSourceDto {
 	name: string;
-	provider: 'google' | 'microsoft' | 'generic_imap';
+	provider: 'google_workspace' | 'microsoft_365' | 'generic_imap' | 'pst_import' | 'eml_import' | 'mbox_import';
 	providerConfig: IngestionCredentials;
 }
 ```
