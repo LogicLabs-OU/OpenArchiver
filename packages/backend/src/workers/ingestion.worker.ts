@@ -25,6 +25,7 @@ const processor = async (job: any) => {
 
 const worker = new Worker('ingestion', processor, {
 	connection,
+	concurrency: 5, // Process up to 5 jobs in parallel
 	removeOnComplete: {
 		count: 100, // keep last 100 jobs
 	},
