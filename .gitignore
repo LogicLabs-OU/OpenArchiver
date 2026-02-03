@@ -24,3 +24,6 @@ pnpm-debug.log
 # Vitepress
 docs/.vitepress/dist
 docs/.vitepress/cache
+
+#compose personal configs
+docker-compose.override.yml
