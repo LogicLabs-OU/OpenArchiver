@@ -44,7 +44,7 @@ export class AuthController {
 				{ email, password, first_name, last_name },
 				true
 			);
-			const result = await this.#authService.login(email, password);
+			const result = await this.#authService.login(email, password, req.ip || 'unknown');
 			return res.status(201).json(result);
 		} catch (error) {
 			console.error('Setup error:', error);
@@ -60,7 +60,7 @@ export class AuthController {
 		}
 
 		try {
-			const result = await this.#authService.login(email, password);
+			const result = await this.#authService.login(email, password, req.ip || 'unknown');
 
 			if (!result) {
 				return res.status(401).json({ message: req.t('auth.login.invalidCredentials') });

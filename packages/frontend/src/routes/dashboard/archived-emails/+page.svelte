@@ -5,6 +5,9 @@
 	import * as Select from '$lib/components/ui/select';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/translations';
+	import * as Pagination from '$lib/components/ui/pagination/index.js';
+	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
+	import ChevronRight from 'lucide-svelte/icons/chevron-right';
 
 	let { data }: { data: PageData } = $props();
 
@@ -17,55 +20,6 @@
 			goto(`/dashboard/archived-emails?ingestionSourceId=${value}`);
 		}
 	};
-
-	const getPaginationItems = (currentPage: number, totalPages: number, siblingCount = 1) => {
-		const totalPageNumbers = siblingCount + 5;
-
-		if (totalPages <= totalPageNumbers) {
-			return Array.from({ length: totalPages }, (_, i) => i + 1);
-		}
-
-		const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
-		const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
-
-		const shouldShowLeftDots = leftSiblingIndex > 2;
-		const shouldShowRightDots = rightSiblingIndex < totalPages - 2;
-
-		const firstPageIndex = 1;
-		const lastPageIndex = totalPages;
-
-		if (!shouldShowLeftDots && shouldShowRightDots) {
-			let leftItemCount = 3 + 2 * siblingCount;
-			let leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
-			return [...leftRange, '...', totalPages];
-		}
-
-		if (shouldShowLeftDots && !shouldShowRightDots) {
-			let rightItemCount = 3 + 2 * siblingCount;
-			let rightRange = Array.from(
-				{ length: rightItemCount },
-				(_, i) => totalPages - rightItemCount + i + 1
-			);
-			return [firstPageIndex, '...', ...rightRange];
-		}
-
-		if (shouldShowLeftDots && shouldShowRightDots) {
-			let middleRange = Array.from(
-				{ length: rightSiblingIndex - leftSiblingIndex + 1 },
-				(_, i) => leftSiblingIndex + i
-			);
-			return [firstPageIndex, '...', ...middleRange, '...', lastPageIndex];
-		}
-
-		return [];
-	};
-
-	let paginationItems = $derived(
-		getPaginationItems(
-			archivedEmails.page,
-			Math.ceil(archivedEmails.total / archivedEmails.limit)
-		)
-	);
 </script>
 
 <svelte:head>
@@ -155,46 +109,61 @@
 </div>
 
 {#if archivedEmails.total > archivedEmails.limit}
-	<div class="mt-8 flex flex-row items-center justify-center space-x-2">
-		<a
-			href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
-				archivedEmails.page - 1
-			}&limit=${archivedEmails.limit}`}
-			class={archivedEmails.page === 1 ? 'pointer-events-none' : ''}
+	<div class="mt-8">
+		<Pagination.Root
+			count={archivedEmails.total}
+			perPage={archivedEmails.limit}
+			page={archivedEmails.page}
 		>
-			<Button variant="outline" disabled={archivedEmails.page === 1}
-				>{$t('app.archived_emails_page.prev')}</Button
-			>
-		</a>
-
-		{#each paginationItems as item}
-			{#if typeof item === 'number'}
-				<a
-					href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${item}&limit=${archivedEmails.limit}`}
-				>
-					<Button variant={item === archivedEmails.page ? 'default' : 'outline'}
-						>{item}</Button
-					>
-				</a>
-			{:else}
-				<span class="px-4 py-2">...</span>
-			{/if}
-		{/each}
-
-		<a
-			href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
-				archivedEmails.page + 1
-			}&limit=${archivedEmails.limit}`}
-			class={archivedEmails.page === Math.ceil(archivedEmails.total / archivedEmails.limit)
-				? 'pointer-events-none'
-				: ''}
-		>
-			<Button
-				variant="outline"
-				disabled={archivedEmails.page ===
-					Math.ceil(archivedEmails.total / archivedEmails.limit)}
-				>{$t('app.archived_emails_page.next')}</Button
-			>
-		</a>
+			{#snippet children({ pages, currentPage })}
+				<Pagination.Content>
+					<Pagination.Item>
+						<a
+							href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
+								currentPage - 1
+							}&limit=${archivedEmails.limit}`}
+						>
+							<Pagination.PrevButton>
+								<ChevronLeft class="h-4 w-4" />
+								<span class="hidden sm:block"
+									>{$t('app.archived_emails_page.prev')}</span
+								>
+							</Pagination.PrevButton>
+						</a>
+					</Pagination.Item>
+					{#each pages as page (page.key)}
+						{#if page.type === 'ellipsis'}
+							<Pagination.Item>
+								<Pagination.Ellipsis />
+							</Pagination.Item>
+						{:else}
+							<Pagination.Item>
+								<a
+									href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${page.value}&limit=${archivedEmails.limit}`}
+								>
+									<Pagination.Link {page} isActive={currentPage === page.value}>
+										{page.value}
+									</Pagination.Link>
+								</a>
+							</Pagination.Item>
+						{/if}
+					{/each}
+					<Pagination.Item>
+						<a
+							href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
+								currentPage + 1
+							}&limit=${archivedEmails.limit}`}
+						>
+							<Pagination.NextButton>
+								<span class="hidden sm:block"
+									>{$t('app.archived_emails_page.next')}</span
+								>
+								<ChevronRight class="h-4 w-4" />
+							</Pagination.NextButton>
+						</a>
+					</Pagination.Item>
+				</Pagination.Content>
+			{/snippet}
+		</Pagination.Root>
 	</div>
 {/if}

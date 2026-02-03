@@ -8,6 +8,11 @@
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
-		"isolatedModules": true
+		"baseUrl": ".",
+		"paths": {
+			"@open-archiver/backend/*": ["packages/backend/src/*"],
+			"@open-archiver/types": ["packages/types/src/index.ts"],
+			"@open-archiver/enterprise/*": ["packages/enterprise/src/*"]
+		}
 	}
 }

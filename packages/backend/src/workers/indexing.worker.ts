@@ -13,12 +13,11 @@ const processor = async (job: any) => {
 
 const worker = new Worker('indexing', processor, {
 	connection,
-	concurrency: 5,
 	removeOnComplete: {
-		count: 1000, // keep last 1000 jobs
+		count: 100, // keep last 100 jobs
 	},
 	removeOnFail: {
-		count: 5000, // keep last 5000 failed jobs
+		count: 500, // keep last 500 failed jobs
 	},
 });
 

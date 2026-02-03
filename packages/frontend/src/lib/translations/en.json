@@ -7,7 +7,8 @@
 			"password": "Password"
 		},
 		"common": {
-			"working": "Working"
+			"working": "Working",
+			"read_docs": "Read docs"
 		},
 		"archive": {
 			"title": "Archive",
@@ -32,7 +33,14 @@
 			"deleting": "Deleting",
 			"confirm": "Confirm",
 			"cancel": "Cancel",
-			"not_found": "Email not found."
+			"not_found": "Email not found.",
+			"integrity_report": "Integrity Report",
+			"email_eml": "Email (.eml)",
+			"valid": "Valid",
+			"invalid": "Invalid",
+			"integrity_check_failed_title": "Integrity Check Failed",
+			"integrity_check_failed_message": "Could not verify the integrity of the email and its attachments.",
+			"integrity_report_description": "This report verifies that the content of your archived emails has not been altered."
 		},
 		"ingestions": {
 			"title": "Ingestion Sources",
@@ -109,6 +117,23 @@
 			"deleting": "Deleting",
 			"confirm": "Confirm",
 			"cancel": "Cancel"
+		},
+		"account": {
+			"title": "Account Settings",
+			"description": "Manage your profile and security settings.",
+			"personal_info": "Personal Information",
+			"personal_info_desc": "Update your personal details.",
+			"security": "Security",
+			"security_desc": "Manage your password and security preferences.",
+			"edit_profile": "Edit Profile",
+			"change_password": "Change Password",
+			"edit_profile_desc": "Make changes to your profile here.",
+			"change_password_desc": "Change your password. You will need to enter your current password.",
+			"current_password": "Current Password",
+			"new_password": "New Password",
+			"confirm_new_password": "Confirm New Password",
+			"operation_successful": "Operation successful",
+			"passwords_do_not_match": "Passwords do not match"
 		},
 		"system_settings": {
 			"title": "System Settings",
@@ -226,7 +251,9 @@
 			"users": "Users",
 			"roles": "Roles",
 			"api_keys": "API Keys",
-			"logout": "Logout"
+			"account": "Account",
+			"logout": "Logout",
+			"admin": "Admin"
 		},
 		"api_keys_page": {
 			"title": "API Keys",
@@ -287,6 +314,87 @@
 			"indexed_insights": "Indexed insights",
 			"top_10_senders": "Top 10 Senders",
 			"no_indexed_insights": "No indexed insights available."
+		},
+		"audit_log": {
+			"title": "Audit Log",
+			"header": "Audit Log",
+			"verify_integrity": "Verify Log Integrity",
+			"log_entries": "Log Entries",
+			"timestamp": "Timestamp",
+			"actor": "Actor",
+			"action": "Action",
+			"target": "Target",
+			"details": "Details",
+			"ip_address": "IP Address",
+			"target_type": "Target Type",
+			"target_id": "Target ID",
+			"no_logs_found": "No audit logs found.",
+			"prev": "Prev",
+			"next": "Next",
+			"log_entry_details": "Log Entry Details",
+			"viewing_details_for": "Viewing the complete details for log entry #",
+			"actor_id": "Actor ID",
+			"previous_hash": "Previous Hash",
+			"current_hash": "Current Hash",
+			"close": "Close",
+			"verification_successful_title": "Verification Successful",
+			"verification_successful_message": "Audit log integrity verified successfully.",
+			"verification_failed_title": "Verification Failed",
+			"verification_failed_message": "The audit log integrity check failed. Please review the system logs for more details.",
+			"verification_error_message": "An unexpected error occurred during verification. Please try again."
+		},
+		"jobs": {
+			"title": "Job Queues",
+			"queues": "Job Queues",
+			"active": "Active",
+			"completed": "Completed",
+			"failed": "Failed",
+			"delayed": "Delayed",
+			"waiting": "Waiting",
+			"paused": "Paused",
+			"back_to_queues": "Back to Queues",
+			"queue_overview": "Queue Overview",
+			"jobs": "Jobs",
+			"id": "ID",
+			"name": "Name",
+			"state": "State",
+
+			"created_at": "Created At",
+			"processed_at": "Processed At",
+			"finished_at": "Finished At",
+			"showing": "Showing",
+			"of": "of",
+			"previous": "Previous",
+			"next": "Next",
+			"ingestion_source": "Ingestion Source"
+		},
+		"license_page": {
+			"title": "Enterprise License Status",
+			"meta_description": "View the current status of your Open Archiver Enterprise license.",
+			"revoked_title": "License Revoked",
+			"revoked_message": "Your license has been revoked by the license administrator. Enterprise features will be disabled {{grace_period}}. Please contact your account manager for assistance.",
+			"revoked_grace_period": "on {{date}}",
+			"revoked_immediately": "immediately",
+			"seat_limit_exceeded_title": "Seat Limit Exceeded",
+			"seat_limit_exceeded_message": "Your license is for {{planSeats}} users, but you are currently using {{activeSeats}}. Please contact sales to adjust your subscription.",
+			"customer": "Customer",
+			"license_details": "License Details",
+			"license_status": "License Status",
+			"active": "Active",
+			"expired": "Expired",
+			"revoked": "Revoked",
+			"unknown": "Unknown",
+			"expires": "Expires",
+			"seat_usage": "Seat Usage",
+			"seats_used": "{{activeSeats}} of {{planSeats}} seats used",
+			"enabled_features": "Enabled Features",
+			"enabled_features_description": "The following enterprise features are currently enabled.",
+			"feature": "Feature",
+			"status": "Status",
+			"enabled": "Enabled",
+			"disabled": "Disabled",
+			"could_not_load_title": "Could Not Load License",
+			"could_not_load_message": "An unexpected error occurred."
 		}
 	}
 }

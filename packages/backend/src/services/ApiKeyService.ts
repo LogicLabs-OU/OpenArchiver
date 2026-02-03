@@ -3,28 +3,47 @@ import { db } from '../database';
 import { apiKeys } from '../database/schema/api-keys';
 import { CryptoService } from './CryptoService';
 import { and, eq } from 'drizzle-orm';
-import { ApiKey } from '@open-archiver/types';
+import { ApiKey, User } from '@open-archiver/types';
+import { AuditService } from './AuditService';
 
 export class ApiKeyService {
+	private static auditService = new AuditService();
 	public static async generate(
 		userId: string,
 		name: string,
-		expiresInDays: number
+		expiresInDays: number,
+		actor: User,
+		actorIp: string
 	): Promise<string> {
 		const key = randomBytes(32).toString('hex');
 		const expiresAt = new Date();
 		expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 		const keyHash = createHash('sha256').update(key).digest('hex');
 
-		await db.insert(apiKeys).values({
-			userId,
-			name,
-			key: CryptoService.encrypt(key),
-			keyHash,
-			expiresAt,
+		try {
+			await db.insert(apiKeys).values({
+				userId,
+				name,
+				key: CryptoService.encrypt(key),
+				keyHash,
+				expiresAt,
+			});
+
+			await this.auditService.createAuditLog({
+				actorIdentifier: actor.id,
+			actionType: 'GENERATE',
+			targetType: 'ApiKey',
+			targetId: name,
+			actorIp,
+			details: {
+				keyName: name,
+			},
 		});
 
 		return key;
+		} catch (error) {
+			throw error;
+		}
 	}
 
 	public static async getKeys(userId: string): Promise<ApiKey[]> {
@@ -46,8 +65,19 @@ export class ApiKeyService {
 			.filter((k): k is NonNullable<typeof k> => k !== null);
 	}
 
-	public static async deleteKey(id: string, userId: string) {
+	public static async deleteKey(id: string, userId: string, actor: User, actorIp: string) {
+		const [key] = await db.select().from(apiKeys).where(eq(apiKeys.id, id));
 		await db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'DELETE',
+			targetType: 'ApiKey',
+			targetId: id,
+			actorIp,
+			details: {
+				keyName: key?.name,
+			},
+		});
 	}
 	/**
 	 *

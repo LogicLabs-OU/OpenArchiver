@@ -99,7 +99,7 @@
 			});
 			const result = await response.json();
 			if (!response.ok) {
-				throw new Error(`File upload failed + ${result}`);
+				throw new Error(result.message || 'File upload failed');
 			}
 
 			formData.providerConfig.uploadedFilePath = result.filePath;
@@ -107,10 +107,11 @@
 			fileUploading = false;
 		} catch (error) {
 			fileUploading = false;
+			const message = error instanceof Error ? error.message : String(error);
 			setAlert({
 				type: 'error',
 				title: $t('app.components.ingestion_source_form.upload_failed'),
-				message: JSON.stringify(error),
+				message,
 				duration: 5000,
 				show: true,
 			});

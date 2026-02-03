@@ -45,6 +45,7 @@ export interface LocalStorageConfig {
 	// The absolute root path on the server where the archive will be stored.
 	rootPath: string;
 	openArchiverFolderName: string;
+	encryptionKey?: string;
 }
 
 /**
@@ -66,6 +67,7 @@ export interface S3StorageConfig {
 	// Force path-style addressing, required for MinIO.
 	forcePathStyle?: boolean;
 	openArchiverFolderName: string;
+	encryptionKey?: string;
 }
 
 export type StorageConfig = LocalStorageConfig | S3StorageConfig;

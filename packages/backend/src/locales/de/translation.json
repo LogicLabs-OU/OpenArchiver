@@ -14,7 +14,8 @@
 		"demoMode": "Dieser Vorgang ist im Demo-Modus nicht zulässig.",
 		"unauthorized": "Unbefugt",
 		"unknown": "Ein unbekannter Fehler ist aufgetreten",
-		"noPermissionToAction": "Sie haben keine Berechtigung, die aktuelle Aktion auszuführen."
+		"noPermissionToAction": "Sie haben keine Berechtigung, die aktuelle Aktion auszuführen.",
+		"deletion_disabled": "Das Löschen ist für diese Instanz deaktiviert."
 	},
 	"user": {
 		"notFound": "Benutzer nicht gefunden",

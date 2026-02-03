@@ -20,16 +20,17 @@ import {
 	attachments as attachmentsSchema,
 	emailAttachments,
 } from '../database/schema';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { logger } from '../config/logger';
-import { IndexingService } from './IndexingService';
 import { SearchService } from './SearchService';
-import { DatabaseService } from './DatabaseService';
 import { config } from '../config/index';
 import { FilterBuilder } from './FilterBuilder';
-import e from 'express';
+import { AuditService } from './AuditService';
+import { User } from '@open-archiver/types';
+import { checkDeletionEnabled } from '../helpers/deletionGuard';
 
 export class IngestionService {
+	private static auditService = new AuditService();
 	private static decryptSource(
 		source: typeof ingestionSources.$inferSelect
 	): IngestionSource | null {
@@ -54,7 +55,9 @@ export class IngestionService {
 
 	public static async create(
 		dto: CreateIngestionSourceDto,
-		userId: string
+		userId: string,
+		actor: User,
+		actorIp: string
 	): Promise<IngestionSource> {
 		const { providerConfig, ...rest } = dto;
 		const encryptedCredentials = CryptoService.encryptObject(providerConfig);
@@ -68,9 +71,21 @@ export class IngestionService {
 
 		const [newSource] = await db.insert(ingestionSources).values(valuesToInsert).returning();
 
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'CREATE',
+			targetType: 'IngestionSource',
+			targetId: newSource.id,
+			actorIp,
+			details: {
+				sourceName: newSource.name,
+				sourceType: newSource.provider,
+			},
+		});
+
 		const decryptedSource = this.decryptSource(newSource);
 		if (!decryptedSource) {
-			await this.delete(newSource.id);
+			await this.delete(newSource.id, actor, actorIp);
 			throw new Error(
 				'Failed to process newly created ingestion source due to a decryption error.'
 			);
@@ -81,13 +96,18 @@ export class IngestionService {
 			const connectionValid = await connector.testConnection();
 			// If connection succeeds, update status to auth_success, which triggers the initial import.
 			if (connectionValid) {
-				return await this.update(decryptedSource.id, { status: 'auth_success' });
+				return await this.update(
+					decryptedSource.id,
+					{ status: 'auth_success' },
+					actor,
+					actorIp
+				);
 			} else {
-				throw Error('Ingestion authentication failed.')
+				throw Error('Ingestion authentication failed.');
 			}
 		} catch (error) {
 			// If connection fails, delete the newly created source and throw the error.
-			await this.delete(decryptedSource.id);
+			await this.delete(decryptedSource.id, actor, actorIp);
 			throw error;
 		}
 	}
@@ -124,7 +144,9 @@ export class IngestionService {
 
 	public static async update(
 		id: string,
-		dto: UpdateIngestionSourceDto
+		dto: UpdateIngestionSourceDto,
+		actor?: User,
+		actorIp?: string
 	): Promise<IngestionSource> {
 		const { providerConfig, ...rest } = dto;
 		const valuesToUpdate: Partial<typeof ingestionSources.$inferInsert> = { ...rest };
@@ -159,11 +181,32 @@ export class IngestionService {
 		if (originalSource.status !== 'auth_success' && decryptedSource.status === 'auth_success') {
 			await this.triggerInitialImport(decryptedSource.id);
 		}
+		if (actor && actorIp) {
+			const changedFields = Object.keys(dto).filter(
+				(key) =>
+					key !== 'providerConfig' &&
+					originalSource[key as keyof IngestionSource] !==
+						decryptedSource[key as keyof IngestionSource]
+			);
+			if (changedFields.length > 0) {
+				await this.auditService.createAuditLog({
+					actorIdentifier: actor.id,
+					actionType: 'UPDATE',
+					targetType: 'IngestionSource',
+					targetId: id,
+					actorIp,
+					details: {
+						changedFields,
+					},
+				});
+			}
+		}
 
 		return decryptedSource;
 	}
 
-	public static async delete(id: string): Promise<IngestionSource> {
+	public static async delete(id: string, actor: User, actorIp: string): Promise<IngestionSource> {
+		checkDeletionEnabled();
 		const source = await this.findById(id);
 		if (!source) {
 			throw new Error('Ingestion source not found');
@@ -196,6 +239,17 @@ export class IngestionService {
 			.where(eq(ingestionSources.id, id))
 			.returning();
 
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'DELETE',
+			targetType: 'IngestionSource',
+			targetId: id,
+			actorIp,
+			details: {
+				sourceName: deletedSource.name,
+			},
+		});
+
 		const decryptedSource = this.decryptSource(deletedSource);
 		if (!decryptedSource) {
 			// Even if decryption fails, we should confirm deletion.
@@ -216,7 +270,7 @@ export class IngestionService {
 		await ingestionQueue.add('initial-import', { ingestionSourceId: source.id });
 	}
 
-	public static async triggerForceSync(id: string): Promise<void> {
+	public static async triggerForceSync(id: string, actor: User, actorIp: string): Promise<void> {
 		const source = await this.findById(id);
 		logger.info({ ingestionSourceId: id }, 'Force syncing started.');
 		if (!source) {
@@ -241,15 +295,35 @@ export class IngestionService {
 		}
 
 		// Reset status to 'active'
-		await this.update(id, {
-			status: 'active',
-			lastSyncStatusMessage: 'Force sync triggered by user.',
+		await this.update(
+			id,
+			{
+				status: 'active',
+				lastSyncStatusMessage: 'Force sync triggered by user.',
+			},
+			actor,
+			actorIp
+		);
+
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'SYNC',
+			targetType: 'IngestionSource',
+			targetId: id,
+			actorIp,
+			details: {
+				sourceName: source.name,
+			},
 		});
 
 		await ingestionQueue.add('continuous-sync', { ingestionSourceId: source.id });
 	}
 
-	public async performBulkImport(job: IInitialImportJob): Promise<void> {
+	public static async performBulkImport(
+		job: IInitialImportJob,
+		actor: User,
+		actorIp: string
+	): Promise<void> {
 		const { ingestionSourceId } = job;
 		const source = await IngestionService.findById(ingestionSourceId);
 		if (!source) {
@@ -257,10 +331,15 @@ export class IngestionService {
 		}
 
 		logger.info(`Starting bulk import for source: ${source.name} (${source.id})`);
-		await IngestionService.update(ingestionSourceId, {
-			status: 'importing',
-			lastSyncStartedAt: new Date(),
-		});
+		await IngestionService.update(
+			ingestionSourceId,
+			{
+				status: 'importing',
+				lastSyncStartedAt: new Date(),
+			},
+			actor,
+			actorIp
+		);
 
 		const connector = EmailProviderFactory.createConnector(source);
 
@@ -288,12 +367,17 @@ export class IngestionService {
 			}
 		} catch (error) {
 			logger.error(`Bulk import failed for source: ${source.name} (${source.id})`, error);
-			await IngestionService.update(ingestionSourceId, {
-				status: 'error',
-				lastSyncFinishedAt: new Date(),
-				lastSyncStatusMessage:
-					error instanceof Error ? error.message : 'An unknown error occurred.',
-			});
+			await IngestionService.update(
+				ingestionSourceId,
+				{
+					status: 'error',
+					lastSyncFinishedAt: new Date(),
+					lastSyncStatusMessage:
+						error instanceof Error ? error.message : 'An unknown error occurred.',
+				},
+				actor,
+				actorIp
+			);
 			throw error; // Re-throw to allow BullMQ to handle the job failure
 		}
 	}
@@ -372,40 +456,70 @@ export class IngestionService {
 					const attachmentHash = createHash('sha256')
 						.update(attachmentBuffer)
 						.digest('hex');
-					const attachmentPath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/attachments/${attachment.filename}`;
-					await storage.put(attachmentPath, attachmentBuffer);
 
-					const [newAttachment] = await db
-						.insert(attachmentsSchema)
-						.values({
-							filename: attachment.filename,
-							mimeType: attachment.contentType,
-							sizeBytes: attachment.size,
-							contentHashSha256: attachmentHash,
-							storagePath: attachmentPath,
-						})
-						.onConflictDoUpdate({
-							target: attachmentsSchema.contentHashSha256,
-							set: { filename: attachment.filename },
-						})
-						.returning();
+					// Check if an attachment with the same hash already exists for this source
+					const existingAttachment = await db.query.attachments.findFirst({
+						where: and(
+							eq(attachmentsSchema.contentHashSha256, attachmentHash),
+							eq(attachmentsSchema.ingestionSourceId, source.id)
+						),
+					});
 
+					let storagePath: string;
+
+					if (existingAttachment) {
+						// If it exists, reuse the storage path and don't save the file again
+						storagePath = existingAttachment.storagePath;
+						logger.info(
+							{
+								attachmentHash,
+								ingestionSourceId: source.id,
+								reusedPath: storagePath,
+							},
+							'Reusing existing attachment file for deduplication.'
+						);
+					} else {
+						// If it's a new attachment, create a unique path and save it
+						const uniqueId = randomUUID().slice(0, 7);
+						storagePath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/attachments/${uniqueId}-${attachment.filename}`;
+						await storage.put(storagePath, attachmentBuffer);
+					}
+
+					let attachmentRecord = existingAttachment;
+
+					if (!attachmentRecord) {
+						// If it's a new attachment, create a unique path and save it
+						const uniqueId = randomUUID().slice(0, 5);
+						const storagePath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/attachments/${uniqueId}-${attachment.filename}`;
+						await storage.put(storagePath, attachmentBuffer);
+
+						// Insert a new attachment record
+						[attachmentRecord] = await db
+							.insert(attachmentsSchema)
+							.values({
+								filename: attachment.filename,
+								mimeType: attachment.contentType,
+								sizeBytes: attachment.size,
+								contentHashSha256: attachmentHash,
+								storagePath: storagePath,
+								ingestionSourceId: source.id,
+							})
+							.returning();
+					}
+
+					// Link the attachment record (either new or existing) to the email
 					await db
 						.insert(emailAttachments)
 						.values({
 							emailId: archivedEmail.id,
-							attachmentId: newAttachment.id,
+							attachmentId: attachmentRecord.id,
 						})
 						.onConflictDoNothing();
 				}
 			}
 
-			email.userEmail = userEmail;
-
 			return {
-				email,
-				sourceId: source.id,
-				archivedId: archivedEmail.id,
+				archivedEmailId: archivedEmail.id,
 			};
 		} catch (error) {
 			logger.error({

@@ -1,4 +1,4 @@
-# Dockerfile for Open Archiver
+# Dockerfile for the OSS version of Open Archiver
 
 ARG BASE_IMAGE=node:22-alpine
 
@@ -15,12 +15,13 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/types/package.json ./packages/types/
+COPY apps/open-archiver/package.json ./apps/open-archiver/
 
 # 1. Build Stage: Install all dependencies and build the project
 FROM base AS build
 COPY packages/frontend/svelte.config.js ./packages/frontend/
 
-# Install all dependencies. Use --shamefully-hoist to create a flat node_modules structure
+# Install all dependencies.
 ENV PNPM_HOME="/pnpm"
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --shamefully-hoist --frozen-lockfile --prod=false
@@ -28,19 +29,19 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # Copy the rest of the source code
 COPY . .
 
-# Build all packages.
-RUN pnpm build
+# Build the OSS packages.
+RUN pnpm build:oss
 
 # 2. Production Stage: Install only production dependencies and copy built artifacts
 FROM base AS production
 
-
 # Copy built application from build stage
 COPY --from=build /app/packages/backend/dist ./packages/backend/dist
-COPY --from=build /app/packages/frontend/build ./packages/frontend/build
-COPY --from=build /app/packages/types/dist ./packages/types/dist
 COPY --from=build /app/packages/backend/drizzle.config.ts ./packages/backend/drizzle.config.ts
 COPY --from=build /app/packages/backend/src/database/migrations ./packages/backend/src/database/migrations
+COPY --from=build /app/packages/frontend/build ./packages/frontend/build
+COPY --from=build /app/packages/types/dist ./packages/types/dist
+COPY --from=build /app/apps/open-archiver/dist ./apps/open-archiver/dist
 
 # Copy the entrypoint script and make it executable
 COPY docker/docker-entrypoint.sh /usr/local/bin/
@@ -53,4 +54,4 @@ EXPOSE 3000
 ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Start the application
-CMD ["pnpm", "docker-start"]
+CMD ["pnpm", "docker-start:oss"]

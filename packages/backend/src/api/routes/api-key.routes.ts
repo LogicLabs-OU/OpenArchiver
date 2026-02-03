@@ -3,7 +3,7 @@ import { ApiKeyController } from '../controllers/api-key.controller';
 import { requireAuth } from '../middleware/requireAuth';
 import { AuthService } from '../../services/AuthService';
 
-export const apiKeyRoutes = (authService: AuthService) => {
+export const apiKeyRoutes = (authService: AuthService): Router => {
 	const router = Router();
 	const controller = new ApiKeyController();
 

@@ -17,7 +17,22 @@ git clone https://github.com/LogicLabs-OU/OpenArchiver.git
 cd OpenArchiver
 ```
 
-## 2. Configure Your Environment
+## 2. Create a Directory for Local Storage (Important)
+
+Before configuring the application, you **must** create a directory on your host machine where Open Archiver will store its data (such as emails and attachments). Manually creating this directory helps prevent potential permission issues.
+
+Foe examples, you can use this path `/var/data/open-archiver`.
+
+Run the following commands to create the directory and set the correct permissions:
+
+```bash
+sudo mkdir -p /var/data/open-archiver
+sudo chown -R $(id -u):$(id -g) /var/data/open-archiver
+```
+
+This ensures the directory is owned by your current user, which is necessary for the application to have write access. You will set this path in your `.env` file in the next step.
+
+## 3. Configure Your Environment
 
 The application is configured using environment variables. You'll need to create a `.env` file to store your configuration.
 
@@ -29,15 +44,25 @@ cp .env.example.docker .env
 
 Now, open the `.env` file in a text editor and customize the settings.
 
-### Important Configuration
+### Key Configuration Steps
 
-You must change the following placeholder values to secure your instance:
+1.  **Set the Storage Path**: Find the `STORAGE_LOCAL_ROOT_PATH` variable and set it to the path you just created.
+
+    ```env
+    STORAGE_LOCAL_ROOT_PATH=/var/data/open-archiver
+    ```
+
+2.  **Secure Your Instance**: You must change the following placeholder values to secure your instance:
 
 - `POSTGRES_PASSWORD`: A strong, unique password for the database.
 - `REDIS_PASSWORD`: A strong, unique password for the Valkey/Redis service.
 - `MEILI_MASTER_KEY`: A complex key for Meilisearch.
 - `JWT_SECRET`: A long, random string for signing authentication tokens.
 - `ENCRYPTION_KEY`: A 32-byte hex string for encrypting sensitive data in the database. You can generate one with the following command:
+    ```bash
+    openssl rand -hex 32
+    ```
+- `STORAGE_ENCRYPTION_KEY`: **(Optional but Recommended)** A 32-byte hex string for encrypting emails and attachments at rest. If this key is not provided, storage encryption will be disabled. You can generate one with:
     ```bash
     openssl rand -hex 32
     ```
@@ -65,12 +90,15 @@ Here is a complete list of environment variables available for configuration:
 
 #### Application Settings
 
-| Variable         | Description                                                                                           | Default Value |
-| ---------------- | ----------------------------------------------------------------------------------------------------- | ------------- |
-| `NODE_ENV`       | The application environment.                                                                          | `development` |
-| `PORT_BACKEND`   | The port for the backend service.                                                                     | `4000`        |
-| `PORT_FRONTEND`  | The port for the frontend service.                                                                    | `3000`        |
-| `SYNC_FREQUENCY` | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details. | `* * * * *`   |
+| Variable                | Description                                                                                                                                                  | Default Value           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `NODE_ENV`              | The application environment.                                                                                                                                 | `development`           |
+| `PORT_BACKEND`          | The port for the backend service.                                                                                                                            | `4000`                  |
+| `PORT_FRONTEND`         | The port for the frontend service.                                                                                                                           | `3000`                  |
+| `APP_URL`               | The public-facing URL of your application. This is used by the backend to configure CORS.                                                                    | `http://localhost:3000` |
+| `ORIGIN`                | Used by the SvelteKit Node adapter to determine the server's public-facing URL. It should always be set to the value of `APP_URL` (e.g., `ORIGIN=$APP_URL`). | `http://localhost:3000` |
+| `SYNC_FREQUENCY`        | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details.                                                        | `* * * * *`             |
+| `ALL_INCLUSIVE_ARCHIVE` | Set to `true` to include all emails, including Junk and Trash folders, in the email archive.                                                                 | `false`                 |
 
 #### Docker Compose Service Configuration
 
@@ -96,24 +124,26 @@ These variables are used by `docker-compose.yml` to configure the services.
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------- |
 | `STORAGE_TYPE`                 | The storage backend to use (`local` or `s3`).                                                               | `local`                   |
 | `BODY_SIZE_LIMIT`              | The maximum request body size for uploads. Can be a number in bytes or a string with a unit (e.g., `100M`). | `100M`                    |
-| `STORAGE_LOCAL_ROOT_PATH`      | The root path for local file storage.                                                                       | `/var/data/open-archiver` |
+| `STORAGE_LOCAL_ROOT_PATH`      | The root path for Open Archiver app data.                                                                   | `/var/data/open-archiver` |
 | `STORAGE_S3_ENDPOINT`          | The endpoint for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                                |                           |
 | `STORAGE_S3_BUCKET`            | The bucket name for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                             |                           |
 | `STORAGE_S3_ACCESS_KEY_ID`     | The access key ID for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                           |                           |
 | `STORAGE_S3_SECRET_ACCESS_KEY` | The secret access key for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                       |                           |
 | `STORAGE_S3_REGION`            | The region for S3-compatible storage (required if `STORAGE_TYPE` is `s3`).                                  |                           |
 | `STORAGE_S3_FORCE_PATH_STYLE`  | Force path-style addressing for S3 (optional).                                                              | `false`                   |
+| `STORAGE_ENCRYPTION_KEY`       | A 32-byte hex string for AES-256 encryption of files at rest. If not set, files will not be encrypted.      |                           |
 
 #### Security & Authentication
 
-| Variable                         | Description                                                                                                                                    | Default Value                              |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `JWT_SECRET`                     | A secret key for signing JWT tokens.                                                                                                           | `a-very-secret-key-that-you-should-change` |
-| `JWT_EXPIRES_IN`                 | The expiration time for JWT tokens.                                                                                                            | `7d`                                       |
-| ~~`SUPER_API_KEY`~~ (Deprecated) | An API key with super admin privileges. (The SUPER_API_KEY is deprecated since v0.3.0 after we roll out the role-based access control system.) |                                            |
-| `RATE_LIMIT_WINDOW_MS`           | The window in milliseconds for which API requests are checked.                                                                                 | `900000` (15 minutes)                      |
-| `RATE_LIMIT_MAX_REQUESTS`        | The maximum number of API requests allowed from an IP within the window.                                                                       | `100`                                      |
-| `ENCRYPTION_KEY`                 | A 32-byte hex string for encrypting sensitive data in the database.                                                                            |                                            |
+| Variable                         | Description                                                                                                                                                                         | Default Value                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `ENABLE_DELETION`                | Enable or disable deletion of emails and ingestion sources. If this option is not set, or is set to any value other than `true`, deletion will be disabled for the entire instance. | `false`                                    |
+| `JWT_SECRET`                     | A secret key for signing JWT tokens.                                                                                                                                                | `a-very-secret-key-that-you-should-change` |
+| `JWT_EXPIRES_IN`                 | The expiration time for JWT tokens.                                                                                                                                                 | `7d`                                       |
+| ~~`SUPER_API_KEY`~~ (Deprecated) | An API key with super admin privileges. (The SUPER_API_KEY is deprecated since v0.3.0 after we roll out the role-based access control system.)                                      |                                            |
+| `RATE_LIMIT_WINDOW_MS`           | The window in milliseconds for which API requests are checked.                                                                                                                      | `900000` (15 minutes)                      |
+| `RATE_LIMIT_MAX_REQUESTS`        | The maximum number of API requests allowed from an IP within the window.                                                                                                            | `100`                                      |
+| `ENCRYPTION_KEY`                 | A 32-byte hex string for encrypting sensitive data in the database.                                                                                                                 |                                            |
 
 #### Apache Tika Integration
 
@@ -121,7 +151,7 @@ These variables are used by `docker-compose.yml` to configure the services.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
 | `TIKA_URL` | Optional. The URL of an Apache Tika server for advanced text extraction from attachments. If not set, the application falls back to built-in parsers for PDF, Word, and Excel files. | `http://tika:9998` |
 
-## 3. Run the Application
+## 4. Run the Application
 
 Once you have configured your `.env` file, you can start all the services using Docker Compose:
 
@@ -141,7 +171,7 @@ You can check the status of the running containers with:
 docker compose ps
 ```
 
-## 4. Access the Application
+## 5. Access the Application
 
 Once the services are running, you can access the Open Archiver web interface by navigating to `http://localhost:3000` in your web browser.
 
@@ -149,7 +179,7 @@ Upon first visit, you will be redirected to the `/setup` page where you can set 
 
 If you are not redirected to the `/setup` page but instead see the login page, there might be something wrong with the database. Restart the service and try again.
 
-## 5. Next Steps
+## 6. Next Steps
 
 After successfully deploying and logging into Open Archiver, the next step is to configure your ingestion sources to start archiving emails.
 
@@ -308,31 +338,3 @@ docker-compose up -d --force-recreate
 ```
 
 After this, any new data will be saved directly into the `./data/open-archiver` folder in your project directory.
-
-## Troubleshooting
-
-### 403 Cross-Site POST Forbidden Error
-
-If you are running the application behind a reverse proxy or have mapped the application to a different port (e.g., `3005:3000`), you may encounter a `403 Cross-site POST from submissions are forbidden` error when uploading files.
-
-To resolve this, you must set the `ORIGIN` environment variable to the URL of your application. This ensures that the backend can verify the origin of requests and prevent cross-site request forgery (CSRF) attacks.
-
-Add the following line to your `.env` file, replacing `<your_host>` and `<your_port>` with your specific values:
-
-```bash
-ORIGIN=http://<your_host>:<your_port>
-```
-
-For example, if your application is accessible at `http://localhost:3005`, you would set the variable as follows:
-
-```bash
-ORIGIN=http://localhost:3005
-```
-
-After adding the `ORIGIN` variable, restart your Docker containers for the changes to take effect:
-
-```bash
-docker-compose up -d --force-recreate
-```
-
-This will ensure that your file uploads are correctly authorized.

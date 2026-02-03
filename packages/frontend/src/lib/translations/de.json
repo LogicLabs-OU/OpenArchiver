@@ -7,7 +7,8 @@
 			"password": "Passwort"
 		},
 		"common": {
-			"working": "Arbeiten"
+			"working": "Arbeiten",
+			"read_docs": "Dokumentation lesen"
 		},
 		"archive": {
 			"title": "Archiv",
@@ -32,7 +33,14 @@
 			"deleting": "Löschen",
 			"confirm": "Bestätigen",
 			"cancel": "Abbrechen",
-			"not_found": "E-Mail nicht gefunden."
+			"not_found": "E-Mail nicht gefunden.",
+			"integrity_report": "Integritätsbericht",
+			"email_eml": "E-Mail (.eml)",
+			"valid": "Gültig",
+			"invalid": "Ungültig",
+			"integrity_check_failed_title": "Integritätsprüfung fehlgeschlagen",
+			"integrity_check_failed_message": "Die Integrität der E-Mail und ihrer Anhänge konnte nicht überprüft werden.",
+			"integrity_report_description": "Dieser Bericht überprüft, ob der Inhalt Ihrer archivierten E-Mails nicht verändert wurde."
 		},
 		"ingestions": {
 			"title": "Erfassungsquellen",
@@ -255,6 +263,80 @@
 			"no_emails_found": "Keine archivierten E-Mails gefunden.",
 			"prev": "Zurück",
 			"next": "Weiter"
+		},
+		"audit_log": {
+			"title": "Audit-Protokoll",
+			"header": "Audit-Protokoll",
+			"verify_integrity": "Integrität überprüfen",
+			"log_entries": "Protokolleinträge",
+			"timestamp": "Zeitstempel",
+			"actor": "Akteur",
+			"action": "Aktion",
+			"target": "Ziel",
+			"details": "Details",
+			"ip_address": "IP Adresse",
+			"target_type": "Zieltyp",
+			"target_id": "Ziel-ID",
+			"no_logs_found": "Keine Audit-Protokolle gefunden.",
+			"prev": "Zurück",
+			"next": "Weiter",
+			"verification_successful_title": "Überprüfung erfolgreich",
+			"verification_successful_message": "Integrität des Audit-Protokolls erfolgreich überprüft.",
+			"verification_failed_title": "Überprüfung fehlgeschlagen",
+			"verification_failed_message": "Die Integritätsprüfung des Audit-Protokolls ist fehlgeschlagen. Bitte überprüfen Sie die Systemprotokolle für weitere Details.",
+			"verification_error_message": "Während der Überprüfung ist ein unerwarteter Fehler aufgetreten. Bitte versuchen Sie es erneut."
+		},
+		"jobs": {
+			"title": "Job-Warteschlangen",
+			"queues": "Job-Warteschlangen",
+			"active": "Aktiv",
+			"completed": "Abgeschlossen",
+			"failed": "Fehlgeschlagen",
+			"delayed": "Verzögert",
+			"waiting": "Wartend",
+			"paused": "Pausiert",
+			"back_to_queues": "Zurück zu den Warteschlangen",
+			"queue_overview": "Warteschlangenübersicht",
+			"jobs": "Jobs",
+			"id": "ID",
+			"name": "Name",
+			"state": "Status",
+			"created_at": "Erstellt am",
+			"processed_at": "Verarbeitet am",
+			"finished_at": "Beendet am",
+			"showing": "Anzeige",
+			"of": "von",
+			"previous": "Zurück",
+			"next": "Weiter",
+			"ingestion_source": "Ingestion-Quelle"
+		},
+		"license_page": {
+			"title": "Enterprise-Lizenzstatus",
+			"meta_description": "Zeigen Sie den aktuellen Status Ihrer Open Archiver Enterprise-Lizenz an.",
+			"revoked_title": "Lizenz widerrufen",
+			"revoked_message": "Ihre Lizenz wurde vom Lizenzadministrator widerrufen. Enterprise-Funktionen werden deaktiviert {{grace_period}}. Bitte kontaktieren Sie Ihren Account Manager für Unterstützung.",
+			"revoked_grace_period": "am {{date}}",
+			"revoked_immediately": "sofort",
+			"seat_limit_exceeded_title": "Sitzplatzlimit überschritten",
+			"seat_limit_exceeded_message": "Ihre Lizenz gilt für {{planSeats}} Benutzer, aber Sie verwenden derzeit {{activeSeats}}. Bitte kontaktieren Sie den Vertrieb, um Ihr Abonnement anzupassen.",
+			"customer": "Kunde",
+			"license_details": "Lizenzdetails",
+			"license_status": "Lizenzstatus",
+			"active": "Aktiv",
+			"expired": "Abgelaufen",
+			"revoked": "Widerrufen",
+			"unknown": "Unbekannt",
+			"expires": "Läuft ab",
+			"seat_usage": "Sitzplatznutzung",
+			"seats_used": "{{activeSeats}} von {{planSeats}} Plätzen belegt",
+			"enabled_features": "Aktivierte Funktionen",
+			"enabled_features_description": "Die folgenden Enterprise-Funktionen sind derzeit aktiviert.",
+			"feature": "Funktion",
+			"status": "Status",
+			"enabled": "Aktiviert",
+			"disabled": "Deaktiviert",
+			"could_not_load_title": "Lizenz konnte nicht geladen werden",
+			"could_not_load_message": "Ein unerwarteter Fehler ist aufgetreten."
 		}
 	}
 }

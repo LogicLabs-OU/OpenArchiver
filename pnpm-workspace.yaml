@@ -1,3 +1,4 @@
 # Defines the pnpm workspace for the monorepo
 packages:
     - 'packages/*'
+    - 'apps/*'

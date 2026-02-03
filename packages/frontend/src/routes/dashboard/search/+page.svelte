@@ -17,6 +17,9 @@
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { t } from '$lib/translations';
+	import * as Pagination from '$lib/components/ui/pagination/index.js';
+	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
+	import ChevronRight from 'lucide-svelte/icons/chevron-right';
 
 	let { data }: { data: PageData } = $props();
 	let searchResult = $derived(data.searchResult);
@@ -62,7 +65,8 @@
 		};
 	}
 
-	function handleSearch() {
+	function handleSearch(e: SubmitEvent) {
+		e.preventDefault();
 		const params = new URLSearchParams();
 		params.set('keywords', keywords);
 		params.set('page', '1');
@@ -120,55 +124,6 @@
 
 		return snippets;
 	}
-
-	const getPaginationItems = (currentPage: number, totalPages: number, siblingCount = 1) => {
-		const totalPageNumbers = siblingCount + 5;
-
-		if (totalPages <= totalPageNumbers) {
-			return Array.from({ length: totalPages }, (_, i) => i + 1);
-		}
-
-		const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
-		const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
-
-		const shouldShowLeftDots = leftSiblingIndex > 2;
-		const shouldShowRightDots = rightSiblingIndex < totalPages - 2;
-
-		const firstPageIndex = 1;
-		const lastPageIndex = totalPages;
-
-		if (!shouldShowLeftDots && shouldShowRightDots) {
-			let leftItemCount = 3 + 2 * siblingCount;
-			let leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
-			return [...leftRange, '...', totalPages];
-		}
-
-		if (shouldShowLeftDots && !shouldShowRightDots) {
-			let rightItemCount = 3 + 2 * siblingCount;
-			let rightRange = Array.from(
-				{ length: rightItemCount },
-				(_, i) => totalPages - rightItemCount + i + 1
-			);
-			return [firstPageIndex, '...', ...rightRange];
-		}
-
-		if (shouldShowLeftDots && shouldShowRightDots) {
-			let middleRange = Array.from(
-				{ length: rightSiblingIndex - leftSiblingIndex + 1 },
-				(_, i) => leftSiblingIndex + i
-			);
-			return [firstPageIndex, '...', ...middleRange, '...', lastPageIndex];
-		}
-
-		return [];
-	};
-
-	let paginationItems = $derived(
-		getPaginationItems(
-			page,
-			Math.ceil((searchResult?.total || 0) / (searchResult?.limit || 10))
-		)
-	);
 </script>
 
 <svelte:head>
@@ -179,7 +134,7 @@
 <div class="container mx-auto p-4 md:p-8">
 	<h1 class="mb-4 text-2xl font-bold">{$t('app.search.email_search')}</h1>
 
-	<form onsubmit={handleSearch} class="mb-8 flex flex-col space-y-2">
+	<form onsubmit={(e) => handleSearch(e)} class="mb-8 flex flex-col space-y-2">
 		<div class="flex items-center gap-2">
 			<Input
 				type="search"
@@ -246,38 +201,44 @@
 									<div use:shadowRender={_formatted.subject || hit.subject}></div>
 								{/if}
 							</CardTitle>
-							<CardDescription class="flex items-center space-x-1">
-								<span>{$t('app.search.from')}:</span>
-								{#if !isMounted}
-									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-									></span>
-								{:else}
-									<span
-										class="inline-block"
-										use:shadowRender={_formatted.from || hit.from}
-									></span>
-								{/if}
-								<span class="mx-2">|</span>
-								<span>{$t('app.search.to')}:</span>
-								{#if !isMounted}
-									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-									></span>
-								{:else}
-									<span
-										class="inline-block"
-										use:shadowRender={_formatted.to?.join(', ') ||
-											hit.to.join(', ')}
-									></span>
-								{/if}
-								<span class="mx-2">|</span>
-								{#if !isMounted}
-									<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-									></span>
-								{:else}
-									<span class="inline-block">
-										{new Date(hit.timestamp).toLocaleString()}
-									</span>
-								{/if}
+							<CardDescription
+								class="divide-forground flex flex-wrap items-center space-x-2 divide-x"
+							>
+								<span class="pr-2">
+									<span>{$t('app.search.from')}:</span>
+									{#if !isMounted}
+										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+										></span>
+									{:else}
+										<span
+											class="inline-block"
+											use:shadowRender={_formatted.from || hit.from}
+										></span>
+									{/if}
+								</span>
+								<span class="pr-2">
+									<span>{$t('app.search.to')}:</span>
+									{#if !isMounted}
+										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+										></span>
+									{:else}
+										<span
+											class="inline-block"
+											use:shadowRender={_formatted.to?.join(', ') ||
+												hit.to.join(', ')}
+										></span>
+									{/if}
+								</span>
+								<span>
+									{#if !isMounted}
+										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+										></span>
+									{:else}
+										<span class="inline-block">
+											{new Date(hit.timestamp).toLocaleString()}
+										</span>
+									{/if}
+								</span>
 							</CardDescription>
 						</CardHeader>
 						<CardContent class="space-y-2">
@@ -335,42 +296,57 @@
 		</div>
 
 		{#if searchResult.total > searchResult.limit}
-			<div class="mt-8 flex flex-row items-center justify-center space-x-2">
-				<a
-					href={`/dashboard/search?keywords=${keywords}&page=${
-						page - 1
-					}&matchingStrategy=${matchingStrategy}`}
-					class={page === 1 ? 'pointer-events-none' : ''}
-				>
-					<Button variant="outline" disabled={page === 1}>{$t('app.search.prev')}</Button>
-				</a>
-
-				{#each paginationItems as item}
-					{#if typeof item === 'number'}
-						<a
-							href={`/dashboard/search?keywords=${keywords}&page=${item}&matchingStrategy=${matchingStrategy}`}
-						>
-							<Button variant={item === page ? 'default' : 'outline'}>{item}</Button>
-						</a>
-					{:else}
-						<span class="px-4 py-2">...</span>
-					{/if}
-				{/each}
-
-				<a
-					href={`/dashboard/search?keywords=${keywords}&page=${
-						page + 1
-					}&matchingStrategy=${matchingStrategy}`}
-					class={page === Math.ceil(searchResult.total / searchResult.limit)
-						? 'pointer-events-none'
-						: ''}
-				>
-					<Button
-						variant="outline"
-						disabled={page === Math.ceil(searchResult.total / searchResult.limit)}
-						>{$t('app.search.next')}</Button
-					>
-				</a>
+			<div class="mt-8">
+				<Pagination.Root count={searchResult.total} perPage={searchResult.limit} {page}>
+					{#snippet children({ pages, currentPage })}
+						<Pagination.Content>
+							<Pagination.Item>
+								<a
+									href={`/dashboard/search?keywords=${keywords}&page=${
+										currentPage - 1
+									}&matchingStrategy=${matchingStrategy}`}
+								>
+									<Pagination.PrevButton>
+										<ChevronLeft class="h-4 w-4" />
+										<span class="hidden sm:block">{$t('app.search.prev')}</span>
+									</Pagination.PrevButton>
+								</a>
+							</Pagination.Item>
+							{#each pages as page (page.key)}
+								{#if page.type === 'ellipsis'}
+									<Pagination.Item>
+										<Pagination.Ellipsis />
+									</Pagination.Item>
+								{:else}
+									<Pagination.Item>
+										<a
+											href={`/dashboard/search?keywords=${keywords}&page=${page.value}&matchingStrategy=${matchingStrategy}`}
+										>
+											<Pagination.Link
+												{page}
+												isActive={currentPage === page.value}
+											>
+												{page.value}
+											</Pagination.Link>
+										</a>
+									</Pagination.Item>
+								{/if}
+							{/each}
+							<Pagination.Item>
+								<a
+									href={`/dashboard/search?keywords=${keywords}&page=${
+										currentPage + 1
+									}&matchingStrategy=${matchingStrategy}`}
+								>
+									<Pagination.NextButton>
+										<span class="hidden sm:block">{$t('app.search.next')}</span>
+										<ChevronRight class="h-4 w-4" />
+									</Pagination.NextButton>
+								</a>
+							</Pagination.Item>
+						</Pagination.Content>
+					{/snippet}
+				</Pagination.Root>
 			</div>
 		{/if}
 	{/if}

@@ -1,16 +1,25 @@
 import { Index, MeiliSearch, SearchParams } from 'meilisearch';
 import { config } from '../config';
-import type { SearchQuery, SearchResult, EmailDocument, TopSender } from '@open-archiver/types';
+import type {
+	SearchQuery,
+	SearchResult,
+	EmailDocument,
+	TopSender,
+	User,
+} from '@open-archiver/types';
 import { FilterBuilder } from './FilterBuilder';
+import { AuditService } from './AuditService';
 
 export class SearchService {
 	private client: MeiliSearch;
+	private auditService: AuditService;
 
 	constructor() {
 		this.client = new MeiliSearch({
 			host: config.search.host,
 			apiKey: config.search.apiKey,
 		});
+		this.auditService = new AuditService();
 	}
 
 	public async getIndex<T extends Record<string, any>>(name: string): Promise<Index<T>> {
@@ -48,7 +57,11 @@ export class SearchService {
 		return index.deleteDocuments({ filter });
 	}
 
-	public async searchEmails(dto: SearchQuery, userId: string): Promise<SearchResult> {
+	public async searchEmails(
+		dto: SearchQuery,
+		userId: string,
+		actorIp: string
+	): Promise<SearchResult> {
 		const { query, filters, page = 1, limit = 10, matchingStrategy = 'last' } = dto;
 		const index = await this.getIndex<EmailDocument>('emails');
 
@@ -84,8 +97,23 @@ export class SearchService {
 				searchParams.filter = searchFilter;
 			}
 		}
-		console.log('searchParams', searchParams);
+		// console.log('searchParams', searchParams);
 		const searchResults = await index.search(query, searchParams);
+
+		await this.auditService.createAuditLog({
+			actorIdentifier: userId,
+			actionType: 'SEARCH',
+			targetType: 'ArchivedEmail',
+			targetId: '',
+			actorIp,
+			details: {
+				query,
+				filters,
+				page,
+				limit,
+				matchingStrategy,
+			},
+		});
 
 		return {
 			hits: searchResults.hits,

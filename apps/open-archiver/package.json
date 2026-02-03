@@ -1,0 +1,18 @@
+{
+	"name": "open-archiver-app",
+	"version": "1.0.0",
+	"private": true,
+	"scripts": {
+		"dev": "ts-node-dev --respawn --transpile-only index.ts",
+		"build": "tsc",
+		"start": "node dist/index.js"
+	},
+	"dependencies": {
+		"@open-archiver/backend": "workspace:*",
+		"dotenv": "^17.2.0"
+	},
+	"devDependencies": {
+		"@types/dotenv": "^8.2.3",
+		"ts-node-dev": "^2.0.0"
+	}
+}

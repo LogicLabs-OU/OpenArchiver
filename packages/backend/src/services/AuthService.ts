@@ -2,17 +2,25 @@ import { compare } from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import type { AuthTokenPayload, LoginResponse } from '@open-archiver/types';
 import { UserService } from './UserService';
+import { AuditService } from './AuditService';
 import { db } from '../database';
 import * as schema from '../database/schema';
 import { eq } from 'drizzle-orm';
 
 export class AuthService {
 	#userService: UserService;
+	#auditService: AuditService;
 	#jwtSecret: Uint8Array;
 	#jwtExpiresIn: string;
 
-	constructor(userService: UserService, jwtSecret: string, jwtExpiresIn: string) {
+	constructor(
+		userService: UserService,
+		auditService: AuditService,
+		jwtSecret: string,
+		jwtExpiresIn: string
+	) {
 		this.#userService = userService;
+		this.#auditService = auditService;
 		this.#jwtSecret = new TextEncoder().encode(jwtSecret);
 		this.#jwtExpiresIn = jwtExpiresIn;
 	}
@@ -33,16 +41,36 @@ export class AuthService {
 			.sign(this.#jwtSecret);
 	}
 
-	public async login(email: string, password: string): Promise<LoginResponse | null> {
+	public async login(email: string, password: string, ip: string): Promise<LoginResponse | null> {
 		const user = await this.#userService.findByEmail(email);
 
 		if (!user || !user.password) {
+			await this.#auditService.createAuditLog({
+				actorIdentifier: email,
+				actionType: 'LOGIN',
+				targetType: 'User',
+				targetId: email,
+				actorIp: ip,
+				details: {
+					error: 'UserNotFound',
+				},
+			});
 			return null; // User not found or password not set
 		}
 
 		const isPasswordValid = await this.verifyPassword(password, user.password);
 
 		if (!isPasswordValid) {
+			await this.#auditService.createAuditLog({
+				actorIdentifier: user.id,
+				actionType: 'LOGIN',
+				targetType: 'User',
+				targetId: user.id,
+				actorIp: ip,
+				details: {
+					error: 'InvalidPassword',
+				},
+			});
 			return null; // Invalid password
 		}
 
@@ -61,6 +89,15 @@ export class AuthService {
 			sub: user.id,
 			email: user.email,
 			roles: roles,
+		});
+
+		await this.#auditService.createAuditLog({
+			actorIdentifier: user.id,
+			actionType: 'LOGIN',
+			targetType: 'User',
+			targetId: user.id,
+			actorIp: ip,
+			details: {},
 		});
 
 		return {

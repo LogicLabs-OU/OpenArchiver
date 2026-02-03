@@ -31,16 +31,6 @@
 	};
 
 	const openEditDialog = (source: IngestionSource) => {
-		if (data.isDemo) {
-			setAlert({
-				type: 'warning',
-				title: 'Demo mode',
-				message: 'Editing is not allowed in demo mode.',
-				duration: 5000,
-				show: true,
-			});
-			return;
-		}
 		selectedSource = source;
 		isDialogOpen = true;
 	};
@@ -100,9 +90,6 @@
 		try {
 			const isPaused = source.status === 'paused';
 			const newStatus = isPaused ? 'active' : 'paused';
-			if (data.isDemo) {
-				throw Error('This operation is not allowed in demo mode.');
-			}
 			if (newStatus === 'paused') {
 				const response = await api(`/ingestion-sources/${source.id}/pause`, {
 					method: 'POST',
@@ -153,6 +140,7 @@
 						duration: 5000,
 						show: true,
 					});
+					return;
 				}
 			}
 			ingestionSources = ingestionSources.filter((s) => !selectedIds.includes(s.id));
@@ -298,9 +286,7 @@
 				</DropdownMenu.Root>
 			{/if}
 		</div>
-		<Button onclick={openCreateDialog} disabled={data.isDemo}
-			>{$t('app.ingestions.create_new')}</Button
-		>
+		<Button onclick={openCreateDialog}>{$t('app.ingestions.create_new')}</Button>
 	</div>
 
 	<div class="rounded-md border">

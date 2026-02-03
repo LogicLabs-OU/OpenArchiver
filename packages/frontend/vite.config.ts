@@ -7,6 +7,10 @@ dotenv.config();
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	define: {
+		// This will be 'true' only during the enterprise build process
+		'import.meta.env.VITE_ENTERPRISE_MODE': process.env.VITE_ENTERPRISE_MODE === 'true',
+	},
 	server: {
 		port: Number(process.env.PORT_FRONTEND) || 3000,
 		proxy: {

@@ -11,9 +11,14 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { t } from '$lib/translations';
+	import { ShieldCheck, ShieldAlert, AlertTriangle } from 'lucide-svelte';
+	import * as Alert from '$lib/components/ui/alert';
+	import { Badge } from '$lib/components/ui/badge';
+	import * as HoverCard from '$lib/components/ui/hover-card';
 
 	let { data }: { data: PageData } = $props();
 	let email = $derived(data.email);
+	let integrityReport = $derived(data.integrityReport);
 	let isDeleteDialogOpen = $state(false);
 	let isDeleting = $state(false);
 
@@ -184,6 +189,77 @@
 					</Button>
 				</Card.Content>
 			</Card.Root>
+
+			{#if integrityReport && integrityReport.length > 0}
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>{$t('app.archive.integrity_report')}</Card.Title>
+						<Card.Description>
+							<span class="mt-1">
+								{$t('app.archive.integrity_report_description')}
+								<a
+									href="https://docs.openarchiver.com/user-guides/integrity-check.html"
+									target="_blank"
+									class="text-primary underline underline-offset-2"
+									>{$t('app.common.read_docs')}</a
+								>.
+							</span>
+						</Card.Description>
+					</Card.Header>
+					<Card.Content class="space-y-2">
+						<ul class="space-y-2">
+							{#each integrityReport as item}
+								<li class="flex items-center justify-between">
+									<div class="flex min-w-0 flex-row items-center space-x-2">
+										{#if item.isValid}
+											<ShieldCheck
+												class="h-4 w-4 flex-shrink-0 text-green-500"
+											/>
+										{:else}
+											<ShieldAlert
+												class="h-4 w-4 flex-shrink-0 text-red-500"
+											/>
+										{/if}
+										<div class="min-w-0 max-w-64">
+											<p class="truncate text-sm font-medium">
+												{#if item.type === 'email'}
+													{$t('app.archive.email_eml')}
+												{:else}
+													{item.filename}
+												{/if}
+											</p>
+										</div>
+									</div>
+									{#if item.isValid}
+										<Badge variant="default" class="bg-green-500"
+											>{$t('app.archive.valid')}</Badge
+										>
+									{:else}
+										<HoverCard.Root>
+											<HoverCard.Trigger>
+												<Badge variant="destructive" class="cursor-help"
+													>{$t('app.archive.invalid')}</Badge
+												>
+											</HoverCard.Trigger>
+											<HoverCard.Content class="w-80 bg-gray-50 text-red-500">
+												<p>{item.reason}</p>
+											</HoverCard.Content>
+										</HoverCard.Root>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					</Card.Content>
+				</Card.Root>
+			{:else}
+				<Alert.Root variant="destructive">
+					<AlertTriangle class="h-4 w-4" />
+					<Alert.Title>{$t('app.archive.integrity_check_failed_title')}</Alert.Title>
+					<Alert.Description>
+						{$t('app.archive.integrity_check_failed_message')}
+					</Alert.Description>
+				</Alert.Root>
+			{/if}
 
 			{#if email.thread && email.thread.length > 1}
 				<Card.Root>

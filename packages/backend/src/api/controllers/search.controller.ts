@@ -31,7 +31,8 @@ export class SearchController {
 					limit: limit ? parseInt(limit as string) : 10,
 					matchingStrategy: matchingStrategy as MatchingStrategies,
 				},
-				userId
+				userId,
+				req.ip || 'unknown'
 			);
 
 			res.status(200).json(results);

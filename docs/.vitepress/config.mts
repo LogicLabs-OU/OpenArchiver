@@ -33,6 +33,7 @@ export default defineConfig({
 				items: [
 					{ text: 'Get Started', link: '/' },
 					{ text: 'Installation', link: '/user-guides/installation' },
+					{ text: 'Email Integrity Check', link: '/user-guides/integrity-check' },
 					{
 						text: 'Email Providers',
 						link: '/user-guides/email-providers/',
@@ -91,8 +92,10 @@ export default defineConfig({
 					{ text: 'Archived Email', link: '/api/archived-email' },
 					{ text: 'Dashboard', link: '/api/dashboard' },
 					{ text: 'Ingestion', link: '/api/ingestion' },
+					{ text: 'Integrity Check', link: '/api/integrity' },
 					{ text: 'Search', link: '/api/search' },
 					{ text: 'Storage', link: '/api/storage' },
+					{ text: 'Jobs', link: '/api/jobs' },
 				],
 			},
 			{

@@ -8,13 +8,13 @@ import type {
 import type { IEmailConnector } from '../EmailProviderFactory';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
+import { config } from '../../config';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 
 export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
-	private isConnected = false;
 	private statusMessage: string | undefined;
 
 	constructor(private credentials: GenericImapCredentials) {
@@ -40,7 +40,6 @@ export class ImapConnector implements IEmailConnector {
 		// Handles client-level errors, like unexpected disconnects, to prevent crashes.
 		client.on('error', (err) => {
 			logger.error({ err }, 'IMAP client error');
-			this.isConnected = false;
 		});
 
 		return client;
@@ -50,20 +49,17 @@ export class ImapConnector implements IEmailConnector {
 	 * Establishes a connection to the IMAP server if not already connected.
 	 */
 	private async connect(): Promise<void> {
-		if (this.isConnected && this.client.usable) {
+		// If the client is already connected and usable, do nothing.
+		if (this.client.usable) {
 			return;
 		}
 
-		// If the client is not usable (e.g., after a logout), create a new one.
-		if (!this.client.usable) {
-			this.client = this.createClient();
-		}
+		// If the client is not usable (e.g., after a logout or an error), create a new one.
+		this.client = this.createClient();
 
 		try {
 			await this.client.connect();
-			this.isConnected = true;
 		} catch (err: any) {
-			this.isConnected = false;
 			logger.error({ err }, 'IMAP connection failed');
 			if (err.responseText) {
 				throw new Error(`IMAP Connection Error: ${err.responseText}`);
@@ -76,9 +72,8 @@ export class ImapConnector implements IEmailConnector {
 	 * Disconnects from the IMAP server if the connection is active.
 	 */
 	private async disconnect(): Promise<void> {
-		if (this.isConnected && this.client.usable) {
+		if (this.client.usable) {
 			await this.client.logout();
-			this.isConnected = false;
 		}
 	}
 
@@ -129,7 +124,7 @@ export class ImapConnector implements IEmailConnector {
 				return await action();
 			} catch (err: any) {
 				logger.error({ err, attempt }, `IMAP operation failed on attempt ${attempt}`);
-				this.isConnected = false; // Force reconnect on next attempt
+				// The client is no longer usable, a new one will be created on the next attempt.
 				if (attempt === maxRetries) {
 					logger.error({ err }, 'IMAP operation failed after all retries.');
 					throw err;
@@ -154,24 +149,22 @@ export class ImapConnector implements IEmailConnector {
 			const mailboxes = await this.withRetry(async () => await this.client.list());
 
 			const processableMailboxes = mailboxes.filter((mailbox) => {
-				// filter out trash and all mail emails
+				// Exclude mailboxes that cannot be selected.
+				if (mailbox.flags.has('\\Noselect')) {
+					return false;
+				}
+				if (config.app.allInclusiveArchive) {
+					return true;
+				}
+				// filter out junk/spam mail emails
 				if (mailbox.specialUse) {
 					const specialUse = mailbox.specialUse.toLowerCase();
-					if (
-						specialUse === '\\junk' ||
-						specialUse === '\\trash' ||
-						specialUse === '\\all'
-					) {
+					if (specialUse === '\\junk' || specialUse === '\\trash') {
 						return false;
 					}
 				}
 				// Fallback to checking flags
-				if (
-					mailbox.flags.has('\\Noselect') ||
-					mailbox.flags.has('\\Trash') ||
-					mailbox.flags.has('\\Junk') ||
-					mailbox.flags.has('\\All')
-				) {
+				if (mailbox.flags.has('\\Trash') || mailbox.flags.has('\\Junk')) {
 					return false;
 				}
 

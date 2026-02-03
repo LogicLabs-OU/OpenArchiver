@@ -60,7 +60,6 @@ function sanitizeObject<T>(obj: T): T {
 	return obj;
 }
 
-
 export class IndexingService {
 	private dbService: DatabaseService;
 	private searchService: SearchService;
@@ -94,21 +93,19 @@ export class IndexingService {
 				const batch = emails.slice(i, i + CONCURRENCY_LIMIT);
 
 				const batchDocuments = await Promise.allSettled(
-					batch.map(async ({ email, sourceId, archivedId }) => {
+					batch.map(async (pendingEmail) => {
 						try {
-							return await this.createEmailDocumentFromRawForBatch(
-								email,
-								sourceId,
-								archivedId,
-								email.userEmail || ''
+							const document = await this.indexEmailById(
+								pendingEmail.archivedEmailId
 							);
+							if (document) {
+								return document;
+							}
+							return null;
 						} catch (error) {
 							logger.error(
 								{
-									emailId: archivedId,
-									sourceId,
-									userEmail: email.userEmail || '',
-									rawEmailData: JSON.stringify(email, null, 2),
+									emailId: pendingEmail.archivedEmailId,
 									error: error instanceof Error ? error.message : String(error),
 								},
 								'Failed to create document for email in batch'
@@ -119,10 +116,15 @@ export class IndexingService {
 				);
 
 				for (const result of batchDocuments) {
-					if (result.status === 'fulfilled') {
+					if (result.status === 'fulfilled' && result.value) {
 						rawDocuments.push(result.value);
-					} else {
+					} else if (result.status === 'rejected') {
 						logger.error({ error: result.reason }, 'Failed to process email in batch');
+					} else {
+						logger.error(
+							{ result: result },
+							'Failed to process email in batch, reason unknown.'
+						);
 					}
 				}
 			}
@@ -196,10 +198,7 @@ export class IndexingService {
 		}
 	}
 
-	/**
-	 * @deprecated
-	 */
-	private async indexEmailById(emailId: string): Promise<void> {
+	private async indexEmailById(emailId: string): Promise<EmailDocument | null> {
 		const email = await this.dbService.db.query.archivedEmails.findFirst({
 			where: eq(archivedEmails.id, emailId),
 		});
@@ -229,15 +228,13 @@ export class IndexingService {
 			emailAttachmentsResult,
 			email.userEmail
 		);
-		await this.searchService.addDocuments('emails', [document], 'id');
+		return document;
 	}
 
 	/**
 	 * @deprecated
 	 */
-	private async indexByEmail(
-		pendingEmail: PendingEmail
-	): Promise<void> {
+	/* 	private async indexByEmail(pendingEmail: PendingEmail): Promise<void> {
 		const attachments: AttachmentsType = [];
 		if (pendingEmail.email.attachments && pendingEmail.email.attachments.length > 0) {
 			for (const attachment of pendingEmail.email.attachments) {
@@ -257,13 +254,12 @@ export class IndexingService {
 		);
 		// console.log(document);
 		await this.searchService.addDocuments('emails', [document], 'id');
-	}
-
+	} */
 
 	/**
 	 * Creates a search document from a raw email object and its attachments.
 	 */
-	private async createEmailDocumentFromRawForBatch(
+	/* private async createEmailDocumentFromRawForBatch(
 		email: EmailObject,
 		ingestionSourceId: string,
 		archivedEmailId: string,
@@ -337,7 +333,7 @@ export class IndexingService {
 			timestamp: new Date(email.receivedAt).getTime(),
 			ingestionSourceId: ingestionSourceId,
 		};
-	}
+	} */
 
 	private async createEmailDocumentFromRaw(
 		email: EmailObject,
@@ -478,14 +474,12 @@ export class IndexingService {
 			'image/heif',
 		];
 
-
-
 		return extractableTypes.some((type) => mimeType.toLowerCase().includes(type));
 	}
 
 	/**
- * Ensures all required fields are present in EmailDocument
- */
+	 * Ensures all required fields are present in EmailDocument
+	 */
 	private ensureEmailDocumentFields(doc: Partial<EmailDocument>): EmailDocument {
 		return {
 			id: doc.id || 'missing-id',
@@ -510,7 +504,10 @@ export class IndexingService {
 			JSON.stringify(doc);
 			return true;
 		} catch (error) {
-			logger.error({ doc, error: (error as Error).message }, 'Invalid EmailDocument detected');
+			logger.error(
+				{ doc, error: (error as Error).message },
+				'Invalid EmailDocument detected'
+			);
 			return false;
 		}
 	}

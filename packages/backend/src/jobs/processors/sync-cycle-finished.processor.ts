@@ -51,7 +51,7 @@ export default async (job: Job<ISyncCycleFinishedJob, any, string>) => {
 
 		const finalSyncState = deepmerge(
 			...successfulJobs.filter((s) => s && Object.keys(s).length > 0)
-		);
+		) as SyncState;
 
 		const source = await IngestionService.findById(ingestionSourceId);
 		let status: IngestionStatus = 'active';
@@ -63,7 +63,9 @@ export default async (job: Job<ISyncCycleFinishedJob, any, string>) => {
 		let message: string;
 
 		// Check for a specific rate-limit message from the successful jobs
-		const rateLimitMessage = successfulJobs.find((j) => j.statusMessage)?.statusMessage;
+		const rateLimitMessage = successfulJobs.find(
+			(j) => j.statusMessage && j.statusMessage.includes('rate limit')
+		)?.statusMessage;
 
 		if (failedJobs.length > 0) {
 			status = 'error';

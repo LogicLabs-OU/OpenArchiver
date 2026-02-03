@@ -14,7 +14,8 @@
 		"demoMode": "This operation is not allowed in demo mode.",
 		"unauthorized": "Unauthorized",
 		"unknown": "An unknown error occurred",
-		"noPermissionToAction": "You don't have the permission to perform the current action."
+		"noPermissionToAction": "You don't have the permission to perform the current action.",
+		"deletion_disabled": "Deletion is disabled for this instance."
 	},
 	"user": {
 		"notFound": "User not found",

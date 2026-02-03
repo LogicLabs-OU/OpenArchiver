@@ -3,7 +3,6 @@ import { IamService } from '../../services/IamService';
 import { PolicyValidator } from '../../iam-policy/policy-validator';
 import type { CaslPolicy } from '@open-archiver/types';
 import { logger } from '../../config/logger';
-import { config } from '../../config';
 
 export class IamController {
 	#iamService: IamService;
@@ -42,9 +41,6 @@ export class IamController {
 	};
 
 	public createRole = async (req: Request, res: Response) => {
-		if (config.app.isDemo) {
-			return res.status(403).json({ message: req.t('errors.demoMode') });
-		}
 		const { name, policies } = req.body;
 
 		if (!name || !policies) {
@@ -69,9 +65,6 @@ export class IamController {
 	};
 
 	public deleteRole = async (req: Request, res: Response) => {
-		if (config.app.isDemo) {
-			return res.status(403).json({ message: req.t('errors.demoMode') });
-		}
 		const { id } = req.params;
 
 		try {
@@ -83,9 +76,6 @@ export class IamController {
 	};
 
 	public updateRole = async (req: Request, res: Response) => {
-		if (config.app.isDemo) {
-			return res.status(403).json({ message: req.t('errors.demoMode') });
-		}
 		const { id } = req.params;
 		const { name, policies } = req.body;
 

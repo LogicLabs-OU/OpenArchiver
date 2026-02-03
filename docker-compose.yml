@@ -10,7 +10,7 @@ services:
         env_file:
             - .env
         volumes:
-            - archiver-data:/var/data/open-archiver
+            - ${STORAGE_LOCAL_ROOT_PATH}:${STORAGE_LOCAL_ROOT_PATH}
         depends_on:
             - postgres
             - valkey
@@ -65,8 +65,6 @@ volumes:
     valkeydata:
         driver: local
     meilidata:
-        driver: local
-    archiver-data:
         driver: local
 
 networks:

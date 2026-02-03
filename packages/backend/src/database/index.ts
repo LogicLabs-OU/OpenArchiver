@@ -1,4 +1,4 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import 'dotenv/config';
 
@@ -12,3 +12,4 @@ if (!process.env.DATABASE_URL) {
 const connectionString = encodeDatabaseUrl(process.env.DATABASE_URL);
 const client = postgres(connectionString);
 export const db = drizzle(client, { schema });
+export type Database = PostgresJsDatabase<typeof schema>;

@@ -17,6 +17,9 @@ import type {
 import { StorageService } from './StorageService';
 import { SearchService } from './SearchService';
 import type { Readable } from 'stream';
+import { AuditService } from './AuditService';
+import { User } from '@open-archiver/types';
+import { checkDeletionEnabled } from '../helpers/deletionGuard';
 
 interface DbRecipients {
 	to: { name: string; address: string }[];
@@ -34,6 +37,7 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 }
 
 export class ArchivedEmailService {
+	private static auditService = new AuditService();
 	private static mapRecipients(dbRecipients: unknown): Recipient[] {
 		const { to = [], cc = [], bcc = [] } = dbRecipients as DbRecipients;
 
@@ -98,7 +102,9 @@ export class ArchivedEmailService {
 
 	public static async getArchivedEmailById(
 		emailId: string,
-		userId: string
+		userId: string,
+		actor: User,
+		actorIp: string
 	): Promise<ArchivedEmail | null> {
 		const email = await db.query.archivedEmails.findFirst({
 			where: eq(archivedEmails.id, emailId),
@@ -117,6 +123,15 @@ export class ArchivedEmailService {
 		if (!canRead) {
 			return null;
 		}
+
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'READ',
+			targetType: 'ArchivedEmail',
+			targetId: emailId,
+			actorIp,
+			details: {},
+		});
 
 		let threadEmails: ThreadEmail[] = [];
 
@@ -179,7 +194,12 @@ export class ArchivedEmailService {
 		return mappedEmail;
 	}
 
-	public static async deleteArchivedEmail(emailId: string): Promise<void> {
+	public static async deleteArchivedEmail(
+		emailId: string,
+		actor: User,
+		actorIp: string
+	): Promise<void> {
+		checkDeletionEnabled();
 		const [email] = await db
 			.select()
 			.from(archivedEmails)
@@ -193,7 +213,7 @@ export class ArchivedEmailService {
 
 		// Load and handle attachments before deleting the email itself
 		if (email.hasAttachments) {
-			const emailAttachmentsResult = await db
+			const attachmentsForEmail = await db
 				.select({
 					attachmentId: attachments.id,
 					storagePath: attachments.storagePath,
@@ -203,37 +223,33 @@ export class ArchivedEmailService {
 				.where(eq(emailAttachments.emailId, emailId));
 
 			try {
-				for (const attachment of emailAttachmentsResult) {
-					const [refCount] = await db
-						.select({ count: count(emailAttachments.emailId) })
+				for (const attachment of attachmentsForEmail) {
+					// Delete the link between this email and the attachment record.
+					await db
+						.delete(emailAttachments)
+						.where(
+							and(
+								eq(emailAttachments.emailId, emailId),
+								eq(emailAttachments.attachmentId, attachment.attachmentId)
+							)
+						);
+
+					// Check if any other emails are linked to this attachment record.
+					const [recordRefCount] = await db
+						.select({ count: count() })
 						.from(emailAttachments)
 						.where(eq(emailAttachments.attachmentId, attachment.attachmentId));
 
-					if (refCount.count === 1) {
+					// If no other emails are linked to this record, it's safe to delete it and the file.
+					if (recordRefCount.count === 0) {
 						await storage.delete(attachment.storagePath);
-						await db
-							.delete(emailAttachments)
-							.where(
-								and(
-									eq(emailAttachments.emailId, emailId),
-									eq(emailAttachments.attachmentId, attachment.attachmentId)
-								)
-							);
 						await db
 							.delete(attachments)
 							.where(eq(attachments.id, attachment.attachmentId));
-					} else {
-						await db
-							.delete(emailAttachments)
-							.where(
-								and(
-									eq(emailAttachments.emailId, emailId),
-									eq(emailAttachments.attachmentId, attachment.attachmentId)
-								)
-							);
 					}
 				}
-			} catch {
+			} catch (error) {
+				console.error('Failed to delete email attachments', error);
 				throw new Error('Failed to delete email attachments');
 			}
 		}
@@ -245,5 +261,16 @@ export class ArchivedEmailService {
 		await searchService.deleteDocuments('emails', [emailId]);
 
 		await db.delete(archivedEmails).where(eq(archivedEmails.id, emailId));
+
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'DELETE',
+			targetType: 'ArchivedEmail',
+			targetId: emailId,
+			actorIp,
+			details: {
+				reason: 'ManualDeletion',
+			},
+		});
 	}
 }
