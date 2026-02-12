@@ -44,6 +44,7 @@ Password: openarchiver_demo
     - IMAP connection
     - Google Workspace
     - Microsoft 365
+    - Outlook Personal (personal Microsoft accounts)
     - PST files
     - Zipped .eml files
     - Mbox files
@@ -109,8 +110,10 @@ Open Archiver is built on a modern, scalable, and maintainable technology stack:
 After deploying the application, you will need to configure one or more ingestion sources to begin archiving emails. Follow our detailed guides to connect to your email provider:
 
 - [Connecting to Google Workspace](https://docs.openarchiver.com/user-guides/email-providers/google-workspace.html)
-- [Connecting to Microsoft 365](https://docs.openarchiver.com/user-guides/email-providers/imap.html)
+- [Connecting to Microsoft 365](https://docs.openarchiver.com/user-guides/email-providers/microsoft-365.html)
+- [Connecting to Outlook Personal](https://docs.openarchiver.com/user-guides/email-providers/outlook-personal.html)
 - [Connecting to a Generic IMAP Server](https://docs.openarchiver.com/user-guides/email-providers/imap.html)
+- [Local Development Setup](https://docs.openarchiver.com/user-guides/local-development.html)
 
 ## 🤝 Contributing
 

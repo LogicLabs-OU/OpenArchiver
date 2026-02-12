@@ -21,6 +21,7 @@ import {
 	emailAttachments,
 } from '../database/schema';
 import { createHash, randomUUID } from 'crypto';
+import crypto from 'crypto';
 import { logger } from '../config/logger';
 import { SearchService } from './SearchService';
 import { config } from '../config/index';
@@ -530,5 +531,215 @@ export class IngestionService {
 			});
 			return null;
 		}
+	}
+
+	/**
+	 * Initiates the OAuth2 + PKCE flow for Outlook Personal.
+	 * Returns authorization URL, state, and code verifier for the frontend.
+	 */
+	public static async initiateOutlookPersonalAuth(userId: string): Promise<{
+		authUrl: string;
+		state: string;
+		codeVerifier: string;
+	}> {
+		const clientId = config.app.outlookPersonal.clientId;
+		const redirectUri = config.app.outlookPersonal.redirectUri;
+
+		if (!clientId || !redirectUri) {
+			throw new Error(
+				'Outlook Personal OAuth is not configured. Please set OUTLOOK_PERSONAL_CLIENT_ID and OUTLOOK_PERSONAL_REDIRECT_URI environment variables.'
+			);
+		}
+
+		// Generate PKCE parameters
+		const codeVerifier = this.generateCodeVerifier();
+		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+		const state = randomUUID();
+
+		// Microsoft OAuth2 authorization endpoint
+		const authEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
+		const scopes = ['Mail.Read', 'offline_access'];
+
+		const params = new URLSearchParams({
+			client_id: clientId,
+			response_type: 'code',
+			redirect_uri: redirectUri,
+			response_mode: 'query',
+			scope: scopes.join(' '),
+			state: state,
+			code_challenge: codeChallenge,
+			code_challenge_method: 'S256',
+		});
+
+		const authUrl = `${authEndpoint}?${params.toString()}`;
+
+		return {
+			authUrl,
+			state,
+			codeVerifier,
+		};
+	}
+
+	/**
+	 * Completes the OAuth2 flow by exchanging the authorization code for tokens
+	 * and creating an Outlook Personal ingestion source.
+	 */
+	public static async completeOutlookPersonalAuth(
+		userId: string,
+		code: string,
+		state: string,
+		codeVerifier: string,
+		name: string,
+		actor: User,
+		actorIp: string
+	): Promise<IngestionSource> {
+		const clientId = config.app.outlookPersonal.clientId;
+		const clientSecret = config.app.outlookPersonal.clientSecret;
+		const redirectUri = config.app.outlookPersonal.redirectUri;
+
+		if (!clientId || !clientSecret || !redirectUri) {
+			throw new Error('Outlook Personal OAuth is not configured.');
+		}
+
+		// Exchange authorization code for tokens
+		const tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+		const params = new URLSearchParams({
+			client_id: clientId,
+			client_secret: clientSecret,
+			code: code,
+			redirect_uri: redirectUri,
+			grant_type: 'authorization_code',
+			code_verifier: codeVerifier,
+		});
+
+		const response = await fetch(tokenEndpoint, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+			},
+			body: params.toString(),
+		});
+
+		if (!response.ok) {
+			const errorData = await response.text();
+			logger.error({ errorData }, 'Failed to exchange authorization code for tokens');
+			throw new Error('Failed to authenticate with Microsoft. Please try again.');
+		}
+
+		const tokenData = await response.json();
+
+		// Get user info to extract email
+		const userInfoResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+			headers: {
+				Authorization: `Bearer ${tokenData.access_token}`,
+			},
+		});
+
+		if (!userInfoResponse.ok) {
+			throw new Error('Failed to retrieve user information from Microsoft.');
+		}
+
+		const userInfo = await userInfoResponse.json();
+		const accountEmail = userInfo.userPrincipalName || userInfo.mail;
+
+		if (!accountEmail) {
+			throw new Error('Could not determine user email address.');
+		}
+
+		// Create credentials
+		const credentials = {
+			type: 'outlook_personal' as const,
+			refreshToken: tokenData.refresh_token,
+			accessToken: tokenData.access_token,
+			expiresAt: Date.now() + tokenData.expires_in * 1000,
+			accountEmail: accountEmail,
+			scopes: tokenData.scope.split(' '),
+		};
+
+		// Encrypt credentials
+		const encryptedCredentials = CryptoService.encryptObject(credentials);
+
+		// Create the ingestion source
+		const [newSource] = await db
+			.insert(ingestionSources)
+			.values({
+				userId,
+				name,
+				provider: 'outlook_personal',
+				status: 'pending_auth',
+				credentials: encryptedCredentials,
+			})
+			.returning();
+
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'CREATE',
+			targetType: 'IngestionSource',
+			targetId: newSource.id,
+			actorIp,
+			details: {
+				sourceName: newSource.name,
+				sourceType: newSource.provider,
+				accountEmail: accountEmail,
+			},
+		});
+
+		const decryptedSource = this.decryptSource(newSource);
+		if (!decryptedSource) {
+			await this.delete(newSource.id, actor, actorIp);
+			throw new Error(
+				'Failed to process newly created ingestion source due to a decryption error.'
+			);
+		}
+
+		// Test the connection
+		const connector = EmailProviderFactory.createConnector(decryptedSource);
+
+		try {
+			const connectionValid = await connector.testConnection();
+			if (connectionValid) {
+				return await this.update(
+					decryptedSource.id,
+					{ status: 'auth_success' },
+					actor,
+					actorIp
+				);
+			} else {
+				throw new Error('Outlook Personal authentication failed.');
+			}
+		} catch (error) {
+			await this.delete(decryptedSource.id, actor, actorIp);
+			throw error;
+		}
+	}
+
+	/**
+	 * Generates a random code verifier for PKCE.
+	 */
+	private static generateCodeVerifier(): string {
+		const array = new Uint8Array(32);
+		crypto.getRandomValues(array);
+		return this.base64URLEncode(array);
+	}
+
+	/**
+	 * Generates a code challenge from a code verifier using SHA-256.
+	 */
+	private static async generateCodeChallenge(verifier: string): Promise<string> {
+		const encoder = new TextEncoder();
+		const data = encoder.encode(verifier);
+		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+		return this.base64URLEncode(new Uint8Array(hashBuffer));
+	}
+
+	/**
+	 * Base64 URL encodes a buffer.
+	 */
+	private static base64URLEncode(buffer: Uint8Array): string {
+		return Buffer.from(buffer)
+			.toString('base64')
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+			.replace(/=/g, '');
 	}
 }

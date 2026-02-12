@@ -198,4 +198,69 @@ export class IngestionController {
 			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
+
+	/**
+	 * Initiates the OAuth2 + PKCE flow for Outlook Personal.
+	 * Returns authorization URL and state for the frontend to use.
+	 */
+	public outlookPersonalAuthorize = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			
+			const authData = await IngestionService.initiateOutlookPersonalAuth(userId);
+			return res.status(200).json(authData);
+		} catch (error) {
+			logger.error({ err: error }, 'Outlook Personal authorize error');
+			return res.status(500).json({ 
+				message: error instanceof Error ? error.message : req.t('errors.internalServerError') 
+			});
+		}
+	};
+
+	/**
+	 * Handles the OAuth2 callback for Outlook Personal.
+	 * Exchanges the authorization code for tokens and creates the ingestion source.
+	 */
+	public outlookPersonalCallback = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			
+			const actor = await this.userService.findById(userId);
+			if (!actor) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			
+			const { code, state, codeVerifier, name } = req.body;
+			
+			if (!code || !state || !codeVerifier || !name) {
+				return res.status(400).json({ 
+					message: 'Missing required parameters: code, state, codeVerifier, name' 
+				});
+			}
+			
+			const newSource = await IngestionService.completeOutlookPersonalAuth(
+				userId,
+				code,
+				state,
+				codeVerifier,
+				name,
+				actor,
+				req.ip || 'unknown'
+			);
+			
+			const safeSource = this.toSafeIngestionSource(newSource);
+			return res.status(201).json(safeSource);
+		} catch (error) {
+			logger.error({ err: error }, 'Outlook Personal callback error');
+			return res.status(400).json({ 
+				message: error instanceof Error ? error.message : req.t('errors.internalServerError') 
+			});
+		}
+	};
 }
