@@ -64,6 +64,10 @@
 					href: '/dashboard/settings/api-keys',
 					label: $t('app.layout.api_keys'),
 				},
+				{
+					href: '/dashboard/settings/account',
+					label: $t('app.layout.account'),
+				},
 			],
 			position: 5,
 		},

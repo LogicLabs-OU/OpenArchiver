@@ -11,6 +11,10 @@ export const createUserRouter = (authService: AuthService): Router => {
 
 	router.get('/', requirePermission('read', 'users'), userController.getUsers);
 
+	router.get('/profile', userController.getProfile);
+	router.patch('/profile', userController.updateProfile);
+	router.post('/profile/password', userController.updatePassword);
+
 	router.get('/:id', requirePermission('read', 'users'), userController.getUser);
 
 	/**

@@ -1,7 +1,7 @@
 import { db } from '../database';
 import * as schema from '../database/schema';
 import { eq, sql } from 'drizzle-orm';
-import { hash } from 'bcryptjs';
+import { hash, compare } from 'bcryptjs';
 import type { CaslPolicy, User } from '@open-archiver/types';
 import { AuditService } from './AuditService';
 
@@ -148,6 +148,46 @@ export class UserService {
 			actorIp,
 			details: {
 				deletedUserEmail: userToDelete?.email,
+			},
+		});
+	}
+
+	public async updatePassword(
+		id: string,
+		currentPassword: string,
+		newPassword: string,
+		actor: User,
+		actorIp: string
+	): Promise<void> {
+		const user = await db.query.users.findFirst({
+			where: eq(schema.users.id, id),
+		});
+
+		if (!user || !user.password) {
+			throw new Error('User not found');
+		}
+
+		const isPasswordValid = await compare(currentPassword, user.password);
+
+		if (!isPasswordValid) {
+			throw new Error('Invalid current password');
+		}
+
+		const hashedPassword = await hash(newPassword, 10);
+
+		await db
+			.update(schema.users)
+			.set({ password: hashedPassword })
+			.where(eq(schema.users.id, id));
+
+		await UserService.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'UPDATE',
+			targetType: 'User',
+			targetId: id,
+			actorIp,
+			details: {
+				field: 'password',
 			},
 		});
 	}
