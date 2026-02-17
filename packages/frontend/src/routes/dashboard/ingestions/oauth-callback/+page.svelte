@@ -40,7 +40,7 @@
 			}
 
 			// Exchange code for tokens by calling backend
-			const response = await api('/ingestions/oauth/outlook-personal/callback', {
+			const response = await api('/ingestion-sources/oauth/outlook-personal/callback', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',

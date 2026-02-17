@@ -12,7 +12,19 @@ export default defineConfig({
 		'import.meta.env.VITE_ENTERPRISE_MODE': process.env.VITE_ENTERPRISE_MODE === 'true',
 	},
 	server: {
+		host: true,
 		port: Number(process.env.PORT_FRONTEND) || 3000,
+		// Allow common local dev hostnames and any explicitly configured backend/proxy hosts.
+		allowedHosts: (() => {
+			const hosts = new Set<string>(['localhost', '127.0.0.1']);
+			if (process.env.BACKEND_HOST) {
+				for (const h of process.env.BACKEND_HOST.split(',')) {
+					const trimmed = h.trim();
+					if (trimmed) hosts.add(trimmed);
+				}
+			}
+			return Array.from(hosts);
+		})(),
 		proxy: {
 			'/api': {
 				target: `http://localhost:${process.env.PORT_BACKEND || 4000}`,

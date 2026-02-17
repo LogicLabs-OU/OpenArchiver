@@ -92,7 +92,7 @@
 	const handleOutlookPersonalOAuth = async () => {
 		try {
 			// Request authorization URL from backend
-			const response = await api('/ingestions/oauth/outlook-personal/authorize', {
+			const response = await api('/ingestion-sources/oauth/outlook-personal/authorize', {
 				method: 'GET',
 			});
 

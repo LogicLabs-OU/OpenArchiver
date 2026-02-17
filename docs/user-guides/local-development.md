@@ -52,10 +52,10 @@ In local development mode:
 │  ┌──────────────┐         ┌──────────────┐     │
 │  │   Backend    │         │   Frontend   │     │
 │  │  (Node.js)   │◄────────┤   (SvelteKit)│     │
-│  │  Port 4000  │         │   Port 5173  │     │
+│  │  Port 4000   │         │   Port 5173  │     │
 │  └──────┬───────┘         └──────────────┘     │
 │         │                                        │
-│         │ Connects to:                          │
+│         │ Connects to localhost:                │
 │         │                                        │
 │  ┌──────▼────────────────────────────────────┐ │
 │  │      Docker Containers                    │ │
@@ -68,8 +68,15 @@ In local development mode:
 │  │  │ :9998   │                             │ │
 │  │  └─────────┘                             │ │
 │  └─────────────────────────────────────────┘ │
+│     ↑ All ports exposed to host             │
 └─────────────────────────────────────────────────┘
 ```
+
+**Key Points:**
+- **Frontend at port 5173**: When running `pnpm dev`, Vite's development server runs on port 5173 with hot reload
+- **Frontend at port 3000**: Only when running a production build via `pnpm build && pnpm preview` or in Docker
+- **Backend at port 4000**: Configured via `PORT_BACKEND` environment variable
+- **All dependency services**: Exposed to `localhost` so your local backend/frontend can connect
 
 ## Setting Up Dependencies
 
@@ -89,74 +96,7 @@ pnpm install
 
 ### 3. Start Docker Dependencies
 
-Create or modify a `docker-compose.dev.yml` file that only runs the services (not the app):
-
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: openarchiver-postgres-dev
-    environment:
-      POSTGRES_USER: openarchiver
-      POSTGRES_PASSWORD: dev_password_change_in_production
-      POSTGRES_DB: openarchiver
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openarchiver"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  valkey:
-    image: valkey/valkey:7.2-alpine
-    container_name: openarchiver-valkey-dev
-    ports:
-      - "6379:6379"
-    volumes:
-      - valkey_data:/data
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  meilisearch:
-    image: getmeili/meilisearch:v1.5
-    container_name: openarchiver-meilisearch-dev
-    environment:
-      MEILI_MASTER_KEY: dev_meili_master_key_change_in_production
-      MEILI_ENV: development
-    ports:
-      - "7700:7700"
-    volumes:
-      - meilisearch_data:/meili_data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  tika:
-    image: apache/tika:2.9.1.0
-    container_name: openarchiver-tika-dev
-    ports:
-      - "9998:9998"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9998/tika"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
-  valkey_data:
-  meilisearch_data:
-```
+The repository includes a `docker-compose.dev.yml` file that runs only the dependency services with all ports exposed to the host machine.
 
 Start the dependencies:
 
@@ -171,6 +111,24 @@ docker compose -f docker-compose.dev.yml ps
 ```
 
 All services should show status "healthy" after a few moments.
+
+**Service Endpoints:**
+- PostgreSQL: `localhost:5432`
+- Valkey (Redis): `localhost:6379`
+- Meilisearch: `localhost:7700` (also has a web UI at http://localhost:7700)
+- Tika: `localhost:9998`
+
+**Stopping Services:**
+
+```bash
+docker compose -f docker-compose.dev.yml down
+```
+
+**Removing Data (reset everything):**
+
+```bash
+docker compose -f docker-compose.dev.yml down -v
+```
 
 ## Backend Setup
 
@@ -192,29 +150,33 @@ NODE_ENV=development
 # Backend Port
 PORT_BACKEND=4000
 
-# Database
-DATABASE_URL=postgresql://openarchiver:dev_password_change_in_production@localhost:5432/openarchiver
+# Database (match docker-compose.dev.yml defaults)
+DATABASE_URL=postgresql://admin:password@localhost:5432/open_archive
 
-# Redis/Valkey
+# Redis/Valkey (match docker-compose.dev.yml defaults)
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_PASSWORD=defaultredispassword
+REDIS_TLS_ENABLED=false
 
-# Meilisearch
+# Meilisearch (match docker-compose.dev.yml defaults)
 MEILI_HOST=http://localhost:7700
-MEILI_MASTER_KEY=dev_meili_master_key_change_in_production
+MEILI_MASTER_KEY=aSampleMasterKey
 
 # Tika
-TIKA_HOST=http://localhost:9998
+TIKA_URL=http://localhost:9998
 
 # Storage (local filesystem for development)
-STORAGE_PROVIDER=local
-LOCAL_STORAGE_PATH=./storage
+STORAGE_TYPE=local
+STORAGE_LOCAL_ROOT_PATH=./storage
 
 # Encryption Key (generate a secure random string)
-ENCRYPTION_KEY=$(openssl rand -base64 32)
+# Generate with: openssl rand -hex 32
+ENCRYPTION_KEY=your-generated-encryption-key-here
 
 # JWT Secret (generate a secure random string)
-JWT_SECRET=$(openssl rand -base64 32)
+# Generate with: openssl rand -base64 32
+JWT_SECRET=your-generated-jwt-secret-here
 
 # Sync frequency (cron expression, default: every minute)
 SYNC_FREQUENCY=* * * * *
@@ -224,8 +186,9 @@ ENABLE_DELETION=true
 ALL_INCLUSIVE_ARCHIVE=false
 
 # Outlook Personal OAuth Configuration (for testing)
-OUTLOOK_PERSONAL_CLIENT_ID=your-azure-app-client-id
-OUTLOOK_PERSONAL_CLIENT_SECRET=your-azure-app-client-secret
+# Leave empty if not testing this feature yet
+OUTLOOK_PERSONAL_CLIENT_ID=
+OUTLOOK_PERSONAL_CLIENT_SECRET=
 OUTLOOK_PERSONAL_REDIRECT_URI=http://localhost:5173/dashboard/ingestions/oauth-callback
 ```
 
@@ -301,6 +264,13 @@ pnpm --filter @open-archiver/frontend dev
 The frontend should start on `http://localhost:5173`.
 
 Open your browser and navigate to `http://localhost:5173`.
+
+**Note on Frontend Ports:**
+- **Development mode (`pnpm dev`)**: Runs on port 5173 (Vite's default dev server)
+- **Production mode**: When built with `pnpm build && pnpm preview`, runs on port 3000
+- **Docker deployment**: The containerized app runs on port 3000
+
+For local development and testing OAuth flows, always use `http://localhost:5173`.
 
 ## Testing Email Providers
 
@@ -477,8 +447,11 @@ Use browser DevTools:
 Connect to PostgreSQL:
 
 ```bash
-# Using psql
-docker exec -it openarchiver-postgres-dev psql -U openarchiver -d openarchiver
+# Using psql via Docker
+docker exec -it openarchiver-postgres-dev psql -U admin -d open_archive
+
+# Or directly from host (if psql is installed)
+psql "postgresql://admin:password@localhost:5432/open_archive"
 
 # List tables
 \dt
@@ -492,8 +465,17 @@ SELECT id, name, provider, status FROM ingestion_sources;
 Access Meilisearch dashboard:
 
 ```bash
+# Open in browser
 open http://localhost:7700
-# API Key: dev_meili_master_key_change_in_production
+
+# API Key: aSampleMasterKey (from docker-compose.dev.yml)
+```
+
+Test connection:
+
+```bash
+curl http://localhost:7700/health
+# Should return: {"status":"available"}
 ```
 
 ## Common Issues
@@ -524,7 +506,7 @@ docker logs openarchiver-postgres-dev
 Test connection:
 
 ```bash
-psql "postgresql://openarchiver:dev_password_change_in_production@localhost:5432/openarchiver"
+psql "postgresql://admin:password@localhost:5432/open_archive"
 ```
 
 ### Meilisearch Connection Errors
@@ -538,11 +520,16 @@ curl http://localhost:7700/health
 ### OAuth Redirect Issues
 
 Ensure the redirect URI in Azure exactly matches your local URL:
-- Protocol: `http` (not https)
-- Port: `5173` (default Vite port)
+- Protocol: `http` (not https for local dev)
+- Domain: `localhost`
+- Port: `5173` (Vite dev server port, NOT 3000 which is for Docker/production)
 - Path: `/dashboard/ingestions/oauth-callback`
 
-Full redirect URI: `http://localhost:5173/dashboard/ingestions/oauth-callback`
+**Correct URLs for different environments:**
+- Local development: `http://localhost:5173/dashboard/ingestions/oauth-callback`
+- Docker/Production: `https://your-domain.com/dashboard/ingestions/oauth-callback` (or port 3000 for local Docker)
+
+**Common mistake**: Using port 3000 for local development. Port 3000 is only used when running the full app in Docker, not when running `pnpm dev` locally.
 
 ### CORS Errors
 
