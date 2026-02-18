@@ -26,7 +26,7 @@ Running OpenArchiver locally in development mode provides:
 
 Ensure you have the following installed:
 
-- **Node.js**: v18 or later (v20 recommended)
+- **Node.js**: v22 or later
 - **pnpm**: v8 or later (`npm install -g pnpm`)
 - **Docker**: v20 or later
 - **Docker Compose**: v2 or later
@@ -35,7 +35,7 @@ Ensure you have the following installed:
 Verify installations:
 
 ```bash
-node --version    # Should show v18+ or v20+
+node --version    # Should show v22+
 pnpm --version    # Should show v8+
 docker --version  # Should show Docker version 20+
 docker compose version  # Should show Docker Compose version 2+
@@ -52,7 +52,7 @@ In local development mode:
 │  ┌──────────────┐         ┌──────────────┐     │
 │  │   Backend    │         │   Frontend   │     │
 │  │  (Node.js)   │◄────────┤   (SvelteKit)│     │
-│  │  Port 4000   │         │   Port 5173  │     │
+│  │  Port 4000   │         │   Port 3000  │     │
 │  └──────┬───────┘         └──────────────┘     │
 │         │                                        │
 │         │ Connects to localhost:                │
@@ -73,9 +73,9 @@ In local development mode:
 ```
 
 **Key Points:**
-- **Frontend at port 5173**: When running `pnpm dev`, Vite's development server runs on port 5173 with hot reload
-- **Frontend at port 3000**: Only when running a production build via `pnpm build && pnpm preview` or in Docker
+- **Frontend at port 3000**: Vite dev server uses `PORT_FRONTEND` from `.env` (defaults to 3000)
 - **Backend at port 4000**: Configured via `PORT_BACKEND` environment variable
+- **External access**: `HOST_FRONTEND=0.0.0.0`, `HOST_BACKEND=0.0.0.0`, and `DEV_ALLOWED_HOSTS=*` allow remote access in development
 - **All dependency services**: Exposed to `localhost` so your local backend/frontend can connect
 
 ## Setting Up Dependencies
@@ -189,7 +189,7 @@ ALL_INCLUSIVE_ARCHIVE=false
 # Leave empty if not testing this feature yet
 OUTLOOK_PERSONAL_CLIENT_ID=
 OUTLOOK_PERSONAL_CLIENT_SECRET=
-OUTLOOK_PERSONAL_REDIRECT_URI=http://localhost:5173/dashboard/ingestions/oauth-callback
+OUTLOOK_PERSONAL_REDIRECT_URI=http://localhost:3000/dashboard/ingestions/oauth-callback
 ```
 
 **Important**: Generate secure values for `ENCRYPTION_KEY` and `JWT_SECRET`:
@@ -217,17 +217,18 @@ pnpm db:push
 pnpm db:migrate
 ```
 
-### 3. Start Backend Development Server
+### 3. Start Development Servers (Recommended)
 
 ```bash
-# From the backend directory
+# From the project root (starts backend, frontend, and type watchers)
 pnpm dev
-
-# Or from the project root
-pnpm --filter @open-archiver/backend dev
 ```
 
-The backend should start on `http://localhost:4000`.
+This is the same as `pnpm dev:oss`.
+
+Expected endpoints:
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:4000`
 
 Verify it's running:
 
@@ -247,7 +248,7 @@ Create a `.env` file in `packages/frontend`:
 PUBLIC_API_URL=http://localhost:4000
 
 # Public app URL
-PUBLIC_APP_URL=http://localhost:5173
+PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ### 2. Start Frontend Development Server
@@ -261,16 +262,16 @@ pnpm dev
 pnpm --filter @open-archiver/frontend dev
 ```
 
-The frontend should start on `http://localhost:5173`.
+The frontend should start on `http://localhost:3000`.
 
-Open your browser and navigate to `http://localhost:5173`.
+Open your browser and navigate to `http://localhost:3000`.
 
 **Note on Frontend Ports:**
-- **Development mode (`pnpm dev`)**: Runs on port 5173 (Vite's default dev server)
-- **Production mode**: When built with `pnpm build && pnpm preview`, runs on port 3000
+- **Development mode (`pnpm dev`)**: Runs on `PORT_FRONTEND` (default `3000`)
+- **Production mode**: Also typically runs on port 3000 unless you override
 - **Docker deployment**: The containerized app runs on port 3000
 
-For local development and testing OAuth flows, always use `http://localhost:5173`.
+For local development and testing OAuth flows, use your dev frontend URL (default `http://localhost:3000`).
 
 ## Testing Email Providers
 
@@ -283,7 +284,7 @@ To test the Outlook Personal provider locally, you need to create a Microsoft te
 If you have a personal Microsoft account (Outlook.com, Hotmail, etc.), you can use it directly:
 
 1. Follow the [Outlook Personal setup guide](./email-providers/outlook-personal.md) to create an Azure app registration
-2. Configure the redirect URI as: `http://localhost:5173/dashboard/ingestions/oauth-callback`
+2. Configure the redirect URI as: `http://localhost:3000/dashboard/ingestions/oauth-callback`
 3. Add the credentials to your `.env` file
 4. Create an ingestion source in the UI and follow the OAuth flow
 
@@ -298,7 +299,7 @@ For testing with sample data:
 
 2. **Create an App Registration**:
    - Follow the steps in the [Outlook Personal guide](./email-providers/outlook-personal.md)
-   - Use `http://localhost:5173/dashboard/ingestions/oauth-callback` as the redirect URI
+   - Use `http://localhost:3000/dashboard/ingestions/oauth-callback` as the redirect URI
 
 3. **Set Up Test Data**:
    - Your M365 developer tenant comes with sample users
@@ -489,8 +490,8 @@ If you get "port already in use" errors:
 lsof -i :4000
 kill -9 <PID>
 
-# Find process using port 5173 (frontend)
-lsof -i :5173
+# Find process using port 3000 (frontend)
+lsof -i :3000
 kill -9 <PID>
 ```
 
@@ -522,23 +523,23 @@ curl http://localhost:7700/health
 Ensure the redirect URI in Azure exactly matches your local URL:
 - Protocol: `http` (not https for local dev)
 - Domain: `localhost`
-- Port: `5173` (Vite dev server port, NOT 3000 which is for Docker/production)
+- Port: `3000` (default local dev frontend port)
 - Path: `/dashboard/ingestions/oauth-callback`
 
 **Correct URLs for different environments:**
-- Local development: `http://localhost:5173/dashboard/ingestions/oauth-callback`
+- Local development: `http://localhost:3000/dashboard/ingestions/oauth-callback`
 - Docker/Production: `https://your-domain.com/dashboard/ingestions/oauth-callback` (or port 3000 for local Docker)
 
-**Common mistake**: Using port 3000 for local development. Port 3000 is only used when running the full app in Docker, not when running `pnpm dev` locally.
+**Common mistake**: Forgetting to update redirect URI when changing `PORT_FRONTEND`.
 
 ### CORS Errors
 
-If you encounter CORS errors, ensure your backend CORS configuration allows `http://localhost:5173`:
+If you encounter CORS errors, ensure your backend CORS configuration allows your `APP_URL` (for example, `http://localhost:3000`).
 
 ```typescript
 // In backend/src/index.ts
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: process.env.APP_URL || 'http://localhost:3000',
   credentials: true
 }));
 ```

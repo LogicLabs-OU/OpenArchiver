@@ -4,6 +4,7 @@
 	"private": true,
 	"license": "SEE LICENSE IN LICENSE file",
 	"scripts": {
+		"dev": "pnpm dev:oss",
 		"build:oss": "pnpm --filter \"./packages/*\" --filter \"!./packages/enterprise\" --filter \"./apps/open-archiver\" build",
 		"build:enterprise": "cross-env VITE_ENTERPRISE_MODE=true pnpm build",
 		"start:oss": "dotenv -- concurrently \"node apps/open-archiver/dist/index.js\" \"pnpm --filter @open-archiver/frontend start\"",

@@ -139,6 +139,32 @@ Possible causes:
 
 **Solution**: Verify your Azure app configuration and environment variables.
 
+### "unauthorized_client: The client does not exist or is not enabled for consumers"
+
+This usually means the Azure app registration is not configured for personal Microsoft accounts.
+
+Ensure all of the following are true:
+- `signInAudience` is set to `AzureADandPersonalMicrosoftAccount`
+- Redirect URI exactly matches `OUTLOOK_PERSONAL_REDIRECT_URI`
+- Microsoft Graph delegated permissions include `Mail.Read` and `offline_access`
+
+### "The name of your application is invalid. 'Hotmail' is not allowed."
+
+Azure blocks certain protected Microsoft brand terms in app names when enabling personal account sign-in.
+
+**Solution**: Rename the app registration to a neutral name and retry saving the manifest.
+
+### "Unable to change signInAudience ... Application must accept Access Token Version 2"
+
+Azure requires v2 access tokens before allowing `AzureADandPersonalMicrosoftAccount`.
+
+**Solution**:
+1. Open the app registration **Manifest**
+2. Set `api.requestedAccessTokenVersion` to `2`
+3. If present in your tenant, set `accessTokenAcceptedVersion` to `2`
+4. Save the manifest
+5. Set `signInAudience` to `AzureADandPersonalMicrosoftAccount` and save again
+
 ### "Failed to refresh access token"
 
 This occurs when the refresh token is invalid or expired. Possible causes:
