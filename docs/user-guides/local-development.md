@@ -220,7 +220,7 @@ pnpm db:migrate
 ### 3. Start Development Servers (Recommended)
 
 ```bash
-# From the project root (starts backend, frontend, and type watchers)
+# From the project root (starts backend, frontend, type watchers, and background workers/scheduler)
 pnpm dev
 ```
 
@@ -229,6 +229,11 @@ This is the same as `pnpm dev:oss`.
 Expected endpoints:
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:4000`
+
+Background processes started by `pnpm dev`:
+- Ingestion worker
+- Indexing worker
+- Sync scheduler
 
 Verify it's running:
 
