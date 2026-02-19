@@ -558,7 +558,7 @@ export class IngestionService {
 
 		// Microsoft OAuth2 authorization endpoint
 		const authEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
-		const scopes = ['Mail.Read', 'offline_access'];
+		const scopes = ['User.Read', 'Mail.Read', 'offline_access'];
 
 		const params = new URLSearchParams({
 			client_id: clientId,
@@ -636,6 +636,15 @@ export class IngestionService {
 		});
 
 		if (!userInfoResponse.ok) {
+			const errorBody = await userInfoResponse.text();
+			logger.error(
+				{
+					status: userInfoResponse.status,
+					statusText: userInfoResponse.statusText,
+					errorBody,
+				},
+				'Failed to retrieve user information from Microsoft Graph /me endpoint'
+			);
 			throw new Error('Failed to retrieve user information from Microsoft.');
 		}
 
