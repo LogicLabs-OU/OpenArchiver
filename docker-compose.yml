@@ -47,6 +47,8 @@ services:
         restart: unless-stopped
         environment:
             MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-aSampleMasterKey}
+            MEILI_SCHEDULE_SNAPSHOT: 3600
+            MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE: "true"
         volumes:
             - meilidata:/meili_data
         networks:
