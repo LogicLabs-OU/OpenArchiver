@@ -53,6 +53,11 @@ interface CreateIngestionSourceDto {
 
 **Note:** When using `localFilePath`, the file will not be deleted after import. When using `uploadedFilePath` (via the upload API), the file will be automatically deleted after import. The same applies to `pst_import` and `eml_import` providers.
 
+**Important regarding `localFilePath`:** When running OpenArchiver in a Docker container (which is the standard deployment), `localFilePath` refers to the path **inside the Docker container**, not on the host machine.
+To use a local file:
+1.  **Recommended:** Place your file inside the directory defined by `STORAGE_LOCAL_ROOT_PATH` (e.g., inside a `temp` folder). Since this directory is already mounted as a volume, the file will be accessible at the same path inside the container.
+2.  **Alternative:** Mount a specific directory containing your files as a volume in `docker-compose.yml`. For example, add `- /path/to/my/files:/imports` to the `volumes` section and use `/imports/myfile.pst` as the `localFilePath`.
+
 #### Responses
 
 - **201 Created:** The newly created ingestion source.
