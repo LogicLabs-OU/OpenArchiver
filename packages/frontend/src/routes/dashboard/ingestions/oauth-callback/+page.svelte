@@ -66,6 +66,7 @@
 
 			// Clean up session storage
 			sessionStorage.removeItem('outlook_oauth_state');
+			sessionStorage.removeItem('outlook_oauth_source_name');
 
 			// Show success message
 			setAlert({
@@ -84,6 +85,7 @@
 
 			// Clean up session storage on error
 			sessionStorage.removeItem('outlook_oauth_state');
+			sessionStorage.removeItem('outlook_oauth_source_name');
 
 			// Show error alert
 			setAlert({
