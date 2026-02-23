@@ -7,8 +7,7 @@
 #
 # When running locally:
 #   - Backend runs on: http://localhost:4000
-#   - Frontend runs on: http://localhost:5173 (default Vite dev server port)
-#   - Frontend can also be built and run on: http://localhost:3000 (production build)
+#   - Frontend runs on: http://localhost:3000 (PORT_FRONTEND; both dev server and production build)
 
 services:
   postgres:
