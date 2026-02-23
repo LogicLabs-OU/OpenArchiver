@@ -27,15 +27,14 @@
 
 			// Retrieve stored OAuth data
 			const storedState = sessionStorage.getItem('outlook_oauth_state');
-			const codeVerifier = sessionStorage.getItem('outlook_oauth_code_verifier');
 			const sourceName = sessionStorage.getItem('outlook_oauth_source_name');
 
-			// Validate state
+			// Validate state (client-side guard; the real validation happens server-side)
 			if (!storedState || storedState !== returnedState) {
 				throw new Error('Invalid state parameter - possible CSRF attack');
 			}
 
-			if (!codeVerifier || !sourceName) {
+			if (!sourceName) {
 				throw new Error('Missing OAuth session data');
 			}
 
@@ -48,22 +47,25 @@
 				body: JSON.stringify({
 					code,
 					state: returnedState,
-					codeVerifier,
 					name: sourceName,
 				}),
 			});
 
 			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.message || 'Failed to complete OAuth flow');
+				let errorMsg = 'Failed to complete OAuth flow';
+				try {
+					const errorData = await response.json();
+					errorMsg = errorData.message || errorMsg;
+				} catch {
+					// Response was not JSON
+				}
+				throw new Error(errorMsg);
 			}
 
 			const source = await response.json();
 
 			// Clean up session storage
 			sessionStorage.removeItem('outlook_oauth_state');
-			sessionStorage.removeItem('outlook_oauth_code_verifier');
-			sessionStorage.removeItem('outlook_oauth_source_name');
 
 			// Show success message
 			setAlert({
@@ -82,8 +84,6 @@
 
 			// Clean up session storage on error
 			sessionStorage.removeItem('outlook_oauth_state');
-			sessionStorage.removeItem('outlook_oauth_code_verifier');
-			sessionStorage.removeItem('outlook_oauth_source_name');
 
 			// Show error alert
 			setAlert({

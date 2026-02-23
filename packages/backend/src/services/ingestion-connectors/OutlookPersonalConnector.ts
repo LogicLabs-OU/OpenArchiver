@@ -132,11 +132,13 @@ export class OutlookPersonalConnector implements IEmailConnector {
 				.select('id,userPrincipalName,displayName')
 				.get();
 
-			if (user.id && user.userPrincipalName && user.displayName) {
+			if (user.id && user.userPrincipalName) {
 				yield {
 					id: user.id,
 					primaryEmail: user.userPrincipalName,
-					displayName: user.displayName,
+					// Fall back to the UPN when displayName is absent so we never
+					// silently skip the account.
+					displayName: user.displayName || user.userPrincipalName,
 				};
 			}
 		} catch (error) {

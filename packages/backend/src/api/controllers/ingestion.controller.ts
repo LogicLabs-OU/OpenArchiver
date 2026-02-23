@@ -236,11 +236,11 @@ export class IngestionController {
 				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
 			
-			const { code, state, codeVerifier, name } = req.body;
+			const { code, state, name } = req.body;
 			
-			if (!code || !state || !codeVerifier || !name) {
+			if (!code || !state || !name) {
 				return res.status(400).json({ 
-					message: 'Missing required parameters: code, state, codeVerifier, name' 
+					message: 'Missing required parameters: code, state, name' 
 				});
 			}
 			
@@ -248,7 +248,6 @@ export class IngestionController {
 				userId,
 				code,
 				state,
-				codeVerifier,
 				name,
 				actor,
 				req.ip || 'unknown'

@@ -29,6 +29,7 @@ import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
+import { saveOAuthState, consumeOAuthState } from '../helpers/oauthStateStore';
 
 export class IngestionService {
 	private static auditService = new AuditService();
@@ -268,7 +269,13 @@ export class IngestionService {
 	public static async triggerInitialImport(id: string): Promise<void> {
 		const source = await this.findById(id);
 
-		await ingestionQueue.add('initial-import', { ingestionSourceId: source.id });
+		// Use a high priority so a freshly-created source is not stuck behind
+		// already-queued continuous-sync / process-mailbox jobs from other sources.
+		await ingestionQueue.add(
+			'initial-import',
+			{ ingestionSourceId: source.id },
+			{ priority: 10 }
+		);
 	}
 
 	public static async triggerForceSync(id: string, actor: User, actorIp: string): Promise<void> {
@@ -278,8 +285,18 @@ export class IngestionService {
 			throw new Error('Ingestion source not found');
 		}
 
-		// Clean up existing jobs for this source to break any stuck flows
-		const jobTypes: JobType[] = ['active', 'waiting', 'failed', 'delayed', 'paused'];
+		// Clean up existing jobs for this source to break any stuck flows.
+		// 'prioritized' covers jobs added with a priority option (e.g. initial-import).
+		// 'waiting-children' covers flow parent jobs stalled while waiting for child jobs.
+		const jobTypes: JobType[] = [
+			'active',
+			'waiting',
+			'prioritized',
+			'waiting-children',
+			'failed',
+			'delayed',
+			'paused',
+		];
 		const jobs = await ingestionQueue.getJobs(jobTypes);
 		for (const job of jobs) {
 			if (job.data.ingestionSourceId === id) {
@@ -535,12 +552,13 @@ export class IngestionService {
 
 	/**
 	 * Initiates the OAuth2 + PKCE flow for Outlook Personal.
-	 * Returns authorization URL, state, and code verifier for the frontend.
+	 * Stores the state and codeVerifier server-side in Valkey (TTL 10 min).
+	 * Returns only the authorization URL and the opaque state token to the frontend.
+	 * The codeVerifier is never exposed to the client.
 	 */
 	public static async initiateOutlookPersonalAuth(userId: string): Promise<{
 		authUrl: string;
 		state: string;
-		codeVerifier: string;
 	}> {
 		const clientId = config.app.outlookPersonal.clientId;
 		const redirectUri = config.app.outlookPersonal.redirectUri;
@@ -555,6 +573,10 @@ export class IngestionService {
 		const codeVerifier = this.generateCodeVerifier();
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
 		const state = randomUUID();
+
+		// Persist state + codeVerifier server-side so the callback endpoint can
+		// validate them without relying on client-supplied values.
+		await saveOAuthState(state, userId, codeVerifier);
 
 		// Microsoft OAuth2 authorization endpoint
 		const authEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
@@ -573,22 +595,21 @@ export class IngestionService {
 
 		const authUrl = `${authEndpoint}?${params.toString()}`;
 
-		return {
-			authUrl,
-			state,
-			codeVerifier,
-		};
+		return { authUrl, state };
 	}
 
 	/**
 	 * Completes the OAuth2 flow by exchanging the authorization code for tokens
 	 * and creating an Outlook Personal ingestion source.
+	 *
+	 * The `state` is validated **server-side** against the value stored in Valkey
+	 * during `initiateOutlookPersonalAuth`. The codeVerifier is retrieved from
+	 * Valkey as well — it is never accepted from the client.
 	 */
 	public static async completeOutlookPersonalAuth(
 		userId: string,
 		code: string,
 		state: string,
-		codeVerifier: string,
 		name: string,
 		actor: User,
 		actorIp: string
@@ -600,6 +621,18 @@ export class IngestionService {
 		if (!clientId || !clientSecret || !redirectUri) {
 			throw new Error('Outlook Personal OAuth is not configured.');
 		}
+
+		// Validate state server-side and retrieve the stored codeVerifier.
+		// consumeOAuthState atomically deletes the key, so the token is one-time use.
+		const storedData = await consumeOAuthState(state);
+		if (!storedData) {
+			throw new Error('Invalid or expired OAuth state parameter. Please start the authentication flow again.');
+		}
+		if (storedData.userId !== userId) {
+			// State was issued for a different user — possible CSRF or session swap.
+			throw new Error('OAuth state does not match the current user session.');
+		}
+		const codeVerifier = storedData.codeVerifier;
 
 		// Exchange authorization code for tokens
 		const tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';

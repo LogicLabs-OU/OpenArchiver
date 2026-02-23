@@ -100,11 +100,10 @@
 				throw new Error('Failed to initiate OAuth flow');
 			}
 
-			const { authUrl, state, codeVerifier } = await response.json();
+			const { authUrl, state } = await response.json();
 
-			// Store state and code verifier in session storage
+			// Store state in session storage so the callback page can verify it
 			sessionStorage.setItem('outlook_oauth_state', state);
-			sessionStorage.setItem('outlook_oauth_code_verifier', codeVerifier);
 			sessionStorage.setItem('outlook_oauth_source_name', formData.name);
 
 			// Redirect to Microsoft authorization page
