@@ -453,7 +453,7 @@ export class IngestionService {
 					sentAt: email.receivedAt,
 					subject: email.subject,
 					senderName: email.from[0]?.name,
-					senderEmail: email.from[0]?.address,
+					senderEmail: email.from[0]?.address || '',		// default to empty string — senderEmail is NOT NULL
 					recipients: {
 						to: email.to,
 						cc: email.cc,

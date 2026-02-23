@@ -27,6 +27,7 @@ docs/.vitepress/cache
 
 #compose personal configs
 docker-compose.override.yml
+*override.yml
 
 # TS
 **/tsconfig.tsbuildinfo
