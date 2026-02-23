@@ -354,6 +354,17 @@ export class OutlookPersonalConnector implements IEmailConnector {
 	/**
 	 * Returns the updated credentials with new tokens after sync.
 	 * This should be called after a sync to persist updated tokens.
+	 *
+	 * TODO: Persist rotated refresh-token credentials back to the DB.
+	 * When Microsoft rotates the refresh token during a sync, the new token
+	 * must be written back to the ingestion source record so subsequent syncs
+	 * can still authenticate. Implementation steps:
+	 *  1. Extend IEmailConnector with getUpdatedCredentials(): Credentials | null
+	 *     that returns non-null only when credentials were refreshed this cycle.
+	 *  2. In the mailbox processor (after connector.fetchEmails()), call
+	 *     getUpdatedCredentials() and, if non-null, persist the encrypted
+	 *     credentials via IngestionService.updateCredentials(sourceId, creds).
+	 * See PR #2 review comments for further context.
 	 */
 	public getUpdatedCredentials(): OutlookPersonalCredentials {
 		return this.credentials;
