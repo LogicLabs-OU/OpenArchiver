@@ -1,62 +1,63 @@
 {
-	"auth": {
-		"setup": {
-			"allFieldsRequired": "E-mail, wachtwoord en naam zijn verplicht",
-			"alreadyCompleted": "De installatie is al voltooid."
-		},
-		"login": {
-			"emailAndPasswordRequired": "E-mail en wachtwoord zijn verplicht",
-			"invalidCredentials": "Ongeldige inloggegevens"
-		}
-	},
-	"errors": {
-		"internalServerError": "Er is een interne serverfout opgetreden",
-		"demoMode": "Deze bewerking is niet toegestaan in de demomodus.",
-		"unauthorized": "Ongeautoriseerd",
-		"unknown": "Er is een onbekende fout opgetreden",
-		"noPermissionToAction": "U heeft geen toestemming om de huidige actie uit te voeren."
-	},
-	"user": {
-		"notFound": "Gebruiker niet gevonden",
-		"cannotDeleteOnlyUser": "U probeert de enige gebruiker in de database te verwijderen, dit is niet toegestaan.",
-		"requiresSuperAdminRole": "De rol van Super Admin is vereist om gebruikers te beheren."
-	},
-	"iam": {
-		"failedToGetRoles": "Kan rollen niet ophalen.",
-		"roleNotFound": "Rol niet gevonden.",
-		"failedToGetRole": "Kan rol niet ophalen.",
-		"missingRoleFields": "Ontbrekende verplichte velden: naam en beleid.",
-		"invalidPolicy": "Ongeldige beleidsverklaring:",
-		"failedToCreateRole": "Kan rol niet aanmaken.",
-		"failedToDeleteRole": "Kan rol niet verwijderen.",
-		"missingUpdateFields": "Ontbrekende velden om bij te werken: naam of beleid.",
-		"failedToUpdateRole": "Kan rol niet bijwerken.",
-		"requiresSuperAdminRole": "De rol van Super Admin is vereist om rollen te beheren."
-	},
-	"settings": {
-		"failedToRetrieve": "Kan instellingen niet ophalen",
-		"failedToUpdate": "Kan instellingen niet bijwerken",
-		"noPermissionToUpdate": "U heeft geen toestemming om de systeeminstellingen bij te werken."
-	},
-	"dashboard": {
-		"permissionRequired": "U heeft de leesrechten voor het dashboard nodig om dashboardgegevens te bekijken."
-	},
-	"ingestion": {
-		"failedToCreate": "Kan de opnamebron niet aanmaken vanwege een verbindingsfout.",
-		"notFound": "Opnamebron niet gevonden",
-		"initialImportTriggered": "Initiële import succesvol geactiveerd.",
-		"forceSyncTriggered": "Geforceerde synchronisatie succesvol geactiveerd."
-	},
-	"archivedEmail": {
-		"notFound": "Gearchiveerde e-mail niet gevonden"
-	},
-	"search": {
-		"keywordsRequired": "Trefwoorden zijn verplicht"
-	},
-	"storage": {
-		"filePathRequired": "Bestandspad is verplicht",
-		"invalidFilePath": "Ongeldig bestandspad",
-		"fileNotFound": "Bestand niet gevonden",
-		"downloadError": "Fout bij het downloaden van het bestand"
-	}
+  "auth": {
+    "setup": {
+      "allFieldsRequired": "E-mail, wachtwoord en naam zijn verplicht",
+      "alreadyCompleted": "De installatie is al voltooid."
+    },
+    "login": {
+      "emailAndPasswordRequired": "E-mail en wachtwoord zijn verplicht",
+      "invalidCredentials": "Ongeldige inloggegevens"
+    }
+  },
+  "errors": {
+    "internalServerError": "Er is een interne serverfout opgetreden",
+    "demoMode": "Deze bewerking is niet toegestaan in de demomodus.",
+    "unauthorized": "Ongeautoriseerd",
+    "unknown": "Er is een onbekende fout opgetreden",
+    "noPermissionToAction": "U heeft geen toestemming om de huidige actie uit te voeren.",
+    "missingRequiredParameters": "Vereiste parameters ontbreken"
+  },
+  "user": {
+    "notFound": "Gebruiker niet gevonden",
+    "cannotDeleteOnlyUser": "U probeert de enige gebruiker in de database te verwijderen, dit is niet toegestaan.",
+    "requiresSuperAdminRole": "De rol van Super Admin is vereist om gebruikers te beheren."
+  },
+  "iam": {
+    "failedToGetRoles": "Kan rollen niet ophalen.",
+    "roleNotFound": "Rol niet gevonden.",
+    "failedToGetRole": "Kan rol niet ophalen.",
+    "missingRoleFields": "Ontbrekende verplichte velden: naam en beleid.",
+    "invalidPolicy": "Ongeldige beleidsverklaring:",
+    "failedToCreateRole": "Kan rol niet aanmaken.",
+    "failedToDeleteRole": "Kan rol niet verwijderen.",
+    "missingUpdateFields": "Ontbrekende velden om bij te werken: naam of beleid.",
+    "failedToUpdateRole": "Kan rol niet bijwerken.",
+    "requiresSuperAdminRole": "De rol van Super Admin is vereist om rollen te beheren."
+  },
+  "settings": {
+    "failedToRetrieve": "Kan instellingen niet ophalen",
+    "failedToUpdate": "Kan instellingen niet bijwerken",
+    "noPermissionToUpdate": "U heeft geen toestemming om de systeeminstellingen bij te werken."
+  },
+  "dashboard": {
+    "permissionRequired": "U heeft de leesrechten voor het dashboard nodig om dashboardgegevens te bekijken."
+  },
+  "ingestion": {
+    "failedToCreate": "Kan de opnamebron niet aanmaken vanwege een verbindingsfout.",
+    "notFound": "Opnamebron niet gevonden",
+    "initialImportTriggered": "Initiële import succesvol geactiveerd.",
+    "forceSyncTriggered": "Geforceerde synchronisatie succesvol geactiveerd."
+  },
+  "archivedEmail": {
+    "notFound": "Gearchiveerde e-mail niet gevonden"
+  },
+  "search": {
+    "keywordsRequired": "Trefwoorden zijn verplicht"
+  },
+  "storage": {
+    "filePathRequired": "Bestandspad is verplicht",
+    "invalidFilePath": "Ongeldig bestandspad",
+    "fileNotFound": "Bestand niet gevonden",
+    "downloadError": "Fout bij het downloaden van het bestand"
+  }
 }

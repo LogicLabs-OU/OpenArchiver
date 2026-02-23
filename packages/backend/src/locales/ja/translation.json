@@ -1,62 +1,63 @@
 {
-	"auth": {
-		"setup": {
-			"allFieldsRequired": "メールアドレス、パスワード、名前は必須です",
-			"alreadyCompleted": "セットアップはすでに完了しています。"
-		},
-		"login": {
-			"emailAndPasswordRequired": "メールアドレスとパスワードは必須です",
-			"invalidCredentials": "無効な認証情報"
-		}
-	},
-	"errors": {
-		"internalServerError": "内部サーバーエラーが発生しました",
-		"demoMode": "この操作はデモモードでは許可されていません。",
-		"unauthorized": "不正なアクセス",
-		"unknown": "不明なエラーが発生しました",
-		"noPermissionToAction": "現在の操作を実行する権限がありません。"
-	},
-	"user": {
-		"notFound": "ユーザーが見つかりません",
-		"cannotDeleteOnlyUser": "データベース内の唯一のユーザーを削除しようとしていますが、これは許可されていません。",
-		"requiresSuperAdminRole": "ユーザーを管理するには、スーパー管理者ロールが必要です。"
-	},
-	"iam": {
-		"failedToGetRoles": "役割の取得に失敗しました。",
-		"roleNotFound": "役割が見つかりません。",
-		"failedToGetRole": "役割の取得に失敗しました。",
-		"missingRoleFields": "必須フィールドがありません：名前とポリシー。",
-		"invalidPolicy": "無効なポリシーステートメント：",
-		"failedToCreateRole": "役割の作成に失敗しました。",
-		"failedToDeleteRole": "役割の削除に失敗しました。",
-		"missingUpdateFields": "更新するフィールドがありません：名前またはポリシー。",
-		"failedToUpdateRole": "役割の更新に失敗しました。",
-		"requiresSuperAdminRole": "役割を管理するには、スーパー管理者ロールが必要です。"
-	},
-	"settings": {
-		"failedToRetrieve": "設定の取得に失敗しました",
-		"failedToUpdate": "設定の更新に失敗しました",
-		"noPermissionToUpdate": "システム設定を更新する権限がありません。"
-	},
-	"dashboard": {
-		"permissionRequired": "ダッシュボードのデータを表示するには、ダッシュボードの読み取り権限が必要です。"
-	},
-	"ingestion": {
-		"failedToCreate": "接続エラーのため、取り込みソースの作成に失敗しました。",
-		"notFound": "取り込みソースが見つかりません",
-		"initialImportTriggered": "初期インポートが正常にトリガーされました。",
-		"forceSyncTriggered": "強制同期が正常にトリガーされました。"
-	},
-	"archivedEmail": {
-		"notFound": "アーカイブされたメールが見つかりません"
-	},
-	"search": {
-		"keywordsRequired": "キーワードは必須です"
-	},
-	"storage": {
-		"filePathRequired": "ファイルパスは必須です",
-		"invalidFilePath": "無効なファイルパス",
-		"fileNotFound": "ファイルが見つかりません",
-		"downloadError": "ファイルのダウンロード中にエラーが発生しました"
-	}
+  "auth": {
+    "setup": {
+      "allFieldsRequired": "メールアドレス、パスワード、名前は必須です",
+      "alreadyCompleted": "セットアップはすでに完了しています。"
+    },
+    "login": {
+      "emailAndPasswordRequired": "メールアドレスとパスワードは必須です",
+      "invalidCredentials": "無効な認証情報"
+    }
+  },
+  "errors": {
+    "internalServerError": "内部サーバーエラーが発生しました",
+    "demoMode": "この操作はデモモードでは許可されていません。",
+    "unauthorized": "不正なアクセス",
+    "unknown": "不明なエラーが発生しました",
+    "noPermissionToAction": "現在の操作を実行する権限がありません。",
+    "missingRequiredParameters": "必須パラメータが不足しています"
+  },
+  "user": {
+    "notFound": "ユーザーが見つかりません",
+    "cannotDeleteOnlyUser": "データベース内の唯一のユーザーを削除しようとしていますが、これは許可されていません。",
+    "requiresSuperAdminRole": "ユーザーを管理するには、スーパー管理者ロールが必要です。"
+  },
+  "iam": {
+    "failedToGetRoles": "役割の取得に失敗しました。",
+    "roleNotFound": "役割が見つかりません。",
+    "failedToGetRole": "役割の取得に失敗しました。",
+    "missingRoleFields": "必須フィールドがありません：名前とポリシー。",
+    "invalidPolicy": "無効なポリシーステートメント：",
+    "failedToCreateRole": "役割の作成に失敗しました。",
+    "failedToDeleteRole": "役割の削除に失敗しました。",
+    "missingUpdateFields": "更新するフィールドがありません：名前またはポリシー。",
+    "failedToUpdateRole": "役割の更新に失敗しました。",
+    "requiresSuperAdminRole": "役割を管理するには、スーパー管理者ロールが必要です。"
+  },
+  "settings": {
+    "failedToRetrieve": "設定の取得に失敗しました",
+    "failedToUpdate": "設定の更新に失敗しました",
+    "noPermissionToUpdate": "システム設定を更新する権限がありません。"
+  },
+  "dashboard": {
+    "permissionRequired": "ダッシュボードのデータを表示するには、ダッシュボードの読み取り権限が必要です。"
+  },
+  "ingestion": {
+    "failedToCreate": "接続エラーのため、取り込みソースの作成に失敗しました。",
+    "notFound": "取り込みソースが見つかりません",
+    "initialImportTriggered": "初期インポートが正常にトリガーされました。",
+    "forceSyncTriggered": "強制同期が正常にトリガーされました。"
+  },
+  "archivedEmail": {
+    "notFound": "アーカイブされたメールが見つかりません"
+  },
+  "search": {
+    "keywordsRequired": "キーワードは必須です"
+  },
+  "storage": {
+    "filePathRequired": "ファイルパスは必須です",
+    "invalidFilePath": "無効なファイルパス",
+    "fileNotFound": "ファイルが見つかりません",
+    "downloadError": "ファイルのダウンロード中にエラーが発生しました"
+  }
 }
