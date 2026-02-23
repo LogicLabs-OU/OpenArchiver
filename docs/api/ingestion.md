@@ -24,6 +24,35 @@ interface CreateIngestionSourceDto {
 }
 ```
 
+#### Example: Creating an Mbox Import Source with File Upload
+
+```json
+{
+	"name": "My Mbox Import",
+	"provider": "mbox_import",
+	"providerConfig": {
+		"type": "mbox_import",
+		"uploadedFileName": "emails.mbox",
+		"uploadedFilePath": "open-archiver/tmp/uuid-emails.mbox"
+	}
+}
+```
+
+#### Example: Creating an Mbox Import Source with Local File Path
+
+```json
+{
+	"name": "My Mbox Import",
+	"provider": "mbox_import",
+	"providerConfig": {
+		"type": "mbox_import",
+		"localFilePath": "/path/to/emails.mbox"
+	}
+}
+```
+
+**Note:** When using `localFilePath`, the file will not be deleted after import. When using `uploadedFilePath` (via the upload API), the file will be automatically deleted after import. The same applies to `pst_import` and `eml_import` providers.
+
 #### Responses
 
 - **201 Created:** The newly created ingestion source.

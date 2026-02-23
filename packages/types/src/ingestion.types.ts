@@ -72,20 +72,23 @@ export interface Microsoft365Credentials extends BaseIngestionCredentials {
 
 export interface PSTImportCredentials extends BaseIngestionCredentials {
 	type: 'pst_import';
-	uploadedFileName: string;
-	uploadedFilePath: string;
+	uploadedFileName?: string;
+	uploadedFilePath?: string;
+	localFilePath?: string;
 }
 
 export interface EMLImportCredentials extends BaseIngestionCredentials {
 	type: 'eml_import';
-	uploadedFileName: string;
-	uploadedFilePath: string;
+	uploadedFileName?: string;
+	uploadedFilePath?: string;
+	localFilePath?: string;
 }
 
 export interface MboxImportCredentials extends BaseIngestionCredentials {
 	type: 'mbox_import';
-	uploadedFileName: string;
-	uploadedFilePath: string;
+	uploadedFileName?: string;
+	uploadedFilePath?: string;
+	localFilePath?: string;
 }
 
 // Discriminated union for all possible credential types
