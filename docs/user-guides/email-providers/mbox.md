@@ -17,7 +17,13 @@ Once you have your `.mbox` file, you can upload it to OpenArchiver through the w
 1.  Navigate to the **Ingestion** page.
 2.  Click on the **New Ingestion** button.
 3.  Select **Mbox** as the source type.
-4.  Upload your `.mbox` file.
+4.  **Choose Import Method:**
+    *   **Upload File:** Upload your `.mbox` file.
+    *   **Local Path:** Enter the path to the mbox file **inside the container**.
+
+    > **Note on Local Path:** When using Docker, the "Local Path" is relative to the container's filesystem.
+    > *   **Recommended:** Place your mbox file in a `temp` folder inside your configured storage directory (`STORAGE_LOCAL_ROOT_PATH`). This path is already mounted. For example, if your storage path is `/data`, put the file in `/data/temp/emails.mbox` and enter `/data/temp/emails.mbox` as the path.
+    > *   **Alternative:** Mount a separate volume in `docker-compose.yml` (e.g., `- /host/path:/container/path`) and use the container path.
 
 ## 3. Folder Structure
 

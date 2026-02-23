@@ -115,6 +115,7 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `MEILI_INDEXING_BATCH` | The number of emails to batch together for indexing. | `500`                                                    |
 | `REDIS_HOST`           | The host for the Valkey (Redis) service.             | `valkey`                                                 |
 | `REDIS_PORT`           | The port for the Valkey (Redis) service.             | `6379`                                                   |
+| `REDIS_USER`           | Optional Redis username if ACLs are used.            |                                                          |
 | `REDIS_PASSWORD`       | The password for the Valkey (Redis) service.         | `defaultredispassword`                                   |
 | `REDIS_TLS_ENABLED`    | Enable or disable TLS for Redis.                     | `false`                                                  |
 

@@ -32,17 +32,52 @@ export class EMLConnector implements IEmailConnector {
 		this.storage = new StorageService();
 	}
 
+	private getFilePath(): string {
+		return this.credentials.localFilePath || this.credentials.uploadedFilePath || '';
+	}
+
+	private getDisplayName(): string {
+		if (this.credentials.uploadedFileName) {
+			return this.credentials.uploadedFileName;
+		}
+		if (this.credentials.localFilePath) {
+			const parts = this.credentials.localFilePath.split('/');
+			return parts[parts.length - 1].replace('.zip', '');
+		}
+		return `eml-import-${new Date().getTime()}`;
+	}
+
+	private async getFileStream(): Promise<NodeJS.ReadableStream> {
+		if (this.credentials.localFilePath) {
+			return createReadStream(this.credentials.localFilePath);
+		}
+		return this.storage.get(this.getFilePath());
+	}
+
 	public async testConnection(): Promise<boolean> {
 		try {
-			if (!this.credentials.uploadedFilePath) {
+			const filePath = this.getFilePath();
+			if (!filePath) {
 				throw Error('EML file path not provided.');
 			}
-			if (!this.credentials.uploadedFilePath.includes('.zip')) {
+			if (!filePath.includes('.zip')) {
 				throw Error('Provided file is not in the ZIP format.');
 			}
-			const fileExist = await this.storage.exists(this.credentials.uploadedFilePath);
+
+			let fileExist = false;
+			if (this.credentials.localFilePath) {
+				try {
+					await fs.access(this.credentials.localFilePath);
+					fileExist = true;
+				} catch {
+					fileExist = false;
+				}
+			} else {
+				fileExist = await this.storage.exists(filePath);
+			}
+
 			if (!fileExist) {
-				throw Error('EML file upload not finished yet, please wait.');
+				throw Error('EML file not found or upload not finished yet, please wait.');
 			}
 
 			return true;
@@ -53,8 +88,7 @@ export class EMLConnector implements IEmailConnector {
 	}
 
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		const displayName =
-			this.credentials.uploadedFileName || `eml-import-${new Date().getTime()}`;
+		const displayName = this.getDisplayName();
 		logger.info(`Found potential mailbox: ${displayName}`);
 		const constructedPrimaryEmail = `${displayName.replace(/ /g, '.').toLowerCase()}@eml.local`;
 		yield {
@@ -68,10 +102,8 @@ export class EMLConnector implements IEmailConnector {
 		userEmail: string,
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject | null> {
-		const fileStream = await this.storage.get(this.credentials.uploadedFilePath);
+		const fileStream = await this.getFileStream();
 		const tempDir = await fs.mkdtemp(join('/tmp', `eml-import-${new Date().getTime()}`));
-		const unzippedPath = join(tempDir, 'unzipped');
-		await fs.mkdir(unzippedPath);
 		const zipFilePath = join(tempDir, 'eml.zip');
 
 		try {
@@ -82,99 +114,150 @@ export class EMLConnector implements IEmailConnector {
 				dest.on('error', reject);
 			});
 
-			await this.extract(zipFilePath, unzippedPath);
-
-			const files = await this.getAllFiles(unzippedPath);
-
-			for (const file of files) {
-				if (file.endsWith('.eml')) {
-					try {
-						// logger.info({ file }, 'Processing EML file.');
-						const stream = createReadStream(file);
-						const content = await streamToBuffer(stream);
-						// logger.info({ file, size: content.length }, 'Read file to buffer.');
-						let relativePath = file.substring(unzippedPath.length + 1);
-						if (dirname(relativePath) === '.') {
-							relativePath = '';
-						} else {
-							relativePath = dirname(relativePath);
-						}
-						const emailObject = await this.parseMessage(content, relativePath);
-						// logger.info({ file, messageId: emailObject.id }, 'Parsed email message.');
-						yield emailObject;
-					} catch (error) {
-						logger.error(
-							{ error, file },
-							'Failed to process a single EML file. Skipping.'
-						);
-					}
-				}
-			}
+			yield* this.processZipEntries(zipFilePath);
 		} catch (error) {
 			logger.error({ error }, 'Failed to fetch email.');
 			throw error;
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true });
-			try {
-				await this.storage.delete(this.credentials.uploadedFilePath);
-			} catch (error) {
-				logger.error(
-					{ error, file: this.credentials.uploadedFilePath },
-					'Failed to delete EML file after processing.'
-				);
+			if (this.credentials.uploadedFilePath && !this.credentials.localFilePath) {
+				try {
+					await this.storage.delete(this.credentials.uploadedFilePath);
+				} catch (error) {
+					logger.error(
+						{ error, file: this.credentials.uploadedFilePath },
+						'Failed to delete EML file after processing.'
+					);
+				}
 			}
 		}
 	}
 
-	private extract(zipFilePath: string, dest: string): Promise<void> {
-		return new Promise((resolve, reject) => {
+	private async *processZipEntries(zipFilePath: string): AsyncGenerator<EmailObject | null> {
+		// Open the ZIP file.
+		// Note: yauzl requires random access, so we must use the file on disk.
+		const zipfile = await new Promise<yauzl.ZipFile>((resolve, reject) => {
 			yauzl.open(zipFilePath, { lazyEntries: true, decodeStrings: false }, (err, zipfile) => {
-				if (err) reject(err);
-				zipfile.on('error', reject);
-				zipfile.readEntry();
-				zipfile.on('entry', (entry) => {
-					const fileName = entry.fileName.toString('utf8');
-					// Ignore macOS-specific metadata files.
-					if (fileName.startsWith('__MACOSX/')) {
-						zipfile.readEntry();
-						return;
-					}
-					const entryPath = join(dest, fileName);
-					if (/\/$/.test(fileName)) {
-						fs.mkdir(entryPath, { recursive: true })
-							.then(() => zipfile.readEntry())
-							.catch(reject);
-					} else {
-						zipfile.openReadStream(entry, (err, readStream) => {
-							if (err) reject(err);
-							const writeStream = createWriteStream(entryPath);
-							readStream.pipe(writeStream);
-							writeStream.on('finish', () => zipfile.readEntry());
-							writeStream.on('error', reject);
-						});
-					}
-				});
-				zipfile.on('end', () => resolve());
+				if (err || !zipfile) return reject(err);
+				resolve(zipfile);
 			});
 		});
-	}
 
-	private async getAllFiles(dirPath: string, arrayOfFiles: string[] = []): Promise<string[]> {
-		const files = await fs.readdir(dirPath);
+		// Create an async iterator for zip entries
+		const entryIterator = this.zipEntryGenerator(zipfile);
 
-		for (const file of files) {
-			const fullPath = join(dirPath, file);
-			if ((await fs.stat(fullPath)).isDirectory()) {
-				await this.getAllFiles(fullPath, arrayOfFiles);
-			} else {
-				arrayOfFiles.push(fullPath);
+		for await (const { entry, openReadStream } of entryIterator) {
+			const fileName = entry.fileName.toString();
+			if (fileName.startsWith('__MACOSX/') || /\/$/.test(fileName)) {
+				continue;
+			}
+
+			if (fileName.endsWith('.eml')) {
+				try {
+					const readStream = await openReadStream();
+					const relativePath = dirname(fileName) === '.' ? '' : dirname(fileName);
+					const emailObject = await this.parseMessage(readStream, relativePath);
+					yield emailObject;
+				} catch (error) {
+					logger.error(
+						{ error, file: fileName },
+						'Failed to process a single EML file from zip. Skipping.'
+					);
+				}
 			}
 		}
-
-		return arrayOfFiles;
 	}
 
-	private async parseMessage(emlBuffer: Buffer, path: string): Promise<EmailObject> {
+	private async *zipEntryGenerator(
+		zipfile: yauzl.ZipFile
+	): AsyncGenerator<{ entry: yauzl.Entry; openReadStream: () => Promise<Readable> }> {
+		let resolveNext: ((value: any) => void) | null = null;
+		let rejectNext: ((reason?: any) => void) | null = null;
+		let finished = false;
+		const queue: yauzl.Entry[] = [];
+
+		zipfile.readEntry();
+
+		zipfile.on('entry', (entry) => {
+			if (resolveNext) {
+				const resolve = resolveNext;
+				resolveNext = null;
+				rejectNext = null;
+				resolve(entry);
+			} else {
+				queue.push(entry);
+			}
+		});
+
+		zipfile.on('end', () => {
+			finished = true;
+			if (resolveNext) {
+				const resolve = resolveNext;
+				resolveNext = null;
+				rejectNext = null;
+				resolve(null); // Signal end
+			}
+		});
+
+		zipfile.on('error', (err) => {
+			finished = true;
+			if (rejectNext) {
+				const reject = rejectNext;
+				resolveNext = null;
+				rejectNext = null;
+				reject(err);
+			}
+		});
+
+		while (!finished || queue.length > 0) {
+			if (queue.length > 0) {
+				const entry = queue.shift()!;
+				yield {
+					entry,
+					openReadStream: () =>
+						new Promise<Readable>((resolve, reject) => {
+							zipfile.openReadStream(entry, (err, stream) => {
+								if (err || !stream) return reject(err);
+								resolve(stream);
+							});
+						}),
+				};
+				zipfile.readEntry(); // Read next entry only after yielding
+			} else {
+				const entry = await new Promise<yauzl.Entry | null>((resolve, reject) => {
+					resolveNext = resolve;
+					rejectNext = reject;
+				});
+				if (entry) {
+					yield {
+						entry,
+						openReadStream: () =>
+							new Promise<Readable>((resolve, reject) => {
+								zipfile.openReadStream(entry, (err, stream) => {
+									if (err || !stream) return reject(err);
+									resolve(stream);
+								});
+							}),
+					};
+					zipfile.readEntry(); // Read next entry only after yielding
+				} else {
+					break; // End of zip
+				}
+			}
+		}
+	}
+
+	private async parseMessage(
+		input: Buffer | Readable,
+		path: string
+	): Promise<EmailObject> {
+		let emlBuffer: Buffer;
+		if (Buffer.isBuffer(input)) {
+			emlBuffer = input;
+		} else {
+			emlBuffer = await streamToBuffer(input);
+		}
+
 		const parsedEmail: ParsedMail = await simpleParser(emlBuffer);
 
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
