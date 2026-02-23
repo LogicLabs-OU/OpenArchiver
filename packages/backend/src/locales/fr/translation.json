@@ -15,6 +15,7 @@
     "unauthorized": "Non autorisé",
     "unknown": "Une erreur inconnue s'est produite",
     "noPermissionToAction": "Vous n'avez pas la permission d'effectuer l'action en cours.",
+    "deletion_disabled": "La suppression est désactivée pour cette instance.",
     "missingRequiredParameters": "Paramètres requis manquants"
   },
   "user": {

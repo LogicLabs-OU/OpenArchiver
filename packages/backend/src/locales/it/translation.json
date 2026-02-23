@@ -15,6 +15,7 @@
     "unauthorized": "Non autorizzato",
     "unknown": "Si è verificato un errore sconosciuto",
     "noPermissionToAction": "Non hai il permesso di eseguire l'azione corrente.",
+    "deletion_disabled": "L'eliminazione è disabilitata per questa istanza.",
     "missingRequiredParameters": "Parametri obbligatori mancanti"
   },
   "user": {

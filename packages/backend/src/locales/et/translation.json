@@ -15,6 +15,7 @@
     "unauthorized": "Volitamata",
     "unknown": "Ilmnes tundmatu viga",
     "noPermissionToAction": "Teil pole praeguse toimingu tegemiseks luba.",
+    "deletion_disabled": "Kustutamine on selle eksemplari jaoks keelatud.",
     "missingRequiredParameters": "Puuduvad kohustuslikud parameetrid"
   },
   "user": {

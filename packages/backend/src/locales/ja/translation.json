@@ -15,6 +15,7 @@
     "unauthorized": "不正なアクセス",
     "unknown": "不明なエラーが発生しました",
     "noPermissionToAction": "現在の操作を実行する権限がありません。",
+    "deletion_disabled": "このインスタンスでは削除が無効になっています。",
     "missingRequiredParameters": "必須パラメータが不足しています"
   },
   "user": {

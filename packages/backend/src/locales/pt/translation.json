@@ -15,6 +15,7 @@
     "unauthorized": "Não autorizado",
     "unknown": "Ocorreu um erro desconhecido",
     "noPermissionToAction": "Você não tem permissão para executar a ação atual.",
+    "deletion_disabled": "A exclusão está desativada para esta instância.",
     "missingRequiredParameters": "Parâmetros obrigatórios ausentes"
   },
   "user": {

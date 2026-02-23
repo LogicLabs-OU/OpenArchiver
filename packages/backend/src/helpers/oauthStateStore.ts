@@ -15,6 +15,14 @@ import { connection as redisOptions } from '../config/redis';
 const STATE_TTL_SECONDS = 600; // 10 minutes
 const KEY_PREFIX = 'oauth:state:';
 
+/**
+ * Atomically GET then DEL the given key in a single Lua operation.
+ * Returns the value that existed, or nil (null) if the key was absent.
+ * Using EVAL ensures atomicity under concurrent requests — a plain GET+DEL
+ * pipeline is only batched, not atomic.
+ */
+const ATOMIC_GETDEL_SCRIPT = `local v = redis.call('GET', KEYS[1]); if v then redis.call('DEL', KEYS[1]) end; return v`;
+
 interface OAuthStatePayload {
 	userId: string;
 	codeVerifier: string;
@@ -65,7 +73,7 @@ export async function consumeOAuthState(state: string): Promise<OAuthStatePayloa
 
 	// Lua script: atomically GET and DEL the key in a single operation.
 	const raw = await client.eval(
-		`local v = redis.call('GET', KEYS[1]); if v then redis.call('DEL', KEYS[1]) end; return v`,
+		ATOMIC_GETDEL_SCRIPT,
 		1,
 		key
 	) as string | null;

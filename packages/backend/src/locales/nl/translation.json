@@ -15,6 +15,7 @@
     "unauthorized": "Ongeautoriseerd",
     "unknown": "Er is een onbekende fout opgetreden",
     "noPermissionToAction": "U heeft geen toestemming om de huidige actie uit te voeren.",
+    "deletion_disabled": "Verwijderen is uitgeschakeld voor deze instantie.",
     "missingRequiredParameters": "Vereiste parameters ontbreken"
   },
   "user": {

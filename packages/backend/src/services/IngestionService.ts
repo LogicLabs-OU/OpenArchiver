@@ -570,7 +570,7 @@ export class IngestionService {
 
 		// Generate PKCE parameters
 		const codeVerifier = this.generateCodeVerifier();
-		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+		const codeChallenge = this.generateCodeChallenge(codeVerifier);
 		const state = randomUUID();
 
 		// Persist state + codeVerifier server-side so the callback endpoint can
@@ -764,7 +764,7 @@ export class IngestionService {
 	/**
 	 * Generates a code challenge from a code verifier using SHA-256 (Node crypto).
 	 */
-	private static async generateCodeChallenge(verifier: string): Promise<string> {
+	private static generateCodeChallenge(verifier: string): string {
 		const hash = createHash('sha256').update(verifier).digest();
 		return this.base64URLEncode(hash);
 	}
