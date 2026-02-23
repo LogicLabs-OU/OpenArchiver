@@ -220,20 +220,22 @@ pnpm db:migrate
 ### 3. Start Development Servers (Recommended)
 
 ```bash
-# From the project root (starts backend, frontend, type watchers, and background workers/scheduler)
-pnpm dev
+# From the project root — starts the full OSS stack (frontend, backend, and background workers)
+pnpm dev:oss
 ```
 
-This is the same as `pnpm dev:oss`.
+`pnpm dev` is an alias for `pnpm dev:oss`.
+
+What `pnpm dev:oss` starts:
+- **Frontend** (SvelteKit / Vite dev server) — `http://localhost:3000`
+- **Backend** (Node.js API) — `http://localhost:4000`
+- **Ingestion worker**
+- **Indexing worker**
+- **Sync scheduler**
 
 Expected endpoints:
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:4000`
-
-Background processes started by `pnpm dev`:
-- Ingestion worker
-- Indexing worker
-- Sync scheduler
 
 Verify it's running:
 
@@ -272,7 +274,7 @@ The frontend should start on `http://localhost:3000`.
 Open your browser and navigate to `http://localhost:3000`.
 
 **Note on Frontend Ports:**
-- **Development mode (`pnpm dev`)**: Runs on `PORT_FRONTEND` (default `3000`)
+- **Development mode (`pnpm dev:oss`)**: Runs on `PORT_FRONTEND` (default `3000`)
 - **Production mode**: Also typically runs on port 3000 unless you override
 - **Docker deployment**: The containerized app runs on port 3000
 
