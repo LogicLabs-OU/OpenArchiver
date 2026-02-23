@@ -20,13 +20,13 @@ const createAuthStore = () => {
 		subscribe,
 		login: (accessToken: string, user: Omit<User, 'passwordHash'>) => {
 			if (browser) {
-				document.cookie = `accessToken=${accessToken}; path=/; max-age=604800; samesite=strict`;
+				document.cookie = `accessToken=${accessToken}; path=/; max-age=604800; samesite=lax`;
 			}
 			set({ accessToken, user });
 		},
 		logout: () => {
 			if (browser) {
-				document.cookie = 'accessToken=; path=/; max-age=-1; samesite=strict';
+				document.cookie = 'accessToken=; path=/; max-age=-1; samesite=lax';
 			}
 			set(initialValue);
 		},

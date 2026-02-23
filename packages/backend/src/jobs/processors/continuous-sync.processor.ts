@@ -64,6 +64,18 @@ export default async (job: Job<IContinuousSyncJob>) => {
 					removeOnFail: true,
 				},
 			});
+		} else {
+			// No mailboxes were found — reset status so the source doesn't stay
+			// stuck at 'syncing' and is picked up again on the next scheduler run.
+			logger.warn(
+				{ ingestionSourceId },
+				'Continuous sync found no mailboxes; resetting status to active.'
+			);
+			await IngestionService.update(ingestionSourceId, {
+				status: 'active',
+				lastSyncFinishedAt: new Date(),
+				lastSyncStatusMessage: 'Sync complete. No mailboxes found.',
+			});
 		}
 
 		// The status will be set back to 'active' by the 'sync-cycle-finished' job

@@ -34,6 +34,10 @@
 			label: $t('app.components.ingestion_source_form.provider_microsoft_365'),
 		},
 		{
+			value: 'outlook_personal',
+			label: 'Outlook Personal',
+		},
+		{
 			value: 'pst_import',
 			label: $t('app.components.ingestion_source_form.provider_pst_import'),
 		},
@@ -74,9 +78,45 @@
 		event.preventDefault();
 		isSubmitting = true;
 		try {
-			await onSubmit(formData);
+			// Special handling for Outlook Personal OAuth flow
+			if (formData.provider === 'outlook_personal') {
+				await handleOutlookPersonalOAuth();
+			} else {
+				await onSubmit(formData);
+			}
 		} finally {
 			isSubmitting = false;
+		}
+	};
+
+	const handleOutlookPersonalOAuth = async () => {
+		try {
+			// Request authorization URL from backend
+			const response = await api('/ingestion-sources/oauth/outlook-personal/authorize', {
+				method: 'GET',
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to initiate OAuth flow');
+			}
+
+			const { authUrl, state } = await response.json();
+
+			// Store state in session storage so the callback page can verify it
+			sessionStorage.setItem('outlook_oauth_state', state);
+			sessionStorage.setItem('outlook_oauth_source_name', formData.name);
+
+			// Redirect to Microsoft authorization page
+			window.location.href = authUrl;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setAlert({
+				type: 'error',
+				title: 'OAuth Failed',
+				message,
+				duration: 5000,
+				show: true,
+			});
 		}
 	};
 
@@ -187,6 +227,16 @@
 			>
 			<Input id="tenantId" bind:value={formData.providerConfig.tenantId} class="col-span-3" />
 		</div>
+	{:else if formData.provider === 'outlook_personal'}
+		<Alert.Root>
+			<Alert.Title>Outlook Personal Authentication</Alert.Title>
+			<Alert.Description>
+				<div class="my-1">
+					Connect your personal Microsoft account to archive your emails. You'll be redirected to
+					Microsoft to sign in and grant permissions.
+				</div>
+			</Alert.Description>
+		</Alert.Root>
 	{:else if formData.provider === 'generic_imap'}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="host" class="text-left"

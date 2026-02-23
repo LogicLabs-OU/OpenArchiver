@@ -37,5 +37,18 @@ export const createIngestionRouter = (
 		ingestionController.triggerForceSync
 	);
 
+	// Outlook Personal OAuth routes
+	router.get(
+		'/oauth/outlook-personal/authorize',
+		requirePermission('create', 'ingestion'),
+		ingestionController.outlookPersonalAuthorize
+	);
+
+	router.post(
+		'/oauth/outlook-personal/callback',
+		requirePermission('create', 'ingestion'),
+		ingestionController.outlookPersonalCallback
+	);
+
 	return router;
 };

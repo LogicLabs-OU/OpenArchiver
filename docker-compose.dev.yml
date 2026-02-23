@@ -1,0 +1,80 @@
+# This docker-compose file is for local development only.
+# It runs ONLY the dependency services (Postgres, Valkey, Meilisearch, Tika).
+# The backend and frontend should be run locally using `pnpm dev`.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# When running locally:
+#   - Backend runs on: http://localhost:4000
+#   - Frontend runs on: http://localhost:5173 (default Vite dev server port)
+#   - Frontend can also be built and run on: http://localhost:3000 (production build)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: openarchiver-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-open_archive}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "5432:5432"  # Exposed to host for local backend connection
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: openarchiver-valkey-dev
+    restart: unless-stopped
+    command: valkey-server --requirepass ${REDIS_PASSWORD:-defaultredispassword}
+    ports:
+      - "6379:6379"  # Exposed to host for local backend connection
+    volumes:
+      - valkey_dev_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "--pass", "${REDIS_PASSWORD:-defaultredispassword}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.15
+    container_name: openarchiver-meilisearch-dev
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-aSampleMasterKey}
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"  # Exposed to host for local backend connection and web UI access
+    volumes:
+      - meilisearch_dev_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tika:
+    image: apache/tika:3.2.2.0-full
+    container_name: openarchiver-tika-dev
+    restart: unless-stopped
+    ports:
+      - "9998:9998"  # Exposed to host for local backend connection
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  valkey_dev_data:
+    driver: local
+  meilisearch_dev_data:
+    driver: local
+
+# Note: No network is defined - services use the default bridge network
+# and are accessible via localhost from the host machine.

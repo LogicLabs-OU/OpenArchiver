@@ -21,6 +21,7 @@ import {
 	emailAttachments,
 } from '../database/schema';
 import { createHash, randomUUID } from 'crypto';
+import crypto from 'crypto';
 import { logger } from '../config/logger';
 import { SearchService } from './SearchService';
 import { config } from '../config/index';
@@ -28,6 +29,7 @@ import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
+import { saveOAuthState, consumeOAuthState } from '../helpers/oauthStateStore';
 
 export class IngestionService {
 	private static auditService = new AuditService();
@@ -267,7 +269,13 @@ export class IngestionService {
 	public static async triggerInitialImport(id: string): Promise<void> {
 		const source = await this.findById(id);
 
-		await ingestionQueue.add('initial-import', { ingestionSourceId: source.id });
+		// Use a high priority so a freshly-created source is not stuck behind
+		// already-queued continuous-sync / process-mailbox jobs from other sources.
+		await ingestionQueue.add(
+			'initial-import',
+			{ ingestionSourceId: source.id },
+			{ priority: 10 }
+		);
 	}
 
 	public static async triggerForceSync(id: string, actor: User, actorIp: string): Promise<void> {
@@ -277,8 +285,18 @@ export class IngestionService {
 			throw new Error('Ingestion source not found');
 		}
 
-		// Clean up existing jobs for this source to break any stuck flows
-		const jobTypes: JobType[] = ['active', 'waiting', 'failed', 'delayed', 'paused'];
+		// Clean up existing jobs for this source to break any stuck flows.
+		// 'prioritized' covers jobs added with a priority option (e.g. initial-import).
+		// 'waiting-children' covers flow parent jobs stalled while waiting for child jobs.
+		const jobTypes: JobType[] = [
+			'active',
+			'waiting',
+			'prioritized',
+			'waiting-children',
+			'failed',
+			'delayed',
+			'paused',
+		];
 		const jobs = await ingestionQueue.getJobs(jobTypes);
 		for (const job of jobs) {
 			if (job.data.ingestionSourceId === id) {
@@ -530,5 +548,240 @@ export class IngestionService {
 			});
 			return null;
 		}
+	}
+
+	/**
+	 * Initiates the OAuth2 + PKCE flow for Outlook Personal.
+	 * Stores the state and codeVerifier server-side in Valkey (TTL 10 min).
+	 * Returns only the authorization URL and the opaque state token to the frontend.
+	 * The codeVerifier is never exposed to the client.
+	 */
+	public static async initiateOutlookPersonalAuth(userId: string): Promise<{
+		authUrl: string;
+		state: string;
+	}> {
+		const clientId = config.app.outlookPersonal.clientId;
+		const redirectUri = config.app.outlookPersonal.redirectUri;
+
+		if (!clientId || !redirectUri) {
+			throw new Error(
+				'Outlook Personal OAuth is not configured. Please set OUTLOOK_PERSONAL_CLIENT_ID and OUTLOOK_PERSONAL_REDIRECT_URI environment variables.'
+			);
+		}
+
+		// Generate PKCE parameters
+		const codeVerifier = this.generateCodeVerifier();
+		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+		const state = randomUUID();
+
+		// Persist state + codeVerifier server-side so the callback endpoint can
+		// validate them without relying on client-supplied values.
+		await saveOAuthState(state, userId, codeVerifier);
+
+		// Microsoft OAuth2 authorization endpoint
+		const authEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
+		const scopes = ['User.Read', 'Mail.Read', 'offline_access'];
+
+		const params = new URLSearchParams({
+			client_id: clientId,
+			response_type: 'code',
+			redirect_uri: redirectUri,
+			response_mode: 'query',
+			scope: scopes.join(' '),
+			state: state,
+			code_challenge: codeChallenge,
+			code_challenge_method: 'S256',
+		});
+
+		const authUrl = `${authEndpoint}?${params.toString()}`;
+
+		return { authUrl, state };
+	}
+
+	/**
+	 * Completes the OAuth2 flow by exchanging the authorization code for tokens
+	 * and creating an Outlook Personal ingestion source.
+	 *
+	 * The `state` is validated **server-side** against the value stored in Valkey
+	 * during `initiateOutlookPersonalAuth`. The codeVerifier is retrieved from
+	 * Valkey as well — it is never accepted from the client.
+	 */
+	public static async completeOutlookPersonalAuth(
+		userId: string,
+		code: string,
+		state: string,
+		name: string,
+		actor: User,
+		actorIp: string
+	): Promise<IngestionSource> {
+		const clientId = config.app.outlookPersonal.clientId;
+		const clientSecret = config.app.outlookPersonal.clientSecret;
+		const redirectUri = config.app.outlookPersonal.redirectUri;
+
+		if (!clientId || !clientSecret || !redirectUri) {
+			throw new Error('Outlook Personal OAuth is not configured.');
+		}
+
+		// Validate state server-side and retrieve the stored codeVerifier.
+		// consumeOAuthState atomically deletes the key, so the token is one-time use.
+		const storedData = await consumeOAuthState(state);
+		if (!storedData) {
+			throw new Error('Invalid or expired OAuth state parameter. Please start the authentication flow again.');
+		}
+		if (storedData.userId !== userId) {
+			// State was issued for a different user — possible CSRF or session swap.
+			throw new Error('OAuth state does not match the current user session.');
+		}
+		const codeVerifier = storedData.codeVerifier;
+
+		// Exchange authorization code for tokens
+		const tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+		const params = new URLSearchParams({
+			client_id: clientId,
+			client_secret: clientSecret,
+			code: code,
+			redirect_uri: redirectUri,
+			grant_type: 'authorization_code',
+			code_verifier: codeVerifier,
+		});
+
+		const response = await fetch(tokenEndpoint, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+			},
+			body: params.toString(),
+		});
+
+		if (!response.ok) {
+			const errorData = await response.text();
+			logger.error({ errorData }, 'Failed to exchange authorization code for tokens');
+			throw new Error('Failed to authenticate with Microsoft. Please try again.');
+		}
+
+		const tokenData = await response.json();
+
+		// Get user info to extract email
+		const userInfoResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+			headers: {
+				Authorization: `Bearer ${tokenData.access_token}`,
+			},
+		});
+
+		if (!userInfoResponse.ok) {
+			const errorBody = await userInfoResponse.text();
+			logger.error(
+				{
+					status: userInfoResponse.status,
+					statusText: userInfoResponse.statusText,
+					errorBody,
+				},
+				'Failed to retrieve user information from Microsoft Graph /me endpoint'
+			);
+			throw new Error('Failed to retrieve user information from Microsoft.');
+		}
+
+		const userInfo = await userInfoResponse.json();
+		const accountEmail = userInfo.userPrincipalName || userInfo.mail;
+
+		if (!accountEmail) {
+			throw new Error('Could not determine user email address.');
+		}
+
+		// Create credentials
+		const credentials = {
+			type: 'outlook_personal' as const,
+			refreshToken: tokenData.refresh_token,
+			accessToken: tokenData.access_token,
+			expiresAt: Date.now() + tokenData.expires_in * 1000,
+			accountEmail: accountEmail,
+			scopes: tokenData.scope.split(' '),
+		};
+
+		// Encrypt credentials
+		const encryptedCredentials = CryptoService.encryptObject(credentials);
+
+		// Create the ingestion source
+		const [newSource] = await db
+			.insert(ingestionSources)
+			.values({
+				userId,
+				name,
+				provider: 'outlook_personal',
+				status: 'pending_auth',
+				credentials: encryptedCredentials,
+			})
+			.returning();
+
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'CREATE',
+			targetType: 'IngestionSource',
+			targetId: newSource.id,
+			actorIp,
+			details: {
+				sourceName: newSource.name,
+				sourceType: newSource.provider,
+				accountEmail: accountEmail,
+			},
+		});
+
+		const decryptedSource = this.decryptSource(newSource);
+		if (!decryptedSource) {
+			await this.delete(newSource.id, actor, actorIp);
+			throw new Error(
+				'Failed to process newly created ingestion source due to a decryption error.'
+			);
+		}
+
+		// Test the connection
+		const connector = EmailProviderFactory.createConnector(decryptedSource);
+
+		try {
+			const connectionValid = await connector.testConnection();
+			if (connectionValid) {
+				return await this.update(
+					decryptedSource.id,
+					{ status: 'auth_success' },
+					actor,
+					actorIp
+				);
+			} else {
+				throw new Error('Outlook Personal authentication failed.');
+			}
+		} catch (error) {
+			await this.delete(decryptedSource.id, actor, actorIp);
+			throw error;
+		}
+	}
+
+	/**
+	 * Generates a random code verifier for PKCE.
+	 */
+	private static generateCodeVerifier(): string {
+		const array = new Uint8Array(32);
+		crypto.getRandomValues(array);
+		return this.base64URLEncode(array);
+	}
+
+	/**
+	 * Generates a code challenge from a code verifier using SHA-256.
+	 */
+	private static async generateCodeChallenge(verifier: string): Promise<string> {
+		const encoder = new TextEncoder();
+		const data = encoder.encode(verifier);
+		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+		return this.base64URLEncode(new Uint8Array(hashBuffer));
+	}
+
+	/**
+	 * Base64 URL encodes a buffer.
+	 */
+	private static base64URLEncode(buffer: Uint8Array): string {
+		return Buffer.from(buffer)
+			.toString('base64')
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+			.replace(/=/g, '');
 	}
 }
