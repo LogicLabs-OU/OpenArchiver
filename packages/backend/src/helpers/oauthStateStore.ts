@@ -6,8 +6,8 @@
  *   Value: JSON { userId, codeVerifier }
  *   TTL:   10 minutes
  *
- * `consumeState` is atomic (GET + DEL in a single pipeline transaction) so
- * the state token works exactly once and cannot be replayed.
+ * `consumeOAuthState` is atomic (Lua EVAL GET+DEL) so the state token works
+ * exactly once and cannot be replayed even under concurrent requests.
  */
 import Redis from 'ioredis';
 import { connection as redisOptions } from '../config/redis';
@@ -53,21 +53,22 @@ export async function saveOAuthState(
 }
 
 /**
- * Atomically retrieve **and delete** the OAuth state entry.
+ * Atomically retrieve **and delete** the OAuth state entry using a Lua script.
+ * The Lua EVAL ensures GET+DEL is truly atomic, preventing double-consumption
+ * under concurrent requests (unlike a plain pipeline which only batches the
+ * round-trip but does not guarantee atomicity).
  * Returns `null` if the state does not exist or has already been consumed.
  */
 export async function consumeOAuthState(state: string): Promise<OAuthStatePayload | null> {
 	const key = KEY_PREFIX + state;
 	const client = getClient();
 
-	// Use a pipeline so GET and DEL are sent in the same round-trip.
-	// GETDEL is available in Redis 6.2+ / Valkey 7+; pipeline is a safer
-	// fallback that still prevents double-consumption in the normal case.
-	const [[, raw]] = await client.pipeline().get(key).del(key).exec() as [
-		[null, string | null],
-		[null, number],
-	];
-
+	// Lua script: atomically GET and DEL the key in a single operation.
+	const raw = await client.eval(
+		`local v = redis.call('GET', KEYS[1]); if v then redis.call('DEL', KEYS[1]) end; return v`,
+		1,
+		key
+	) as string | null;
 	if (!raw) {
 		return null;
 	}
