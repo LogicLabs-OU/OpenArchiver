@@ -74,5 +74,6 @@ services:
         image: getmeili/meilisearch:v1.15
         environment:
             - MEILI_MASTER_KEY=${SERVICE_PASSWORD_MEILISEARCH}
+            - MEILI_SCHEDULE_SNAPSHOT=86400
         volumes:
             - meilidata:/meili_data
