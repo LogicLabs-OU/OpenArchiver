@@ -20,8 +20,7 @@ import {
 	attachments as attachmentsSchema,
 	emailAttachments,
 } from '../database/schema';
-import { createHash, randomUUID } from 'crypto';
-import crypto from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { logger } from '../config/logger';
 import { SearchService } from './SearchService';
 import { config } from '../config/index';
@@ -453,7 +452,7 @@ export class IngestionService {
 					sentAt: email.receivedAt,
 					subject: email.subject,
 					senderName: email.from[0]?.name,
-					senderEmail: email.from[0]?.address,
+					senderEmail: email.from[0]?.address || '',		// default to empty string — senderEmail is NOT NULL
 					recipients: {
 						to: email.to,
 						cc: email.cc,
@@ -571,7 +570,7 @@ export class IngestionService {
 
 		// Generate PKCE parameters
 		const codeVerifier = this.generateCodeVerifier();
-		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+		const codeChallenge = this.generateCodeChallenge(codeVerifier);
 		const state = randomUUID();
 
 		// Persist state + codeVerifier server-side so the callback endpoint can
@@ -756,22 +755,18 @@ export class IngestionService {
 	}
 
 	/**
-	 * Generates a random code verifier for PKCE.
+	 * Generates a random code verifier for PKCE using Node's crypto module.
 	 */
 	private static generateCodeVerifier(): string {
-		const array = new Uint8Array(32);
-		crypto.getRandomValues(array);
-		return this.base64URLEncode(array);
+		return this.base64URLEncode(randomBytes(32));
 	}
 
 	/**
-	 * Generates a code challenge from a code verifier using SHA-256.
+	 * Generates a code challenge from a code verifier using SHA-256 (Node crypto).
 	 */
-	private static async generateCodeChallenge(verifier: string): Promise<string> {
-		const encoder = new TextEncoder();
-		const data = encoder.encode(verifier);
-		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-		return this.base64URLEncode(new Uint8Array(hashBuffer));
+	private static generateCodeChallenge(verifier: string): string {
+		const hash = createHash('sha256').update(verifier).digest();
+		return this.base64URLEncode(hash);
 	}
 
 	/**

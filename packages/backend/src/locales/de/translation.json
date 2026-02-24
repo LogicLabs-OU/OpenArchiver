@@ -1,63 +1,64 @@
 {
-	"auth": {
-		"setup": {
-			"allFieldsRequired": "E-Mail, Passwort und Name sind erforderlich",
-			"alreadyCompleted": "Die Einrichtung wurde bereits abgeschlossen."
-		},
-		"login": {
-			"emailAndPasswordRequired": "E-Mail und Passwort sind erforderlich",
-			"invalidCredentials": "Ungültige Anmeldeinformationen"
-		}
-	},
-	"errors": {
-		"internalServerError": "Ein interner Serverfehler ist aufgetreten",
-		"demoMode": "Dieser Vorgang ist im Demo-Modus nicht zulässig.",
-		"unauthorized": "Unbefugt",
-		"unknown": "Ein unbekannter Fehler ist aufgetreten",
-		"noPermissionToAction": "Sie haben keine Berechtigung, die aktuelle Aktion auszuführen.",
-		"deletion_disabled": "Das Löschen ist für diese Instanz deaktiviert."
-	},
-	"user": {
-		"notFound": "Benutzer nicht gefunden",
-		"cannotDeleteOnlyUser": "Sie versuchen, den einzigen Benutzer in der Datenbank zu löschen, dies ist nicht gestattet.",
-		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Benutzer zu verwalten."
-	},
-	"iam": {
-		"failedToGetRoles": "Rollen konnten nicht abgerufen werden.",
-		"roleNotFound": "Rolle nicht gefunden.",
-		"failedToGetRole": "Rolle konnte nicht abgerufen werden.",
-		"missingRoleFields": "Fehlende erforderliche Felder: Name und Richtlinie.",
-		"invalidPolicy": "Ungültige Richtlinienanweisung:",
-		"failedToCreateRole": "Rolle konnte nicht erstellt werden.",
-		"failedToDeleteRole": "Rolle konnte nicht gelöscht werden.",
-		"missingUpdateFields": "Fehlende Felder zum Aktualisieren: Name oder Richtlinien.",
-		"failedToUpdateRole": "Rolle konnte nicht aktualisiert werden.",
-		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Rollen zu verwalten."
-	},
-	"settings": {
-		"failedToRetrieve": "Einstellungen konnten nicht abgerufen werden",
-		"failedToUpdate": "Einstellungen konnten nicht aktualisiert werden",
-		"noPermissionToUpdate": "Sie haben keine Berechtigung, die Systemeinstellungen zu aktualisieren."
-	},
-	"dashboard": {
-		"permissionRequired": "Sie benötigen die Leseberechtigung für das Dashboard, um Dashboard-Daten anzuzeigen."
-	},
-	"ingestion": {
-		"failedToCreate": "Die Erfassungsquelle konnte aufgrund eines Verbindungsfehlers nicht erstellt werden.",
-		"notFound": "Erfassungsquelle nicht gefunden",
-		"initialImportTriggered": "Erstimport erfolgreich ausgelöst.",
-		"forceSyncTriggered": "Erzwungene Synchronisierung erfolgreich ausgelöst."
-	},
-	"archivedEmail": {
-		"notFound": "Archivierte E-Mail nicht gefunden"
-	},
-	"search": {
-		"keywordsRequired": "Schlüsselwörter sind erforderlich"
-	},
-	"storage": {
-		"filePathRequired": "Dateipfad ist erforderlich",
-		"invalidFilePath": "Ungültiger Dateipfad",
-		"fileNotFound": "Datei nicht gefunden",
-		"downloadError": "Fehler beim Herunterladen der Datei"
-	}
+  "auth": {
+    "setup": {
+      "allFieldsRequired": "E-Mail, Passwort und Name sind erforderlich",
+      "alreadyCompleted": "Die Einrichtung wurde bereits abgeschlossen."
+    },
+    "login": {
+      "emailAndPasswordRequired": "E-Mail und Passwort sind erforderlich",
+      "invalidCredentials": "Ungültige Anmeldeinformationen"
+    }
+  },
+  "errors": {
+    "internalServerError": "Ein interner Serverfehler ist aufgetreten",
+    "demoMode": "Dieser Vorgang ist im Demo-Modus nicht zulässig.",
+    "unauthorized": "Unbefugt",
+    "unknown": "Ein unbekannter Fehler ist aufgetreten",
+    "noPermissionToAction": "Sie haben keine Berechtigung, die aktuelle Aktion auszuführen.",
+    "deletion_disabled": "Das Löschen ist für diese Instanz deaktiviert.",
+    "missingRequiredParameters": "Erforderliche Parameter fehlen"
+  },
+  "user": {
+    "notFound": "Benutzer nicht gefunden",
+    "cannotDeleteOnlyUser": "Sie versuchen, den einzigen Benutzer in der Datenbank zu löschen, dies ist nicht gestattet.",
+    "requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Benutzer zu verwalten."
+  },
+  "iam": {
+    "failedToGetRoles": "Rollen konnten nicht abgerufen werden.",
+    "roleNotFound": "Rolle nicht gefunden.",
+    "failedToGetRole": "Rolle konnte nicht abgerufen werden.",
+    "missingRoleFields": "Fehlende erforderliche Felder: Name und Richtlinie.",
+    "invalidPolicy": "Ungültige Richtlinienanweisung:",
+    "failedToCreateRole": "Rolle konnte nicht erstellt werden.",
+    "failedToDeleteRole": "Rolle konnte nicht gelöscht werden.",
+    "missingUpdateFields": "Fehlende Felder zum Aktualisieren: Name oder Richtlinien.",
+    "failedToUpdateRole": "Rolle konnte nicht aktualisiert werden.",
+    "requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Rollen zu verwalten."
+  },
+  "settings": {
+    "failedToRetrieve": "Einstellungen konnten nicht abgerufen werden",
+    "failedToUpdate": "Einstellungen konnten nicht aktualisiert werden",
+    "noPermissionToUpdate": "Sie haben keine Berechtigung, die Systemeinstellungen zu aktualisieren."
+  },
+  "dashboard": {
+    "permissionRequired": "Sie benötigen die Leseberechtigung für das Dashboard, um Dashboard-Daten anzuzeigen."
+  },
+  "ingestion": {
+    "failedToCreate": "Die Erfassungsquelle konnte aufgrund eines Verbindungsfehlers nicht erstellt werden.",
+    "notFound": "Erfassungsquelle nicht gefunden",
+    "initialImportTriggered": "Erstimport erfolgreich ausgelöst.",
+    "forceSyncTriggered": "Erzwungene Synchronisierung erfolgreich ausgelöst."
+  },
+  "archivedEmail": {
+    "notFound": "Archivierte E-Mail nicht gefunden"
+  },
+  "search": {
+    "keywordsRequired": "Schlüsselwörter sind erforderlich"
+  },
+  "storage": {
+    "filePathRequired": "Dateipfad ist erforderlich",
+    "invalidFilePath": "Ungültiger Dateipfad",
+    "fileNotFound": "Datei nicht gefunden",
+    "downloadError": "Fehler beim Herunterladen der Datei"
+  }
 }

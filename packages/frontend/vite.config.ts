@@ -29,7 +29,7 @@ export default defineConfig({
 					if (trimmed) hosts.add(trimmed);
 				}
 			};
-			addHostList(process.env.BACKEND_HOST);
+			addHostList(process.env.HOST_BACKEND);
 			addHostList(process.env.DEV_ALLOWED_HOSTS);
 			try {
 				if (process.env.APP_URL) {

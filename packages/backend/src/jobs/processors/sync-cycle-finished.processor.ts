@@ -49,9 +49,13 @@ export default async (job: Job<ISyncCycleFinishedJob, any, string>) => {
 		// if data doesn't have error property, it is a successful job with SyncState
 		const successfulJobs = allChildJobs.filter((v) => !v || !(v as any).error) as SyncState[];
 
-		const finalSyncState = deepmerge(
-			...successfulJobs.filter((s) => s && Object.keys(s).length > 0)
-		) as SyncState;
+		const nonEmptySuccessfulJobs = successfulJobs.filter((s) => s && Object.keys(s).length > 0);
+		// deepmerge-ts returns undefined when called with no arguments, which would wipe the stored
+		// delta tokens / UIDs. Fall back to the existing DB syncState so we never regress progress.
+		const finalSyncState: SyncState =
+			nonEmptySuccessfulJobs.length > 0
+				? (deepmerge(...nonEmptySuccessfulJobs) as SyncState)
+				: {};
 
 		const source = await IngestionService.findById(ingestionSourceId);
 		let status: IngestionStatus = 'active';
@@ -92,7 +96,10 @@ export default async (job: Job<ISyncCycleFinishedJob, any, string>) => {
 				status,
 				lastSyncFinishedAt: new Date(),
 				lastSyncStatusMessage: message,
-				syncState: finalSyncState,
+				// Only overwrite the stored syncState when the current cycle produced new
+				// checkpoints.  Writing an empty object would wipe delta tokens / UIDs and
+				// force a full re-scan on the next cycle.
+				syncState: nonEmptySuccessfulJobs.length > 0 ? finalSyncState : source.syncState,
 			})
 			.where(eq(ingestionSources.id, ingestionSourceId));
 	} catch (error) {

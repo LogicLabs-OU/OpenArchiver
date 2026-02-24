@@ -304,11 +304,16 @@ export class MicrosoftConnector implements IEmailConnector {
 			);
 		};
 
+		const from = mapAddresses(parsedEmail.from);
+		if (from.length === 0) {
+			from.push({ name: '', address: '' });
+		}
+
 		return {
 			id: messageId,
 			userEmail: userEmail,
 			eml: rawEmail,
-			from: mapAddresses(parsedEmail.from),
+			from,
 			to: mapAddresses(parsedEmail.to),
 			cc: mapAddresses(parsedEmail.cc),
 			bcc: mapAddresses(parsedEmail.bcc),
