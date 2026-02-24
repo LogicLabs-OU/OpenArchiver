@@ -43,7 +43,16 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 		const connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
-		for await (const email of connector.fetchEmails(userEmail, source.syncState)) {
+		// Create a callback to check for duplicates without fetching full email content
+		const checkDuplicate = async (messageId: string) => {
+			return await IngestionService.doesEmailExist(messageId, ingestionSourceId);
+		};
+
+		for await (const email of connector.fetchEmails(
+			userEmail,
+			source.syncState,
+			checkDuplicate
+		)) {
 			if (email) {
 				const processedEmail = await ingestionService.processEmail(
 					email,

@@ -390,6 +390,25 @@ export class IngestionService {
 		}
 	}
 
+	/**
+	 * Quickly checks if an email exists in the database by its Message-ID header.
+	 * This is used to skip downloading duplicate emails during ingestion.
+	 */
+	public static async doesEmailExist(
+		messageId: string,
+		ingestionSourceId: string
+	): Promise<boolean> {
+		const existingEmail = await db.query.archivedEmails.findFirst({
+			where: and(
+				eq(archivedEmails.messageIdHeader, messageId),
+				eq(archivedEmails.ingestionSourceId, ingestionSourceId)
+			),
+			columns: { id: true },
+		});
+
+		return !!existingEmail;
+	}
+
 	public async processEmail(
 		email: EmailObject,
 		source: IngestionSource,

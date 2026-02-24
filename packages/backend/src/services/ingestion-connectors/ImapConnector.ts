@@ -142,7 +142,8 @@ export class ImapConnector implements IEmailConnector {
 
 	public async *fetchEmails(
 		userEmail: string,
-		syncState?: SyncState | null
+		syncState?: SyncState | null,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject | null> {
 		try {
 			// list all mailboxes first
@@ -216,6 +217,22 @@ export class ImapConnector implements IEmailConnector {
 
 								if (msg.uid > this.newMaxUids[mailboxPath]) {
 									this.newMaxUids[mailboxPath] = msg.uid;
+								}
+
+								// Optimization: Verify existence using Message-ID from envelope before fetching full body
+								if (checkDuplicate && msg.envelope?.messageId) {
+									const isDuplicate = await checkDuplicate(msg.envelope.messageId);
+									if (isDuplicate) {
+										logger.debug(
+											{
+												mailboxPath,
+												uid: msg.uid,
+												messageId: msg.envelope.messageId,
+											},
+											'Skipping duplicate email (pre-check)'
+										);
+										continue;
+									}
 								}
 
 								logger.debug({ mailboxPath, uid: msg.uid }, 'Processing message');
