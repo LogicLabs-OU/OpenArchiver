@@ -11,7 +11,7 @@ export const requirePermission = (
 		const userId = req.user?.sub;
 
 		if (!userId) {
-			return res.status(401).json({ message: 'Unauthorized' });
+			return res.status(401).json({ message: req.t('errors.unauthorized') });
 		}
 
 		let resourceObject = undefined;
@@ -35,7 +35,7 @@ export const requirePermission = (
 			}
 		} catch (err) {
 			if (err instanceof Error && err.message === 'User not found') {
-				return res.status(401).json({ message: 'Unauthorized: session is no longer valid. Please sign in again.' });
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
 			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}

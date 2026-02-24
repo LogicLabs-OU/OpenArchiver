@@ -34,7 +34,7 @@ The Outlook Personal provider uses OAuth2 with PKCE (Proof Key for Code Exchange
 
 The redirect URI should point to your OpenArchiver frontend OAuth callback page. For example:
 - Production: `https://your-domain.com/dashboard/ingestions/oauth-callback`
-- Local development: `http://localhost:5173/dashboard/ingestions/oauth-callback`
+- Local development: `http://localhost:3000/dashboard/ingestions/oauth-callback`
 
 After registration, you can add additional redirect URIs under **Authentication** → **Platform configurations** → **Web** → **Redirect URIs**.
 
@@ -76,7 +76,7 @@ OUTLOOK_PERSONAL_REDIRECT_URI=https://your-domain.com/dashboard/ingestions/oauth
 
 **Important Notes:**
 - The `OUTLOOK_PERSONAL_REDIRECT_URI` must exactly match one of the redirect URIs configured in Azure
-- For local development, use `http://localhost:5173/dashboard/ingestions/oauth-callback`
+- For local development, use `http://localhost:3000/dashboard/ingestions/oauth-callback`
 - The redirect URI must be accessible by the user's browser (not just the server)
 
 ## Usage

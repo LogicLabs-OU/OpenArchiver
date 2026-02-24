@@ -240,7 +240,7 @@ export class IngestionController {
 			
 			if (!code || !state || !name) {
 				return res.status(400).json({ 
-					message: 'Missing required parameters: code, state, name' 
+					message: req.t('errors.missingRequiredParameters')
 				});
 			}
 			
