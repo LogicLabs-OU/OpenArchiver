@@ -233,7 +233,7 @@
 				"select_role": "役割を選択"
 			}
 		},
-		"dashboard_page": {
+		"setup": {
 			"title": "ダッシュボード",
 			"description": "Open Archiverの初期管理者アカウントを設定します。",
 			"welcome": "ようこそ",
