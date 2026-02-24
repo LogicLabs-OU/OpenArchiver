@@ -118,6 +118,23 @@
 			"confirm": "確認",
 			"cancel": "キャンセル"
 		},
+		"account": {
+			"title": "アカウント設定",
+			"description": "プロフィールとセキュリティ設定を管理します。",
+			"personal_info": "個人情報",
+			"personal_info_desc": "個人情報を更新。",
+			"security": "セキュリティ",
+			"security_desc": "パスワードとセキュリティ設定を管理します。",
+			"edit_profile": "プロフィールの編集",
+			"change_password": "パスワードの変更",
+			"edit_profile_desc": "ここでプロフィールを変更します。",
+			"change_password_desc": "パスワードを変更します。現在のパスワードを入力してください。",
+			"current_password": "現在のパスワード",
+			"new_password": "新しいパスワード",
+			"confirm_new_password": "新しいパスワードの確認",
+			"operation_successful": "操作成功",
+			"passwords_do_not_match": "パスワードが一致しません"
+		},
 		"system_settings": {
 			"title": "システム設定",
 			"system_settings": "システム設定",
@@ -182,6 +199,10 @@
 				"provider_eml_import": "EMLインポート",
 				"provider_mbox_import": "Mboxインポート",
 				"select_provider": "プロバイダーを選択",
+				"import_method": "インポート方法",
+				"upload_file": "ファイルのアップロード",
+				"local_path": "ローカルパス（大きなファイルの場合に推奨）",
+				"local_file_path": "ローカルファイルパス",
 				"service_account_key": "サービスアカウントキー (JSON)",
 				"service_account_key_placeholder": "サービスアカウントキーのJSONコンテンツを貼り付けます",
 				"impersonated_admin_email": "偽装された管理者メール",
@@ -234,6 +255,7 @@
 			"users": "ユーザー",
 			"roles": "ロール",
 			"api_keys": "APIキー",
+			"account": "アカウント",
 			"logout": "ログアウト",
 			"admin": "管理"
 		},
