@@ -161,11 +161,20 @@ export class PSTConnector implements IEmailConnector {
 			}
 
 			if (!fileExist) {
-				throw Error('PST file not found or upload not finished yet, please wait.');
+				if (this.credentials.localFilePath) {
+					throw Error(`PST file not found at path: ${this.credentials.localFilePath}`);
+				} else {
+					throw Error(
+						'Uploaded PST file not found. The upload may not have finished yet, or it failed.'
+					);
+				}
 			}
 			return true;
 		} catch (error) {
-			logger.error({ error, credentials: this.credentials }, 'PST file validation failed.');
+			logger.error(
+				{ error, credentials: this.credentials },
+				'PST file validation failed.'
+			);
 			throw error;
 		}
 	}

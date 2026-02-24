@@ -58,7 +58,7 @@ export class EMLConnector implements IEmailConnector {
 		try {
 			const filePath = this.getFilePath();
 			if (!filePath) {
-				throw Error('EML file path not provided.');
+				throw Error('EML Zip file path not provided.');
 			}
 			if (!filePath.includes('.zip')) {
 				throw Error('Provided file is not in the ZIP format.');
@@ -77,12 +77,21 @@ export class EMLConnector implements IEmailConnector {
 			}
 
 			if (!fileExist) {
-				throw Error('EML file not found or upload not finished yet, please wait.');
+				if (this.credentials.localFilePath) {
+					throw Error(`EML Zip file not found at path: ${this.credentials.localFilePath}`);
+				} else {
+					throw Error(
+						'Uploaded EML Zip file not found. The upload may not have finished yet, or it failed.'
+					);
+				}
 			}
 
 			return true;
 		} catch (error) {
-			logger.error({ error, credentials: this.credentials }, 'EML file validation failed.');
+			logger.error(
+				{ error, credentials: this.credentials },
+				'EML Zip file validation failed.'
+			);
 			throw error;
 		}
 	}
