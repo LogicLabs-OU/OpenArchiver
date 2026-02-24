@@ -82,12 +82,21 @@ export class MboxConnector implements IEmailConnector {
 			}
 
 			if (!fileExist) {
-				throw Error('Mbox file not found or upload not finished yet, please wait.');
+				if (this.credentials.localFilePath) {
+					throw Error(`Mbox file not found at path: ${this.credentials.localFilePath}`);
+				} else {
+					throw Error(
+						'Uploaded Mbox file not found. The upload may not have finished yet, or it failed.'
+					);
+				}
 			}
 
 			return true;
 		} catch (error) {
-			logger.error({ error, credentials: this.credentials }, 'Mbox file validation failed.');
+			logger.error(
+				{ error, credentials: this.credentials },
+				'Mbox file validation failed.'
+			);
 			throw error;
 		}
 	}

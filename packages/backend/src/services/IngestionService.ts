@@ -85,7 +85,7 @@ export class IngestionService {
 
 		const decryptedSource = this.decryptSource(newSource);
 		if (!decryptedSource) {
-			await this.delete(newSource.id, actor, actorIp);
+			await this.delete(newSource.id, actor, actorIp, true);
 			throw new Error(
 				'Failed to process newly created ingestion source due to a decryption error.'
 			);
@@ -107,7 +107,7 @@ export class IngestionService {
 			}
 		} catch (error) {
 			// If connection fails, delete the newly created source and throw the error.
-			await this.delete(decryptedSource.id, actor, actorIp);
+			await this.delete(decryptedSource.id, actor, actorIp, true);
 			throw error;
 		}
 	}
@@ -205,8 +205,15 @@ export class IngestionService {
 		return decryptedSource;
 	}
 
-	public static async delete(id: string, actor: User, actorIp: string): Promise<IngestionSource> {
-		checkDeletionEnabled();
+	public static async delete(
+		id: string,
+		actor: User,
+		actorIp: string,
+		force: boolean = false
+	): Promise<IngestionSource> {
+		if (!force) {
+			checkDeletionEnabled();
+		}
 		const source = await this.findById(id);
 		if (!source) {
 			throw new Error('Ingestion source not found');
@@ -381,6 +388,25 @@ export class IngestionService {
 			);
 			throw error; // Re-throw to allow BullMQ to handle the job failure
 		}
+	}
+
+	/**
+	 * Quickly checks if an email exists in the database by its Message-ID header.
+	 * This is used to skip downloading duplicate emails during ingestion.
+	 */
+	public static async doesEmailExist(
+		messageId: string,
+		ingestionSourceId: string
+	): Promise<boolean> {
+		const existingEmail = await db.query.archivedEmails.findFirst({
+			where: and(
+				eq(archivedEmails.messageIdHeader, messageId),
+				eq(archivedEmails.ingestionSourceId, ingestionSourceId)
+			),
+			columns: { id: true },
+		});
+
+		return !!existingEmail;
 	}
 
 	public async processEmail(
