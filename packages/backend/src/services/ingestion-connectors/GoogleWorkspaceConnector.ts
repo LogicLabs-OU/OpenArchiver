@@ -132,7 +132,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 	 */
 	public async *fetchEmails(
 		userEmail: string,
-		syncState?: SyncState | null
+		syncState?: SyncState | null,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
 		const authClient = this.getAuthClient(userEmail, [
 			'https://www.googleapis.com/auth/gmail.readonly',
@@ -144,7 +145,7 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 
 		// If no sync state is provided for this user, this is an initial import. Get all messages.
 		if (!startHistoryId) {
-			yield* this.fetchAllMessagesForUser(gmail, userEmail);
+			yield* this.fetchAllMessagesForUser(gmail, userEmail, checkDuplicate);
 			return;
 		}
 
@@ -170,6 +171,16 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 						if (messageAdded.message?.id) {
 							try {
 								const messageId = messageAdded.message.id;
+
+								// Optimization: Check for existence before fetching full content
+								if (checkDuplicate && (await checkDuplicate(messageId))) {
+									logger.debug(
+										{ messageId, userEmail },
+										'Skipping duplicate email (pre-check)'
+									);
+									continue;
+								}
+
 								const metadataResponse = await gmail.users.messages.get({
 									userId: userEmail,
 									id: messageId,
@@ -258,8 +269,17 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 
 	private async *fetchAllMessagesForUser(
 		gmail: gmail_v1.Gmail,
-		userEmail: string
+		userEmail: string,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
+		// Capture the history ID at the start to ensure no emails are missed during the import process.
+		// Any emails arriving during this import will be covered by the next sync starting from this point.
+		// Overlaps are handled by the duplicate check.
+		const profileResponse = await gmail.users.getProfile({ userId: userEmail });
+		if (profileResponse.data.historyId) {
+			this.newHistoryId = profileResponse.data.historyId;
+		}
+
 		let pageToken: string | undefined = undefined;
 		do {
 			const listResponse: Common.GaxiosResponseWithHTTP2<gmail_v1.Schema$ListMessagesResponse> =
@@ -277,6 +297,16 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 				if (message.id) {
 					try {
 						const messageId = message.id;
+
+						// Optimization: Check for existence before fetching full content
+						if (checkDuplicate && (await checkDuplicate(messageId))) {
+							logger.debug(
+								{ messageId, userEmail },
+								'Skipping duplicate email (pre-check)'
+							);
+							continue;
+						}
+
 						const metadataResponse = await gmail.users.messages.get({
 							userId: userEmail,
 							id: messageId,
@@ -352,12 +382,6 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			}
 			pageToken = listResponse.data.nextPageToken ?? undefined;
 		} while (pageToken);
-
-		// After fetching all messages, get the latest history ID to use as the starting point for the next sync.
-		const profileResponse = await gmail.users.getProfile({ userId: userEmail });
-		if (profileResponse.data.historyId) {
-			this.newHistoryId = profileResponse.data.historyId;
-		}
 	}
 
 	public getUpdatedSyncState(userEmail: string): SyncState {

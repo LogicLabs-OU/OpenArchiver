@@ -24,7 +24,8 @@ export interface IEmailConnector {
 	testConnection(): Promise<boolean>;
 	fetchEmails(
 		userEmail: string,
-		syncState?: SyncState | null
+		syncState?: SyncState | null,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject | null>;
 	getUpdatedSyncState(userEmail?: string): SyncState;
 	listAllUsers(): AsyncGenerator<MailboxUser>;

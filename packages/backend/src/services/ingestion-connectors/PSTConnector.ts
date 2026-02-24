@@ -14,7 +14,7 @@ import { StorageService } from '../StorageService';
 import { Readable } from 'stream';
 import { createHash } from 'crypto';
 import { join } from 'path';
-import { createWriteStream, promises as fs } from 'fs';
+import { createWriteStream, createReadStream, promises as fs } from 'fs';
 
 // We have to hardcode names for deleted and trash folders here as current lib doesn't support looking into PST properties.
 const DELETED_FOLDERS = new Set([
@@ -111,8 +111,19 @@ export class PSTConnector implements IEmailConnector {
 		this.storage = new StorageService();
 	}
 
+	private getFilePath(): string {
+		return this.credentials.localFilePath || this.credentials.uploadedFilePath || '';
+	}
+
+	private async getFileStream(): Promise<NodeJS.ReadableStream> {
+		if (this.credentials.localFilePath) {
+			return createReadStream(this.credentials.localFilePath);
+		}
+		return this.storage.getStream(this.getFilePath());
+	}
+
 	private async loadPstFile(): Promise<{ pstFile: PSTFile; tempDir: string }> {
-		const fileStream = await this.storage.getStream(this.credentials.uploadedFilePath);
+		const fileStream = await this.getFileStream();
 		const tempDir = await fs.mkdtemp(join('/tmp', `pst-import-${new Date().getTime()}`));
 		const tempFilePath = join(tempDir, 'temp.pst');
 
@@ -129,19 +140,41 @@ export class PSTConnector implements IEmailConnector {
 
 	public async testConnection(): Promise<boolean> {
 		try {
-			if (!this.credentials.uploadedFilePath) {
+			const filePath = this.getFilePath();
+			if (!filePath) {
 				throw Error('PST file path not provided.');
 			}
-			if (!this.credentials.uploadedFilePath.includes('.pst')) {
+			if (!filePath.includes('.pst')) {
 				throw Error('Provided file is not in the PST format.');
 			}
-			const fileExist = await this.storage.exists(this.credentials.uploadedFilePath);
+
+			let fileExist = false;
+			if (this.credentials.localFilePath) {
+				try {
+					await fs.access(this.credentials.localFilePath);
+					fileExist = true;
+				} catch {
+					fileExist = false;
+				}
+			} else {
+				fileExist = await this.storage.exists(filePath);
+			}
+
 			if (!fileExist) {
-				throw Error('PST file upload not finished yet, please wait.');
+				if (this.credentials.localFilePath) {
+					throw Error(`PST file not found at path: ${this.credentials.localFilePath}`);
+				} else {
+					throw Error(
+						'Uploaded PST file not found. The upload may not have finished yet, or it failed.'
+					);
+				}
 			}
 			return true;
 		} catch (error) {
-			logger.error({ error, credentials: this.credentials }, 'PST file validation failed.');
+			logger.error(
+				{ error, credentials: this.credentials },
+				'PST file validation failed.'
+			);
 			throw error;
 		}
 	}
@@ -200,13 +233,15 @@ export class PSTConnector implements IEmailConnector {
 			if (tempDir) {
 				await fs.rm(tempDir, { recursive: true, force: true });
 			}
-			try {
-				await this.storage.delete(this.credentials.uploadedFilePath);
-			} catch (error) {
-				logger.error(
-					{ error, file: this.credentials.uploadedFilePath },
-					'Failed to delete PST file after processing.'
-				);
+			if (this.credentials.uploadedFilePath && !this.credentials.localFilePath) {
+				try {
+					await this.storage.delete(this.credentials.uploadedFilePath);
+				} catch (error) {
+					logger.error(
+						{ error, file: this.credentials.uploadedFilePath },
+						'Failed to delete PST file after processing.'
+					);
+				}
 			}
 		}
 	}

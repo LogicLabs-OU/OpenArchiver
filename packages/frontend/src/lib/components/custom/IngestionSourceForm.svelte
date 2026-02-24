@@ -7,6 +7,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
 	import * as Alert from '$lib/components/ui/alert/index.js';
+	import * as RadioGroup from '$lib/components/ui/radio-group/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { api } from '$lib/api.client';
@@ -73,6 +74,27 @@
 	let isSubmitting = $state(false);
 
 	let fileUploading = $state(false);
+
+	let importMethod = $state<'upload' | 'local'>(
+		source?.credentials && 'localFilePath' in source.credentials && source.credentials.localFilePath
+			? 'local'
+			: 'upload'
+	);
+
+	$effect(() => {
+		if (importMethod === 'upload') {
+			if ('localFilePath' in formData.providerConfig) {
+				delete formData.providerConfig.localFilePath;
+			}
+		} else {
+			if ('uploadedFilePath' in formData.providerConfig) {
+				delete formData.providerConfig.uploadedFilePath;
+			}
+			if ('uploadedFileName' in formData.providerConfig) {
+				delete formData.providerConfig.uploadedFileName;
+			}
+		}
+	});
 
 	const handleSubmit = async (event: Event) => {
 		event.preventDefault();
@@ -286,59 +308,143 @@
 			/>
 		</div>
 	{:else if formData.provider === 'pst_import'}
-		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="pst-file" class="text-left"
-				>{$t('app.components.ingestion_source_form.pst_file')}</Label
-			>
-			<div class="col-span-3 flex flex-row items-center space-x-2">
-				<Input
-					id="pst-file"
-					type="file"
-					class=""
-					accept=".pst"
-					onchange={handleFileChange}
-				/>
-				{#if fileUploading}
-					<span class=" text-primary animate-spin"><Loader2 /></span>
-				{/if}
-			</div>
+		<div class="grid grid-cols-4 items-start gap-4">
+			<Label class="text-left pt-2">{$t('app.components.ingestion_source_form.import_method')}</Label>
+			<RadioGroup.Root bind:value={importMethod} class="col-span-3 flex flex-col space-y-1">
+				<div class="flex items-center space-x-2">
+					<RadioGroup.Item value="upload" id="pst-upload" />
+					<Label for="pst-upload">{$t('app.components.ingestion_source_form.upload_file')}</Label>
+				</div>
+				<div class="flex items-center space-x-2">
+					<RadioGroup.Item value="local" id="pst-local" />
+					<Label for="pst-local">{$t('app.components.ingestion_source_form.local_path')}</Label>
+				</div>
+			</RadioGroup.Root>
 		</div>
+
+		{#if importMethod === 'upload'}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="pst-file" class="text-left"
+					>{$t('app.components.ingestion_source_form.pst_file')}</Label
+				>
+				<div class="col-span-3 flex flex-row items-center space-x-2">
+					<Input
+						id="pst-file"
+						type="file"
+						class=""
+						accept=".pst"
+						onchange={handleFileChange}
+					/>
+					{#if fileUploading}
+						<span class=" text-primary animate-spin"><Loader2 /></span>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="pst-local-path" class="text-left"
+					>{$t('app.components.ingestion_source_form.local_file_path')}</Label
+				>
+				<Input
+					id="pst-local-path"
+					bind:value={formData.providerConfig.localFilePath}
+					placeholder="/path/to/file.pst"
+					class="col-span-3"
+				/>
+			</div>
+		{/if}
 	{:else if formData.provider === 'eml_import'}
-		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="eml-file" class="text-left"
-				>{$t('app.components.ingestion_source_form.eml_file')}</Label
-			>
-			<div class="col-span-3 flex flex-row items-center space-x-2">
-				<Input
-					id="eml-file"
-					type="file"
-					class=""
-					accept=".zip"
-					onchange={handleFileChange}
-				/>
-				{#if fileUploading}
-					<span class=" text-primary animate-spin"><Loader2 /></span>
-				{/if}
-			</div>
+		<div class="grid grid-cols-4 items-start gap-4">
+			<Label class="text-left pt-2">{$t('app.components.ingestion_source_form.import_method')}</Label>
+			<RadioGroup.Root bind:value={importMethod} class="col-span-3 flex flex-col space-y-1">
+				<div class="flex items-center space-x-2">
+					<RadioGroup.Item value="upload" id="eml-upload" />
+					<Label for="eml-upload">{$t('app.components.ingestion_source_form.upload_file')}</Label>
+				</div>
+				<div class="flex items-center space-x-2">
+					<RadioGroup.Item value="local" id="eml-local" />
+					<Label for="eml-local">{$t('app.components.ingestion_source_form.local_path')}</Label>
+				</div>
+			</RadioGroup.Root>
 		</div>
+
+		{#if importMethod === 'upload'}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="eml-file" class="text-left"
+					>{$t('app.components.ingestion_source_form.eml_file')}</Label
+				>
+				<div class="col-span-3 flex flex-row items-center space-x-2">
+					<Input
+						id="eml-file"
+						type="file"
+						class=""
+						accept=".zip"
+						onchange={handleFileChange}
+					/>
+					{#if fileUploading}
+						<span class=" text-primary animate-spin"><Loader2 /></span>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="eml-local-path" class="text-left"
+					>{$t('app.components.ingestion_source_form.local_file_path')}</Label
+				>
+				<Input
+					id="eml-local-path"
+					bind:value={formData.providerConfig.localFilePath}
+					placeholder="/path/to/file.zip"
+					class="col-span-3"
+				/>
+			</div>
+		{/if}
 	{:else if formData.provider === 'mbox_import'}
-		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="mbox-file" class="text-left"
-				>{$t('app.components.ingestion_source_form.mbox_file')}</Label
-			>
-			<div class="col-span-3 flex flex-row items-center space-x-2">
-				<Input
-					id="mbox-file"
-					type="file"
-					class=""
-					accept=".mbox"
-					onchange={handleFileChange}
-				/>
-				{#if fileUploading}
-					<span class=" text-primary animate-spin"><Loader2 /></span>
-				{/if}
-			</div>
+		<div class="grid grid-cols-4 items-start gap-4">
+			<Label class="text-left pt-2">{$t('app.components.ingestion_source_form.import_method')}</Label>
+			<RadioGroup.Root bind:value={importMethod} class="col-span-3 flex flex-col space-y-1">
+				<div class="flex items-center space-x-2">
+					<RadioGroup.Item value="upload" id="mbox-upload" />
+					<Label for="mbox-upload">{$t('app.components.ingestion_source_form.upload_file')}</Label>
+				</div>
+				<div class="flex items-center space-x-2">
+					<RadioGroup.Item value="local" id="mbox-local" />
+					<Label for="mbox-local">{$t('app.components.ingestion_source_form.local_path')}</Label>
+				</div>
+			</RadioGroup.Root>
 		</div>
+
+		{#if importMethod === 'upload'}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="mbox-file" class="text-left"
+					>{$t('app.components.ingestion_source_form.mbox_file')}</Label
+				>
+				<div class="col-span-3 flex flex-row items-center space-x-2">
+					<Input
+						id="mbox-file"
+						type="file"
+						class=""
+						accept=".mbox"
+						onchange={handleFileChange}
+					/>
+					{#if fileUploading}
+						<span class=" text-primary animate-spin"><Loader2 /></span>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="mbox-local-path" class="text-left"
+					>{$t('app.components.ingestion_source_form.local_file_path')}</Label
+				>
+				<Input
+					id="mbox-local-path"
+					bind:value={formData.providerConfig.localFilePath}
+					placeholder="/path/to/file.mbox"
+					class="col-span-3"
+				/>
+			</div>
+		{/if}
 	{/if}
 	{#if formData.provider === 'google_workspace' || formData.provider === 'microsoft_365'}
 		<Alert.Root>
