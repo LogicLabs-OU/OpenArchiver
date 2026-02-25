@@ -75,6 +75,17 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 			emailBatch = [];
 		}
 
+		const updatedCredentials = connector.getUpdatedCredentials?.();
+		if (updatedCredentials) {
+			await IngestionService.update(ingestionSourceId, {
+				providerConfig: updatedCredentials,
+			});
+			logger.info(
+				{ ingestionSourceId, userEmail },
+				'Persisted rotated ingestion credentials after mailbox sync'
+			);
+		}
+
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
 		logger.info({ ingestionSourceId, userEmail }, `Finished processing mailbox for user`);
 		return newSyncState;

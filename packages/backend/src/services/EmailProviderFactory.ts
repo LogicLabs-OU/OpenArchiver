@@ -1,5 +1,6 @@
 import type {
 	IngestionSource,
+	IngestionCredentials,
 	GoogleWorkspaceCredentials,
 	Microsoft365Credentials,
 	OutlookPersonalCredentials,
@@ -28,6 +29,7 @@ export interface IEmailConnector {
 		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject | null>;
 	getUpdatedSyncState(userEmail?: string): SyncState;
+	getUpdatedCredentials?(): IngestionCredentials | null;
 	listAllUsers(): AsyncGenerator<MailboxUser>;
 	returnImapUserEmail?(): string;
 }
