@@ -31,3 +31,8 @@ docker-compose.override.yml
 docker-compose.local*
 # TS
 **/tsconfig.tsbuildinfo
+
+#Compose Overrides
+docker-compose.dev*
+docker-compose.local*
+docker-compose.override*
