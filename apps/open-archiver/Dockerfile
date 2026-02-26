@@ -26,11 +26,15 @@ ENV PNPM_HOME="/pnpm"
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --shamefully-hoist --frozen-lockfile --prod=false
 
-# Copy the rest of the source code
-COPY . .
+# Copy only sources required for OSS build (better cache reuse)
+COPY tsconfig.base.json tsconfig.build.json ./
+COPY packages/backend ./packages/backend
+COPY packages/frontend ./packages/frontend
+COPY packages/types ./packages/types
+COPY apps/open-archiver ./apps/open-archiver
 
 # Build the OSS packages.
-RUN pnpm build:oss
+RUN pnpm --filter @open-archiver/types build && pnpm build:oss
 
 # 2. Production Stage: Install only production dependencies and copy built artifacts
 FROM base AS production

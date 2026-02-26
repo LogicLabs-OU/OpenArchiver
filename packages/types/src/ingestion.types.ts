@@ -9,6 +9,11 @@ export type SyncState = {
 			deltaTokens: { [folderId: string]: string };
 		};
 	};
+	outlookPersonal?: {
+		[userEmail: string]: {
+			deltaTokens: { [folderId: string]: string };
+		};
+	};
 	imap?: {
 		[mailboxPath: string]: {
 			maxUid: number;
@@ -21,6 +26,7 @@ export type SyncState = {
 export type IngestionProvider =
 	| 'google_workspace'
 	| 'microsoft_365'
+	| 'outlook_personal'
 	| 'generic_imap'
 	| 'pst_import'
 	| 'eml_import'
@@ -91,11 +97,21 @@ export interface MboxImportCredentials extends BaseIngestionCredentials {
 	localFilePath?: string;
 }
 
+export interface OutlookPersonalCredentials extends BaseIngestionCredentials {
+	type: 'outlook_personal';
+	refreshToken: string;
+	accessToken?: string;
+	expiresAt?: number;
+	accountEmail: string;
+	scopes: string[];
+}
+
 // Discriminated union for all possible credential types
 export type IngestionCredentials =
 	| GenericImapCredentials
 	| GoogleWorkspaceCredentials
 	| Microsoft365Credentials
+	| OutlookPersonalCredentials
 	| PSTImportCredentials
 	| EMLImportCredentials
 	| MboxImportCredentials;

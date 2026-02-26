@@ -1,6 +1,6 @@
 import 'cross-fetch/polyfill';
 import type {
-	Microsoft365Credentials,
+	OutlookPersonalCredentials,
 	EmailObject,
 	EmailAddress,
 	SyncState,
@@ -13,63 +13,44 @@ import { ConfidentialClientApplication, Configuration, LogLevel } from '@azure/m
 import { Client } from '@microsoft/microsoft-graph-client';
 import type { User, MailFolder } from 'microsoft-graph';
 import type { AuthProvider } from '@microsoft/microsoft-graph-client';
+import { config } from '../../config';
 
 /**
- * A connector for Microsoft 365 that uses the Microsoft Graph API with client credentials (app-only)
- * to access data on behalf of the organization.
+ * A connector for Outlook Personal that uses the Microsoft Graph API with delegated auth (OAuth2 + PKCE)
+ * to access a personal Microsoft account mailbox.
  */
-export class MicrosoftConnector implements IEmailConnector {
-	private credentials: Microsoft365Credentials;
+export class OutlookPersonalConnector implements IEmailConnector {
+	private credentials: OutlookPersonalCredentials;
 	private graphClient: Client;
+	private accessToken: string | null = null;
 	// Store delta tokens for each folder during a sync operation.
 	private newDeltaTokens: { [folderId: string]: string };
 
-	constructor(credentials: Microsoft365Credentials) {
+	constructor(credentials: OutlookPersonalCredentials) {
 		this.credentials = credentials;
 		this.newDeltaTokens = {}; // Initialize as an empty object
 
-		const msalConfig: Configuration = {
-			auth: {
-				clientId: this.credentials.clientId,
-				authority: `https://login.microsoftonline.com/${this.credentials.tenantId}`,
-				clientSecret: this.credentials.clientSecret,
-			},
-			system: {
-				loggerOptions: {
-					loggerCallback(loglevel, message, containsPii) {
-						if (containsPii) return;
-						switch (loglevel) {
-							case LogLevel.Error:
-								logger.error(message);
-								return;
-							case LogLevel.Warning:
-								logger.warn(message);
-								return;
-							case LogLevel.Info:
-								logger.info(message);
-								return;
-							case LogLevel.Verbose:
-								logger.debug(message);
-								return;
-						}
-					},
-					piiLoggingEnabled: false,
-					logLevel: LogLevel.Warning,
-				},
-			},
-		};
-
-		const msalClient = new ConfidentialClientApplication(msalConfig);
+		// Use cached access token if still valid
+		if (
+			this.credentials.accessToken &&
+			this.credentials.expiresAt &&
+			this.credentials.expiresAt > Date.now()
+		) {
+			this.accessToken = this.credentials.accessToken;
+		}
 
 		const authProvider: AuthProvider = async (done) => {
 			try {
-				const response = await msalClient.acquireTokenByClientCredential({
-					scopes: ['https://graph.microsoft.com/.default'],
-				});
-				if (!response?.accessToken) {
-					throw new Error('Failed to acquire access token.');
+				// If we have a valid access token, use it
+				if (this.accessToken) {
+					done(null, this.accessToken);
+					return;
 				}
-				done(null, response.accessToken);
+
+				// Otherwise, refresh the token
+				const newAccessToken = await this.refreshAccessToken();
+				this.accessToken = newAccessToken;
+				done(null, newAccessToken);
 			} catch (error) {
 				logger.error({ err: error }, 'Failed to acquire Microsoft Graph access token');
 				done(error, null);
@@ -80,57 +61,96 @@ export class MicrosoftConnector implements IEmailConnector {
 	}
 
 	/**
-	 * Tests the connection and authentication by attempting to list the first user
-	 * from the directory.
+	 * Refreshes the access token using the refresh token.
+	 */
+	private async refreshAccessToken(): Promise<string> {
+		const clientId = config.app.outlookPersonal.clientId;
+		const clientSecret = config.app.outlookPersonal.clientSecret;
+
+		if (!clientId || !clientSecret) {
+			throw new Error('Outlook Personal OAuth credentials not configured');
+		}
+
+		const tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+		const params = new URLSearchParams({
+			client_id: clientId,
+			client_secret: clientSecret,
+			refresh_token: this.credentials.refreshToken,
+			grant_type: 'refresh_token',
+			scope: this.credentials.scopes.join(' '),
+		});
+
+		const response = await fetch(tokenEndpoint, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+			},
+			body: params.toString(),
+		});
+
+		if (!response.ok) {
+			const errorData = await response.text();
+			logger.error({ errorData }, 'Failed to refresh access token');
+			throw new Error('Failed to refresh access token');
+		}
+
+		const data = await response.json();
+		
+		// Update credentials with new tokens
+		this.credentials.accessToken = data.access_token;
+		this.credentials.expiresAt = Date.now() + data.expires_in * 1000;
+		
+		// Update refresh token if a new one was issued
+		if (data.refresh_token) {
+			this.credentials.refreshToken = data.refresh_token;
+		}
+
+		return data.access_token;
+	}
+
+	/**
+	 * Tests the connection by attempting to get the current user's profile.
 	 */
 	public async testConnection(): Promise<boolean> {
 		try {
-			await this.graphClient.api('/users').top(1).get();
-			logger.info('Microsoft 365 connection test successful.');
+			await this.graphClient.api('/me').get();
+			logger.info('Outlook Personal connection test successful.');
 			return true;
 		} catch (error) {
-			logger.error({ err: error }, 'Failed to verify Microsoft 365 connection');
+			logger.error({ err: error }, 'Failed to verify Outlook Personal connection');
 			throw error;
 		}
 	}
 
 	/**
-	 * Lists all users in the Microsoft 365 tenant.
-	 * This method handles pagination to retrieve the complete list of users.
-	 * @returns An async generator that yields each user object.
+	 * Lists the authenticated user (returns a single-item generator since this is a personal account).
 	 */
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		let request = this.graphClient.api('/users').select('id,userPrincipalName,displayName');
-
 		try {
-			let response = await request.get();
-			while (response) {
-				for (const user of response.value as User[]) {
-					if (user.id && user.userPrincipalName && user.displayName) {
-						yield {
-							id: user.id,
-							primaryEmail: user.userPrincipalName,
-							displayName: user.displayName,
-						};
-					}
-				}
+			const user = await this.graphClient
+				.api('/me')
+				.select('id,userPrincipalName,displayName')
+				.get();
 
-				if (response['@odata.nextLink']) {
-					response = await this.graphClient.api(response['@odata.nextLink']).get();
-				} else {
-					break;
-				}
+			if (user.id && user.userPrincipalName) {
+				yield {
+					id: user.id,
+					primaryEmail: user.userPrincipalName,
+					// Fall back to the UPN when displayName is absent so we never
+					// silently skip the account.
+					displayName: user.displayName || user.userPrincipalName,
+				};
 			}
 		} catch (error) {
-			logger.error({ err: error }, 'Failed to list all users from Microsoft 365');
+			logger.error({ err: error }, 'Failed to get user profile from Outlook Personal');
 			throw error;
 		}
 	}
 
 	/**
-	 * Fetches emails for a single user by iterating through all mail folders and
+	 * Fetches emails for the authenticated user by iterating through all mail folders and
 	 * performing a delta query on each.
-	 * @param userEmail The user principal name or ID of the user.
+	 * @param userEmail The user's email (should match the authenticated account).
 	 * @param syncState Optional state containing the deltaTokens for each folder.
 	 * @returns An async generator that yields each raw email object.
 	 */
@@ -138,10 +158,10 @@ export class MicrosoftConnector implements IEmailConnector {
 		userEmail: string,
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject> {
-		this.newDeltaTokens = syncState?.microsoft?.[userEmail]?.deltaTokens || {};
+		this.newDeltaTokens = syncState?.outlookPersonal?.[userEmail]?.deltaTokens || {};
 
 		try {
-			const folders = this.listAllFolders(userEmail);
+			const folders = this.listAllFolders();
 			for await (const folder of folders) {
 				if (folder.id && folder.path) {
 					logger.info(
@@ -149,7 +169,6 @@ export class MicrosoftConnector implements IEmailConnector {
 						'Syncing folder'
 					);
 					yield* this.syncFolder(
-						userEmail,
 						folder.id,
 						folder.path,
 						this.newDeltaTokens[folder.id]
@@ -157,24 +176,22 @@ export class MicrosoftConnector implements IEmailConnector {
 				}
 			}
 		} catch (error) {
-			logger.error({ err: error, userEmail }, 'Failed to fetch emails from Microsoft 365');
+			logger.error({ err: error, userEmail }, 'Failed to fetch emails from Outlook Personal');
 			throw error;
 		}
 	}
 
 	/**
-	 * Lists all mail folders for a given user.
-	 * @param userEmail The user principal name or ID.
+	 * Lists all mail folders for the authenticated user.
 	 * @returns An async generator that yields each mail folder.
 	 */
 	private async *listAllFolders(
-		userEmail: string,
 		parentFolderId?: string,
 		currentPath = ''
 	): AsyncGenerator<MailFolder & { path: string }> {
 		const requestUrl = parentFolderId
-			? `/users/${userEmail}/mailFolders/${parentFolderId}/childFolders`
-			: `/users/${userEmail}/mailFolders`;
+			? `/me/mailFolders/${parentFolderId}/childFolders`
+			: `/me/mailFolders`;
 
 		try {
 			let response = await this.graphClient.api(requestUrl).get();
@@ -187,7 +204,7 @@ export class MicrosoftConnector implements IEmailConnector {
 					yield { ...folder, path: newPath || '' };
 
 					if (folder.childFolderCount && folder.childFolderCount > 0) {
-						yield* this.listAllFolders(userEmail, folder.id, newPath);
+						yield* this.listAllFolders(folder.id, newPath);
 					}
 				}
 
@@ -198,20 +215,19 @@ export class MicrosoftConnector implements IEmailConnector {
 				}
 			}
 		} catch (error) {
-			logger.error({ err: error, userEmail }, 'Failed to list mail folders');
+			logger.error({ err: error }, 'Failed to list mail folders');
 			throw error;
 		}
 	}
 
 	/**
 	 * Performs a delta sync on a single mail folder.
-	 * @param userEmail The user's email.
 	 * @param folderId The ID of the folder to sync.
+	 * @param path The folder path for logging.
 	 * @param deltaToken The existing delta token for this folder, if any.
 	 * @returns An async generator that yields email objects.
 	 */
 	private async *syncFolder(
-		userEmail: string,
 		folderId: string,
 		path: string,
 		deltaToken?: string
@@ -223,7 +239,7 @@ export class MicrosoftConnector implements IEmailConnector {
 			requestUrl = deltaToken;
 		} else {
 			// Initial sync
-			requestUrl = `/users/${userEmail}/mailFolders/${folderId}/messages/delta`;
+			requestUrl = `/me/mailFolders/${folderId}/messages/delta`;
 		}
 
 		while (requestUrl) {
@@ -235,12 +251,12 @@ export class MicrosoftConnector implements IEmailConnector {
 
 				for (const message of response.value) {
 					if (message.id && !message['@removed']) {
-						const rawEmail = await this.getRawEmail(userEmail, message.id);
+						const rawEmail = await this.getRawEmail(message.id);
 						if (rawEmail) {
 							const emailObject = await this.parseEmail(
 								rawEmail,
 								message.id,
-								userEmail,
+								this.credentials.accountEmail,
 								path
 							);
 							emailObject.threadId = message.conversationId; // Add conversationId as threadId
@@ -255,17 +271,17 @@ export class MicrosoftConnector implements IEmailConnector {
 
 				requestUrl = response['@odata.nextLink'];
 			} catch (error) {
-				logger.error({ err: error, userEmail, folderId }, 'Failed to sync mail folder');
+				logger.error({ err: error, folderId }, 'Failed to sync mail folder');
 				// Continue to the next folder if one fails
 				return;
 			}
 		}
 	}
 
-	private async getRawEmail(userEmail: string, messageId: string): Promise<Buffer | null> {
+	private async getRawEmail(messageId: string): Promise<Buffer | null> {
 		try {
 			const response = await this.graphClient
-				.api(`/users/${userEmail}/messages/${messageId}/$value`)
+				.api(`/me/messages/${messageId}/$value`)
 				.getStream();
 			const chunks: any[] = [];
 			for await (const chunk of response) {
@@ -274,7 +290,7 @@ export class MicrosoftConnector implements IEmailConnector {
 			return Buffer.concat(chunks);
 		} catch (error) {
 			logger.error(
-				{ err: error, userEmail, messageId },
+				{ err: error, messageId },
 				'Failed to fetch raw email content.'
 			);
 			return null;
@@ -304,16 +320,11 @@ export class MicrosoftConnector implements IEmailConnector {
 			);
 		};
 
-		const from = mapAddresses(parsedEmail.from);
-		if (from.length === 0) {
-			from.push({ name: '', address: '' });
-		}
-
 		return {
 			id: messageId,
 			userEmail: userEmail,
 			eml: rawEmail,
-			from,
+			from: mapAddresses(parsedEmail.from),
 			to: mapAddresses(parsedEmail.to),
 			cc: mapAddresses(parsedEmail.cc),
 			bcc: mapAddresses(parsedEmail.bcc),
@@ -327,16 +338,35 @@ export class MicrosoftConnector implements IEmailConnector {
 		};
 	}
 
-	public getUpdatedSyncState(userEmail: string): SyncState {
-		if (Object.keys(this.newDeltaTokens).length === 0) {
+	public getUpdatedSyncState(userEmail?: string): SyncState {
+		if (!userEmail || Object.keys(this.newDeltaTokens).length === 0) {
 			return {};
 		}
 		return {
-			microsoft: {
+			outlookPersonal: {
 				[userEmail]: {
 					deltaTokens: this.newDeltaTokens,
 				},
 			},
 		};
+	}
+
+	/**
+	 * Returns the updated credentials with new tokens after sync.
+	 * This should be called after a sync to persist updated tokens.
+	 *
+	 * TODO: Persist rotated refresh-token credentials back to the DB.
+	 * When Microsoft rotates the refresh token during a sync, the new token
+	 * must be written back to the ingestion source record so subsequent syncs
+	 * can still authenticate. Implementation steps:
+	 *  1. Extend IEmailConnector with getUpdatedCredentials(): Credentials | null
+	 *     that returns non-null only when credentials were refreshed this cycle.
+	 *  2. In the mailbox processor (after connector.fetchEmails()), call
+	 *     getUpdatedCredentials() and, if non-null, persist the encrypted
+	 *     credentials via IngestionService.updateCredentials(sourceId, creds).
+	 * See PR #2 review comments for further context.
+	 */
+	public getUpdatedCredentials(): OutlookPersonalCredentials {
+		return this.credentials;
 	}
 }

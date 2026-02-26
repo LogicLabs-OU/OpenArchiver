@@ -1,62 +1,64 @@
 {
-	"auth": {
-		"setup": {
-			"allFieldsRequired": "L'e-mail, le mot de passe et le nom sont requis",
-			"alreadyCompleted": "La configuration est déjà terminée."
-		},
-		"login": {
-			"emailAndPasswordRequired": "L'e-mail et le mot de passe sont requis",
-			"invalidCredentials": "Identifiants invalides"
-		}
-	},
-	"errors": {
-		"internalServerError": "Une erreur interne du serveur s'est produite",
-		"demoMode": "Cette opération n'est pas autorisée en mode démo.",
-		"unauthorized": "Non autorisé",
-		"unknown": "Une erreur inconnue s'est produite",
-		"noPermissionToAction": "Vous n'avez pas la permission d'effectuer l'action en cours."
-	},
-	"user": {
-		"notFound": "Utilisateur non trouvé",
-		"cannotDeleteOnlyUser": "Vous essayez de supprimer le seul utilisateur de la base de données, ce n'est pas autorisé.",
-		"requiresSuperAdminRole": "Le rôle de Super Admin est requis pour gérer les utilisateurs."
-	},
-	"iam": {
-		"failedToGetRoles": "Échec de la récupération des rôles.",
-		"roleNotFound": "Rôle non trouvé.",
-		"failedToGetRole": "Échec de la récupération du rôle.",
-		"missingRoleFields": "Champs obligatoires manquants : nom et politique.",
-		"invalidPolicy": "Déclaration de politique invalide :",
-		"failedToCreateRole": "Échec de la création du rôle.",
-		"failedToDeleteRole": "Échec de la suppression du rôle.",
-		"missingUpdateFields": "Champs à mettre à jour manquants : nom ou politiques.",
-		"failedToUpdateRole": "Échec de la mise à jour du rôle.",
-		"requiresSuperAdminRole": "Le rôle de Super Admin est requis pour gérer les rôles."
-	},
-	"settings": {
-		"failedToRetrieve": "Échec de la récupération des paramètres",
-		"failedToUpdate": "Échec de la mise à jour des paramètres",
-		"noPermissionToUpdate": "Vous n'avez pas la permission de mettre à jour les paramètres système."
-	},
-	"dashboard": {
-		"permissionRequired": "Vous avez besoin de la permission de lecture du tableau de bord pour afficher les données du tableau de bord."
-	},
-	"ingestion": {
-		"failedToCreate": "Échec de la création de la source d'ingestion en raison d'une erreur de connexion.",
-		"notFound": "Source d'ingestion non trouvée",
-		"initialImportTriggered": "Importation initiale déclenchée avec succès.",
-		"forceSyncTriggered": "Synchronisation forcée déclenchée avec succès."
-	},
-	"archivedEmail": {
-		"notFound": "E-mail archivé non trouvé"
-	},
-	"search": {
-		"keywordsRequired": "Des mots-clés sont requis"
-	},
-	"storage": {
-		"filePathRequired": "Le chemin du fichier est requis",
-		"invalidFilePath": "Chemin de fichier invalide",
-		"fileNotFound": "Fichier non trouvé",
-		"downloadError": "Erreur lors du téléchargement du fichier"
-	}
+  "auth": {
+    "setup": {
+      "allFieldsRequired": "L'e-mail, le mot de passe et le nom sont requis",
+      "alreadyCompleted": "La configuration est déjà terminée."
+    },
+    "login": {
+      "emailAndPasswordRequired": "L'e-mail et le mot de passe sont requis",
+      "invalidCredentials": "Identifiants invalides"
+    }
+  },
+  "errors": {
+    "internalServerError": "Une erreur interne du serveur s'est produite",
+    "demoMode": "Cette opération n'est pas autorisée en mode démo.",
+    "unauthorized": "Non autorisé",
+    "unknown": "Une erreur inconnue s'est produite",
+    "noPermissionToAction": "Vous n'avez pas la permission d'effectuer l'action en cours.",
+    "deletion_disabled": "La suppression est désactivée pour cette instance.",
+    "missingRequiredParameters": "Paramètres requis manquants"
+  },
+  "user": {
+    "notFound": "Utilisateur non trouvé",
+    "cannotDeleteOnlyUser": "Vous essayez de supprimer le seul utilisateur de la base de données, ce n'est pas autorisé.",
+    "requiresSuperAdminRole": "Le rôle de Super Admin est requis pour gérer les utilisateurs."
+  },
+  "iam": {
+    "failedToGetRoles": "Échec de la récupération des rôles.",
+    "roleNotFound": "Rôle non trouvé.",
+    "failedToGetRole": "Échec de la récupération du rôle.",
+    "missingRoleFields": "Champs obligatoires manquants : nom et politique.",
+    "invalidPolicy": "Déclaration de politique invalide :",
+    "failedToCreateRole": "Échec de la création du rôle.",
+    "failedToDeleteRole": "Échec de la suppression du rôle.",
+    "missingUpdateFields": "Champs à mettre à jour manquants : nom ou politiques.",
+    "failedToUpdateRole": "Échec de la mise à jour du rôle.",
+    "requiresSuperAdminRole": "Le rôle de Super Admin est requis pour gérer les rôles."
+  },
+  "settings": {
+    "failedToRetrieve": "Échec de la récupération des paramètres",
+    "failedToUpdate": "Échec de la mise à jour des paramètres",
+    "noPermissionToUpdate": "Vous n'avez pas la permission de mettre à jour les paramètres système."
+  },
+  "dashboard": {
+    "permissionRequired": "Vous avez besoin de la permission de lecture du tableau de bord pour afficher les données du tableau de bord."
+  },
+  "ingestion": {
+    "failedToCreate": "Échec de la création de la source d'ingestion en raison d'une erreur de connexion.",
+    "notFound": "Source d'ingestion non trouvée",
+    "initialImportTriggered": "Importation initiale déclenchée avec succès.",
+    "forceSyncTriggered": "Synchronisation forcée déclenchée avec succès."
+  },
+  "archivedEmail": {
+    "notFound": "E-mail archivé non trouvé"
+  },
+  "search": {
+    "keywordsRequired": "Des mots-clés sont requis"
+  },
+  "storage": {
+    "filePathRequired": "Le chemin du fichier est requis",
+    "invalidFilePath": "Chemin de fichier invalide",
+    "fileNotFound": "Fichier non trouvé",
+    "downloadError": "Erreur lors du téléchargement du fichier"
+  }
 }

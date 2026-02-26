@@ -5,6 +5,17 @@
 # Node
 node_modules
 .pnpm-store
+**/node_modules
+**/.pnpm-store
+**/build
+**/.svelte-kit
+**/coverage
+**/.cache
+
+# Non-runtime docs and assets
+docs
+assets
+*.md
 
 # Env
 .env

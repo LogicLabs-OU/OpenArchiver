@@ -1,62 +1,64 @@
 {
-	"auth": {
-		"setup": {
-			"allFieldsRequired": "E-mail, senha e nome são obrigatórios",
-			"alreadyCompleted": "A configuração já foi concluída."
-		},
-		"login": {
-			"emailAndPasswordRequired": "E-mail e senha são obrigatórios",
-			"invalidCredentials": "Credenciais inválidas"
-		}
-	},
-	"errors": {
-		"internalServerError": "Ocorreu um erro interno do servidor",
-		"demoMode": "Esta operação não é permitida no modo de demonstração.",
-		"unauthorized": "Não autorizado",
-		"unknown": "Ocorreu um erro desconhecido",
-		"noPermissionToAction": "Você não tem permissão para executar a ação atual."
-	},
-	"user": {
-		"notFound": "Usuário não encontrado",
-		"cannotDeleteOnlyUser": "Você está tentando excluir o único usuário no banco de dados, isso não é permitido.",
-		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar usuários."
-	},
-	"iam": {
-		"failedToGetRoles": "Falha ao obter as funções.",
-		"roleNotFound": "Função não encontrada.",
-		"failedToGetRole": "Falha ao obter a função.",
-		"missingRoleFields": "Campos obrigatórios ausentes: nome e política.",
-		"invalidPolicy": "Declaração de política inválida:",
-		"failedToCreateRole": "Falha ao criar a função.",
-		"failedToDeleteRole": "Falha ao excluir a função.",
-		"missingUpdateFields": "Campos ausentes para atualização: nome ou políticas.",
-		"failedToUpdateRole": "Falha ao atualizar a função.",
-		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar as funções."
-	},
-	"settings": {
-		"failedToRetrieve": "Falha ao recuperar as configurações",
-		"failedToUpdate": "Falha ao atualizar as configurações",
-		"noPermissionToUpdate": "Você não tem permissão para atualizar as configurações do sistema."
-	},
-	"dashboard": {
-		"permissionRequired": "Você precisa da permissão de leitura do painel para visualizar os dados do painel."
-	},
-	"ingestion": {
-		"failedToCreate": "Falha ao criar a fonte de ingestão devido a um erro de conexão.",
-		"notFound": "Fonte de ingestão não encontrada",
-		"initialImportTriggered": "Importação inicial acionada com sucesso.",
-		"forceSyncTriggered": "Sincronização forçada acionada com sucesso."
-	},
-	"archivedEmail": {
-		"notFound": "E-mail arquivado não encontrado"
-	},
-	"search": {
-		"keywordsRequired": "Palavras-chave são obrigatórias"
-	},
-	"storage": {
-		"filePathRequired": "O caminho do arquivo é obrigatório",
-		"invalidFilePath": "Caminho de arquivo inválido",
-		"fileNotFound": "Arquivo não encontrado",
-		"downloadError": "Erro ao baixar o arquivo"
-	}
+  "auth": {
+    "setup": {
+      "allFieldsRequired": "E-mail, senha e nome são obrigatórios",
+      "alreadyCompleted": "A configuração já foi concluída."
+    },
+    "login": {
+      "emailAndPasswordRequired": "E-mail e senha são obrigatórios",
+      "invalidCredentials": "Credenciais inválidas"
+    }
+  },
+  "errors": {
+    "internalServerError": "Ocorreu um erro interno do servidor",
+    "demoMode": "Esta operação não é permitida no modo de demonstração.",
+    "unauthorized": "Não autorizado",
+    "unknown": "Ocorreu um erro desconhecido",
+    "noPermissionToAction": "Você não tem permissão para executar a ação atual.",
+    "deletion_disabled": "A exclusão está desativada para esta instância.",
+    "missingRequiredParameters": "Parâmetros obrigatórios ausentes"
+  },
+  "user": {
+    "notFound": "Usuário não encontrado",
+    "cannotDeleteOnlyUser": "Você está tentando excluir o único usuário no banco de dados, isso não é permitido.",
+    "requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar usuários."
+  },
+  "iam": {
+    "failedToGetRoles": "Falha ao obter as funções.",
+    "roleNotFound": "Função não encontrada.",
+    "failedToGetRole": "Falha ao obter a função.",
+    "missingRoleFields": "Campos obrigatórios ausentes: nome e política.",
+    "invalidPolicy": "Declaração de política inválida:",
+    "failedToCreateRole": "Falha ao criar a função.",
+    "failedToDeleteRole": "Falha ao excluir a função.",
+    "missingUpdateFields": "Campos ausentes para atualização: nome ou políticas.",
+    "failedToUpdateRole": "Falha ao atualizar a função.",
+    "requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar as funções."
+  },
+  "settings": {
+    "failedToRetrieve": "Falha ao recuperar as configurações",
+    "failedToUpdate": "Falha ao atualizar as configurações",
+    "noPermissionToUpdate": "Você não tem permissão para atualizar as configurações do sistema."
+  },
+  "dashboard": {
+    "permissionRequired": "Você precisa da permissão de leitura do painel para visualizar os dados do painel."
+  },
+  "ingestion": {
+    "failedToCreate": "Falha ao criar a fonte de ingestão devido a um erro de conexão.",
+    "notFound": "Fonte de ingestão não encontrada",
+    "initialImportTriggered": "Importação inicial acionada com sucesso.",
+    "forceSyncTriggered": "Sincronização forçada acionada com sucesso."
+  },
+  "archivedEmail": {
+    "notFound": "E-mail arquivado não encontrado"
+  },
+  "search": {
+    "keywordsRequired": "Palavras-chave são obrigatórias"
+  },
+  "storage": {
+    "filePathRequired": "O caminho do arquivo é obrigatório",
+    "invalidFilePath": "Caminho de arquivo inválido",
+    "fileNotFound": "Arquivo não encontrado",
+    "downloadError": "Erro ao baixar o arquivo"
+  }
 }

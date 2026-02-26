@@ -44,6 +44,7 @@ Password: openarchiver_demo
     - IMAP connection
     - Google Workspace
     - Microsoft 365
+    - Outlook Personal (personal Microsoft accounts)
     - PST files
     - Zipped .eml files
     - Mbox files
@@ -109,8 +110,27 @@ Open Archiver is built on a modern, scalable, and maintainable technology stack:
 After deploying the application, you will need to configure one or more ingestion sources to begin archiving emails. Follow our detailed guides to connect to your email provider:
 
 - [Connecting to Google Workspace](https://docs.openarchiver.com/user-guides/email-providers/google-workspace.html)
-- [Connecting to Microsoft 365](https://docs.openarchiver.com/user-guides/email-providers/imap.html)
+- [Connecting to Microsoft 365](https://docs.openarchiver.com/user-guides/email-providers/microsoft-365.html)
+- [Connecting to Outlook Personal](https://docs.openarchiver.com/user-guides/email-providers/outlook-personal.html)
 - [Connecting to a Generic IMAP Server](https://docs.openarchiver.com/user-guides/email-providers/imap.html)
+- [Local Development Setup](https://docs.openarchiver.com/user-guides/local-development.html)
+
+### Outlook Personal Azure App Registration Troubleshooting
+
+When configuring the Outlook Personal provider, Azure may block manifest updates with one of these errors:
+
+- `The name of your application is invalid. 'Hotmail' is not allowed.`
+- `Unable to change signInAudience to AzureADandPersonalMicrosoftAccount. Application must accept Access Token Version 2.`
+
+If this happens:
+
+1. Rename the app registration to avoid protected Microsoft brand names (for example, avoid `Hotmail`, `Outlook`, `Microsoft` in the app name).
+2. In the app **Manifest**, set access token version to v2:
+   - `api.requestedAccessTokenVersion: 2`
+   - If present in your tenant, also set `accessTokenAcceptedVersion: 2`
+3. Set `signInAudience` to `AzureADandPersonalMicrosoftAccount`.
+4. Ensure your redirect URI exactly matches your Open Archiver callback URL (for example, `https://your-domain.com/dashboard/ingestions/oauth-callback`).
+5. Save the manifest and retry the Outlook Personal OAuth setup.
 
 ## 🤝 Contributing
 

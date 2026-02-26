@@ -169,6 +169,13 @@
 			"when": 1760354094610,
 			"tag": "0023_swift_swordsman",
 			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "7",
+			"when": 1761050000000,
+			"tag": "0024_add_outlook_personal_provider",
+			"breakpoints": true
 		}
 	]
 }

@@ -7,4 +7,9 @@ export const app = {
 	syncFrequency: process.env.SYNC_FREQUENCY || '* * * * *', //default to 1 minute
 	enableDeletion: process.env.ENABLE_DELETION === 'true',
 	allInclusiveArchive: process.env.ALL_INCLUSIVE_ARCHIVE === 'true',
+	outlookPersonal: {
+		clientId: process.env.OUTLOOK_PERSONAL_CLIENT_ID,
+		clientSecret: process.env.OUTLOOK_PERSONAL_CLIENT_SECRET,
+		redirectUri: process.env.OUTLOOK_PERSONAL_REDIRECT_URI,
+	},
 };
