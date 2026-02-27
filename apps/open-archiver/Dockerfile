@@ -45,6 +45,20 @@ COPY --from=build /app/apps/open-archiver/dist ./apps/open-archiver/dist
 
 # Copy the entrypoint script and make it executable
 COPY docker/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Create non-root user with high UID for security (prevents host UID collisions)
+RUN addgroup -g 10001 -S app && \
+    adduser -u 10001 -S app -G app
+
+# Change ownership of application files to non-root user
+RUN chown -R app:app /app
+
+# Create pnpm cache directory with correct permissions
+RUN mkdir -p /pnpm && chown -R app:app /pnpm
+
+# Switch to non-root user
+USER app
 
 # Expose the port the app runs on
 EXPOSE 4000
