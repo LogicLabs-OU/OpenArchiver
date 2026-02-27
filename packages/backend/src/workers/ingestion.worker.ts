@@ -35,5 +35,17 @@ const worker = new Worker('ingestion', processor, {
 
 console.log('Ingestion worker started');
 
-process.on('SIGINT', () => worker.close());
-process.on('SIGTERM', () => worker.close());
+const shutdown = async (signal: string) => {
+	console.log(`${signal} received, shutting down ingestion worker...`);
+	try {
+		await worker.close(); // waits for worker to stop (and active job to finish)
+		console.log('Ingestion worker closed');
+		process.exit(0);
+	} catch (err) {
+		console.error('Failed to close ingestion worker', err);
+		process.exit(1);
+	}
+};
+
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
