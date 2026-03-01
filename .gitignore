@@ -28,3 +28,4 @@ docs/.vitepress/cache
 
 # TS
 **/tsconfig.tsbuildinfo
+data/
