@@ -6,7 +6,7 @@ export default defineConfig({
 			'script',
 			{
 				defer: '',
-				src: 'https://analytics.zenceipt.com/script.js',
+				src: 'https://analytics.openarchiver.com/script.js',
 				'data-website-id': '2c8b452e-eab5-4f82-8ead-902d8f8b976f',
 			},
 		],
