@@ -6,16 +6,19 @@ ARG BASE_IMAGE=node:22-alpine
 FROM ${BASE_IMAGE} AS base
 WORKDIR /app
 
-# Install pnpm
-RUN --mount=type=cache,target=/root/.npm \
-    npm install -g pnpm
-
 # Copy manifests and lockfile
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/types/package.json ./packages/types/
 COPY apps/open-archiver/package.json ./apps/open-archiver/
+
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
+# Install pnpm
+RUN --mount=type=cache,target=/root/.npm \
+    corepack enable pnpm \
+    && pnpm -v
 
 # 1. Build Stage: Install all dependencies and build the project
 FROM base AS build
@@ -42,6 +45,12 @@ COPY --from=build /app/packages/backend/src/database/migrations ./packages/backe
 COPY --from=build /app/packages/frontend/build ./packages/frontend/build
 COPY --from=build /app/packages/types/dist ./packages/types/dist
 COPY --from=build /app/apps/open-archiver/dist ./apps/open-archiver/dist
+
+# Copy manifests and lockfile
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+
+# Add runtime dependencies
+RUN pnpm install --prod
 
 # Copy the entrypoint script and make it executable
 COPY docker/docker-entrypoint.sh /usr/local/bin/
