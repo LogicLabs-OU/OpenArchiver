@@ -43,10 +43,13 @@ export interface LicensePingRequest {
  */
 export interface LicensePingResponse {
 	status: 'VALID' | 'INVALID';
+	// ISO 8601 UTC timestamp.
+	expirationDate: string;
 	/** ISO 8601 UTC timestamp. Present only when status is "VALID" and activeSeats > planSeats. */
 	gracePeriodEnds?: string;
 	/** The current plan seat limit from the license server. */
 	planSeats?: number;
+	message?: string;
 }
 
 /**

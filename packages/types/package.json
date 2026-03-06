@@ -1,6 +1,6 @@
 {
 	"name": "@open-archiver/types",
-	"version": "0.1.2",
+	"version": "0.1.4",
 	"license": "MIT License",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
