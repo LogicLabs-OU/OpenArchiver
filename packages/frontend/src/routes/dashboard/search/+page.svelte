@@ -141,6 +141,7 @@
 				name="keywords"
 				placeholder={$t('app.search.placeholder')}
 				class=" h-12 flex-grow"
+				autocomplete="off"
 				bind:value={keywords}
 			/>
 			<Button type="submit" class="h-12 cursor-pointer"
