@@ -26,6 +26,7 @@
 		{ value: 'el', label: '🇬🇷 Ελληνικά' },
 		{ value: 'bg', label: '🇧🇬 български' },
 		{ value: 'ja', label: '🇯🇵 日本語' },
+		{ value: 'zh', label: '🇨🇳 中文' },
 	];
 
 	const languageTriggerContent = $derived(
