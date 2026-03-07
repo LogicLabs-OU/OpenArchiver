@@ -20,6 +20,7 @@ import type { Readable } from 'stream';
 import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
+import { RetentionHook } from '../hooks/RetentionHook';
 
 interface DbRecipients {
 	to: { name: string; address: string }[];
@@ -197,9 +198,16 @@ export class ArchivedEmailService {
 	public static async deleteArchivedEmail(
 		emailId: string,
 		actor: User,
-		actorIp: string
+		actorIp: string,
+		options: { systemDelete?: boolean } = {}
 	): Promise<void> {
-		checkDeletionEnabled();
+		checkDeletionEnabled({ allowSystemDelete: options.systemDelete });
+
+		const canDelete = await RetentionHook.canDelete(emailId);
+		if (!canDelete) {
+			throw new Error('Deletion blocked by retention policy (Legal Hold or similar).');
+		}
+
 		const [email] = await db
 			.select()
 			.from(archivedEmails)

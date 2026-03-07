@@ -64,6 +64,10 @@ export interface LicenseStatusPayload {
 	lastCheckedAt?: string;
 	/** The current plan seat limit from the license server. */
 	planSeats: number;
+	/** ISO 8601 UTC timestamp of the license expiration date. */
+	expirationDate?: string;
+	/** Optional message from the license server (e.g. regarding account status). */
+	message?: string;
 }
 
 /**
@@ -78,6 +82,7 @@ export interface ConsolidatedLicenseStatus {
 	remoteStatus: 'VALID' | 'INVALID' | 'UNKNOWN';
 	gracePeriodEnds?: string;
 	lastCheckedAt?: string;
+	message?: string;
 	// Calculated values
 	activeSeats: number;
 	isExpired: boolean;

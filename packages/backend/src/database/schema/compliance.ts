@@ -5,11 +5,15 @@ import {
 	jsonb,
 	pgEnum,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uuid,
+	varchar,
 } from 'drizzle-orm/pg-core';
+import { archivedEmails } from './archived-emails';
 import { custodians } from './custodians';
+import { users } from './users';
 
 // --- Enums ---
 
@@ -33,6 +37,36 @@ export const retentionPolicies = pgTable('retention_policies', {
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const retentionLabels = pgTable('retention_labels', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	name: varchar('name', { length: 255 }).notNull(),
+	retentionPeriodDays: integer('retention_period_days').notNull(),
+	description: text('description'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const emailRetentionLabels = pgTable('email_retention_labels', {
+	emailId: uuid('email_id')
+		.references(() => archivedEmails.id, { onDelete: 'cascade' })
+		.notNull(),
+	labelId: uuid('label_id')
+		.references(() => retentionLabels.id, { onDelete: 'cascade' })
+		.notNull(),
+	appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+	appliedByUserId: uuid('applied_by_user_id').references(() => users.id),
+}, (t) => [
+	primaryKey({ columns: [t.emailId, t.labelId] }),
+]);
+
+export const retentionEvents = pgTable('retention_events', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	eventName: varchar('event_name', { length: 255 }).notNull(),
+	eventType: varchar('event_type', { length: 100 }).notNull(),
+	eventTimestamp: timestamp('event_timestamp', { withTimezone: true }).notNull(),
+	targetCriteria: jsonb('target_criteria').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const ediscoveryCases = pgTable('ediscovery_cases', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	name: text('name').notNull().unique(),
@@ -44,17 +78,30 @@ export const ediscoveryCases = pgTable('ediscovery_cases', {
 });
 
 export const legalHolds = pgTable('legal_holds', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	caseId: uuid('case_id')
-		.notNull()
-		.references(() => ediscoveryCases.id, { onDelete: 'cascade' }),
-	custodianId: uuid('custodian_id').references(() => custodians.id, { onDelete: 'cascade' }),
-	holdCriteria: jsonb('hold_criteria'),
+	id: uuid('id').defaultRandom().primaryKey(),
+	name: varchar('name', { length: 255 }).notNull(),
 	reason: text('reason'),
-	appliedByIdentifier: text('applied_by_identifier').notNull(),
-	appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
-	removedAt: timestamp('removed_at', { withTimezone: true }),
+	isActive: boolean('is_active').notNull().default(true),
+	// Optional link to ediscovery cases for backward compatibility or future use
+	caseId: uuid('case_id').references(() => ediscoveryCases.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const emailLegalHolds = pgTable(
+	'email_legal_holds',
+	{
+		emailId: uuid('email_id')
+			.references(() => archivedEmails.id, { onDelete: 'cascade' })
+			.notNull(),
+		legalHoldId: uuid('legal_hold_id')
+			.references(() => legalHolds.id, { onDelete: 'cascade' })
+			.notNull(),
+	},
+	(t) => [
+		primaryKey({ columns: [t.emailId, t.legalHoldId] }),
+	],
+);
 
 export const exportJobs = pgTable('export_jobs', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -70,20 +117,51 @@ export const exportJobs = pgTable('export_jobs', {
 
 // --- Relations ---
 
-export const ediscoveryCasesRelations = relations(ediscoveryCases, ({ many }) => ({
-	legalHolds: many(legalHolds),
-	exportJobs: many(exportJobs),
+export const retentionPoliciesRelations = relations(retentionPolicies, ({ many }) => ({
+	// Add relations if needed
 }));
 
-export const legalHoldsRelations = relations(legalHolds, ({ one }) => ({
+export const retentionLabelsRelations = relations(retentionLabels, ({ many }) => ({
+	emailRetentionLabels: many(emailRetentionLabels),
+}));
+
+export const emailRetentionLabelsRelations = relations(emailRetentionLabels, ({ one }) => ({
+	label: one(retentionLabels, {
+		fields: [emailRetentionLabels.labelId],
+		references: [retentionLabels.id],
+	}),
+	email: one(archivedEmails, {
+		fields: [emailRetentionLabels.emailId],
+		references: [archivedEmails.id],
+	}),
+	appliedByUser: one(users, {
+		fields: [emailRetentionLabels.appliedByUserId],
+		references: [users.id],
+	}),
+}));
+
+export const legalHoldsRelations = relations(legalHolds, ({ one, many }) => ({
+	emailLegalHolds: many(emailLegalHolds),
 	ediscoveryCase: one(ediscoveryCases, {
 		fields: [legalHolds.caseId],
 		references: [ediscoveryCases.id],
 	}),
-	custodian: one(custodians, {
-		fields: [legalHolds.custodianId],
-		references: [custodians.id],
+}));
+
+export const emailLegalHoldsRelations = relations(emailLegalHolds, ({ one }) => ({
+	legalHold: one(legalHolds, {
+		fields: [emailLegalHolds.legalHoldId],
+		references: [legalHolds.id],
 	}),
+	email: one(archivedEmails, {
+		fields: [emailLegalHolds.emailId],
+		references: [archivedEmails.id],
+	}),
+}));
+
+export const ediscoveryCasesRelations = relations(ediscoveryCases, ({ many }) => ({
+	legalHolds: many(legalHolds),
+	exportJobs: many(exportJobs),
 }));
 
 export const exportJobsRelations = relations(exportJobs, ({ one }) => ({
