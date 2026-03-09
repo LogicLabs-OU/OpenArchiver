@@ -176,6 +176,13 @@
       "when": 1772842674479,
       "tag": "0024_careful_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1773013461190,
+      "tag": "0025_peaceful_grim_reaper",
+      "breakpoints": true
     }
   ]
 }

@@ -6,5 +6,7 @@ export * from './services/AuditService';
 export * from './api/middleware/requireAuth';
 export * from './api/middleware/requirePermission';
 export { db } from './database';
-export * as drizzleOrm from 'drizzle-orm';
 export * from './database/schema';
+export { AuditService } from './services/AuditService';
+export * from './config'
+export * from './jobs/queues'

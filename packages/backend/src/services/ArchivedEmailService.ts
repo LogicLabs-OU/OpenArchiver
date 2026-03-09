@@ -199,7 +199,13 @@ export class ArchivedEmailService {
 		emailId: string,
 		actor: User,
 		actorIp: string,
-		options: { systemDelete?: boolean } = {}
+		options: {
+			systemDelete?: boolean;
+			/**
+			 * Human-readable name of the retention rule that triggered deletion
+			 */
+			governingRule?: string;
+		} = {}
 	): Promise<void> {
 		checkDeletionEnabled({ allowSystemDelete: options.systemDelete });
 
@@ -270,15 +276,22 @@ export class ArchivedEmailService {
 
 		await db.delete(archivedEmails).where(eq(archivedEmails.id, emailId));
 
+		// Build audit details: system-initiated deletions carry retention context
+		// for GoBD compliance; manual deletions record only the reason.
+		const auditDetails: Record<string, unknown> = {
+			reason: options.systemDelete ? 'RetentionExpiration' : 'ManualDeletion',
+		};
+		if (options.systemDelete && options.governingRule) {
+			auditDetails.governingRule = options.governingRule;
+		}
+
 		await this.auditService.createAuditLog({
 			actorIdentifier: actor.id,
 			actionType: 'DELETE',
 			targetType: 'ArchivedEmail',
 			targetId: emailId,
 			actorIp,
-			details: {
-				reason: 'ManualDeletion',
-			},
+			details: auditDetails,
 		});
 	}
 }

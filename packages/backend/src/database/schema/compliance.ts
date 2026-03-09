@@ -12,7 +12,6 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { archivedEmails } from './archived-emails';
-import { custodians } from './custodians';
 import { users } from './users';
 
 // --- Enums ---
@@ -33,6 +32,11 @@ export const retentionPolicies = pgTable('retention_policies', {
 	actionOnExpiry: retentionActionEnum('action_on_expiry').notNull(),
 	isEnabled: boolean('is_enabled').notNull().default(true),
 	conditions: jsonb('conditions'),
+	/**
+	 * Array of ingestion source UUIDs this policy is restricted to.
+	 * null means the policy applies to all ingestion sources.
+	 */
+	ingestionScope: jsonb('ingestion_scope').$type<string[] | null>().default(null),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

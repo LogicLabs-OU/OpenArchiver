@@ -8,6 +8,7 @@
 	import { page } from '$app/state';
 	import ThemeSwitcher from '$lib/components/custom/ThemeSwitcher.svelte';
 	import { t } from '$lib/translations';
+	import Badge from '$lib/components/ui/badge/badge.svelte';
 	let { data, children } = $props();
 
 	interface NavItem {
@@ -76,7 +77,13 @@
 	const enterpriseNavItems: NavItem[] = [
 		{
 			label: 'Compliance',
-			subMenu: [{ href: '/dashboard/compliance/audit-log', label: 'Audit Log' }],
+			subMenu: [
+				{ href: '/dashboard/compliance/audit-log', label: $t('app.audit_log.title') },
+				{
+					href: '/dashboard/compliance/retention-policies',
+					label: $t('app.retention_policies.title'),
+				},
+			],
 			position: 3,
 		},
 		{
@@ -130,6 +137,9 @@
 		<a href="/dashboard" class="flex flex-row items-center gap-2 font-bold">
 			<img src="/logos/logo-sq.svg" alt="OpenArchiver Logo" class="h-8 w-8" />
 			<span class="hidden sm:inline-block">Open Archiver</span>
+			{#if data.enterpriseMode}
+				<Badge class="text-[8px] font-bold px-1 py-0.5">Enterprise</Badge>
+			{/if}
 		</a>
 
 		<!-- Desktop Navigation -->
@@ -151,7 +161,7 @@
 									{item.label}
 								</NavigationMenu.Trigger>
 								<NavigationMenu.Content>
-									<ul class="grid w-fit min-w-32 gap-1 p-1">
+									<ul class="grid w-fit min-w-40 gap-1 p-1">
 										{#each item.subMenu as subItem}
 											<li>
 												<NavigationMenu.Link href={subItem.href}>
