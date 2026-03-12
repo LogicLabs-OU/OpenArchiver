@@ -46,6 +46,7 @@ export const retentionLabels = pgTable('retention_labels', {
 	name: varchar('name', { length: 255 }).notNull(),
 	retentionPeriodDays: integer('retention_period_days').notNull(),
 	description: text('description'),
+	isDisabled: boolean('is_disabled').notNull().default(false),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -101,6 +102,8 @@ export const emailLegalHolds = pgTable(
 		legalHoldId: uuid('legal_hold_id')
 			.references(() => legalHolds.id, { onDelete: 'cascade' })
 			.notNull(),
+		appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+		appliedByUserId: uuid('applied_by_user_id').references(() => users.id),
 	},
 	(t) => [
 		primaryKey({ columns: [t.emailId, t.legalHoldId] }),

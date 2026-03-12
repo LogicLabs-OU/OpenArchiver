@@ -83,6 +83,14 @@
 					href: '/dashboard/compliance/retention-policies',
 					label: $t('app.retention_policies.title'),
 				},
+				{
+					href: '/dashboard/compliance/retention-labels',
+					label: $t('app.retention_labels.title'),
+				},
+				{
+					href: '/dashboard/compliance/legal-holds',
+					label: $t('app.legal_holds.title'),
+				},
 			],
 			position: 3,
 		},

@@ -77,7 +77,25 @@ export interface RetentionLabel {
 	name: string;
 	retentionPeriodDays: number;
 	description?: string;
+	isDisabled: boolean;
+	/**
+	 * Number of archived emails that currently have this label applied.
+	 * Used by the management UI to show usage and decide whether deletion
+	 * is a hard-delete (0) or a soft-disable (> 0).
+	 */
+	appliedEmailCount: number;
 	createdAt: string; // ISO Date string
+}
+
+/** The retention label currently applied to an archived email. */
+export interface EmailRetentionLabelInfo {
+	labelId: string;
+	labelName: string;
+	retentionPeriodDays: number;
+	appliedAt: string; // ISO Date string
+	appliedByUserId: string | null;
+	/** True when the label itself has been soft-disabled (isDisabled = true on the label row). */
+	isLabelDisabled: boolean;
 }
 
 export interface RetentionEvent {
@@ -94,4 +112,25 @@ export interface LegalHold {
 	name: string;
 	reason?: string;
 	isActive: boolean;
+	caseId?: string | null;
+	/** Number of emails currently under this hold. */
+	emailCount: number;
+	createdAt: string; // ISO Date string
+	updatedAt: string; // ISO Date string
+}
+
+/** Info about a legal hold applied to a specific email. */
+export interface EmailLegalHoldInfo {
+	legalHoldId: string;
+	holdName: string;
+	isActive: boolean;
+	appliedAt: string; // ISO Date string
+	appliedByUserId: string | null;
+}
+
+/** Result returned after applying a hold to emails via bulk query. */
+export interface BulkApplyHoldResult {
+	legalHoldId: string;
+	emailsLinked: number;
+	queryUsed: Record<string, unknown>;
 }

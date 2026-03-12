@@ -111,7 +111,9 @@
 		<h1 class="text-2xl font-bold">{$t('app.api_keys_page.title')}</h1>
 		<Dialog.Root bind:open={newAPIKeyDialogOpen}>
 			<Dialog.Trigger>
-				<Button>{$t('app.api_keys_page.generate_new_key')}</Button>
+				{#snippet child({ props })}
+					<Button {...props}>{$t('app.api_keys_page.generate_new_key')}</Button>
+				{/snippet}
 			</Dialog.Trigger>
 			<Dialog.Content>
 				<Dialog.Header>
@@ -203,10 +205,12 @@
 							<Table.Cell class="text-right">
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>
-										<Button variant="ghost" class="h-8 w-8 p-0">
-											<span class="sr-only">{$t('app.users.open_menu')}</span>
-											<MoreHorizontal class="h-4 w-4" />
-										</Button>
+										{#snippet child({ props })}
+											<Button {...props} variant="ghost" class="h-8 w-8 p-0">
+												<span class="sr-only">{$t('app.users.open_menu')}</span>
+												<MoreHorizontal class="h-4 w-4" />
+											</Button>
+										{/snippet}
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content>
 										<DropdownMenu.Label

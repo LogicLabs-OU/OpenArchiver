@@ -28,6 +28,8 @@ export const AuditLogTargetTypes = [
 	'Dashboard',
 	'IngestionSource',
 	'RetentionPolicy',
+	'RetentionLabel',
+	'LegalHold',
 	'Role',
 	'SystemEvent',
 	'SystemSettings',
