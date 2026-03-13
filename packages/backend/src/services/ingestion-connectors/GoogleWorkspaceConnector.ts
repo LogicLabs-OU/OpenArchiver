@@ -88,6 +88,7 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 	/**
 	 * Lists all users in the Google Workspace domain.
 	 * This method handles pagination to retrieve the complete list of users.
+	 * If allowedUserEmails is configured, only users in that list will be yielded.
 	 * @returns An async generator that yields each user object.
 	 */
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
@@ -97,6 +98,21 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 
 		const admin = google.admin({ version: 'directory_v1', auth: authClient });
 		let pageToken: string | undefined = undefined;
+
+		// Normalize allowed emails to lowercase for case-insensitive comparison
+		const allowedEmails = this.credentials.allowedUserEmails?.map((email) =>
+			email.toLowerCase().trim()
+		);
+		const hasFilter = allowedEmails && allowedEmails.length > 0;
+
+		if (hasFilter) {
+			logger.info(
+				{ allowedEmails },
+				'Filtering Google Workspace users to only archive specified emails'
+			);
+		}
+
+		let totalUsersFound = 0;
 
 		do {
 			const res: Common.GaxiosResponseWithHTTP2<admin_directory_v1.Schema$Users> =
@@ -110,7 +126,20 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			const users = res.data.users;
 			if (users) {
 				for (const user of users) {
+					totalUsersFound++;
 					if (user.id && user.primaryEmail && user.name?.fullName) {
+						// If filter is configured, only yield users whose email is in the allowed list
+						if (hasFilter && !allowedEmails.includes(user.primaryEmail.toLowerCase())) {
+							logger.debug(
+								{ email: user.primaryEmail },
+								'Skipping user - not in allowed list'
+							);
+							continue;
+						}
+						logger.info(
+							{ email: user.primaryEmail },
+							'User matched filter, will process mailbox'
+						);
 						yield {
 							id: user.id,
 							primaryEmail: user.primaryEmail,
@@ -121,6 +150,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			}
 			pageToken = res.data.nextPageToken ?? undefined;
 		} while (pageToken);
+
+		logger.info({ totalUsersFound, hasFilter }, 'Finished listing Google Workspace users');
 	}
 
 	/**

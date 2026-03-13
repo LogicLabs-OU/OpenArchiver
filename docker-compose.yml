@@ -2,15 +2,18 @@ version: '3.8'
 
 services:
     open-archiver:
-        image: logiclabshq/open-archiver:latest
+        build:
+            context: .
+            dockerfile: apps/open-archiver/Dockerfile
+        image: open-archiver:local
         container_name: open-archiver
         restart: unless-stopped
         ports:
-            - '3000:3000' # Frontend
+            - '127.0.0.1:3000:3000' # Frontend (localhost only, nginx handles external)
         env_file:
             - .env
         volumes:
-            - ${STORAGE_LOCAL_ROOT_PATH}:${STORAGE_LOCAL_ROOT_PATH}
+            - ./data:/app/data
         depends_on:
             - postgres
             - valkey
