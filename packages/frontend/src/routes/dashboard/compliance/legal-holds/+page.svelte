@@ -10,11 +10,11 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { enhance } from '$app/forms';
-	import { MoreHorizontal, Plus, Users } from 'lucide-svelte';
+	import { MoreHorizontal, Plus, ShieldCheck } from 'lucide-svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import type { LegalHold } from '@open-archiver/types';
 
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data }: { data: PageData; form: ActionData } = $props();
 
 	let holds = $derived(data.holds);
 
@@ -85,9 +85,6 @@
 <div class="mb-6 flex items-center justify-between">
 	<div>
 		<h1 class="text-2xl font-bold">{$t('app.legal_holds.header')}</h1>
-		<p class="text-muted-foreground mt-1 text-sm">
-			{$t('app.legal_holds.header_description')}
-		</p>
 	</div>
 	<Button onclick={() => (isCreateOpen = true)}>
 		<Plus class="mr-1.5 h-4 w-4" />
@@ -132,7 +129,7 @@
 						</Table.Cell>
 						<Table.Cell>
 							<div class="flex items-center gap-1.5">
-								<Users class="text-muted-foreground h-3.5 w-3.5" />
+								<ShieldCheck class="text-muted-foreground h-3.5 w-3.5" />
 								<Badge variant={hold.emailCount > 0 ? 'secondary' : 'outline'}>
 									{hold.emailCount}
 								</Badge>

@@ -5,6 +5,10 @@
 	"license": "SEE LICENSE IN LICENSE file",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
+	"exports": {
+		".": "./dist/index.js",
+		"./*": "./dist/*.js"
+	},
 	"scripts": {
 		"build": "tsc && pnpm copy-assets",
 		"dev": "tsc --watch",

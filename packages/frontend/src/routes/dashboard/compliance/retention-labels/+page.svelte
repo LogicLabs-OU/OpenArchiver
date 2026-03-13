@@ -3,6 +3,7 @@
 	import { t } from '$lib/translations';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Tag } from 'lucide-svelte';
 	import * as Table from '$lib/components/ui/table';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
@@ -87,9 +88,13 @@
 						</Table.Cell>
 						<!-- Applied email count — shows a subtle badge with the number -->
 						<Table.Cell>
-							<Badge variant={label.appliedEmailCount > 0 ? 'secondary' : 'outline'}>
+						<div class="flex items-center gap-1.5">
+								<Tag class="text-muted-foreground h-3.5 w-3.5" />
+								<Badge variant={label.appliedEmailCount > 0 ? 'secondary' : 'outline'}>
 								{label.appliedEmailCount}
 							</Badge>
+							</div>
+							
 						</Table.Cell>
 						<Table.Cell>
 							{#if label.isDisabled}
