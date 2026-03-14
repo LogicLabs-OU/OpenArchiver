@@ -16,7 +16,7 @@
 	import * as Alert from '$lib/components/ui/alert';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as HoverCard from '$lib/components/ui/hover-card';
-	import { Clock, Trash2, CalendarClock, AlertCircle, Shield, CircleAlert, Tag } from 'lucide-svelte';
+	import { Clock, Trash2, CalendarClock, AlertCircle, Shield, CircleAlert, Tag, FileDown } from 'lucide-svelte';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import type { LegalHold, EmailLegalHoldInfo } from '@open-archiver/types';
@@ -64,6 +64,9 @@
 	let selectedHoldId = $state('');
 	let isApplyingHold = $state(false);
 	let isRemovingHoldId = $state<string | null>(null);
+
+	// --- Integrity report PDF download state (enterprise only) ---
+	let isDownloadingReport = $state(false);
 
 	// React to form results for label and hold actions
 	$effect(() => {
@@ -143,6 +146,41 @@
 		}
 	}
 
+	/** Downloads the enterprise integrity verification PDF report. */
+	async function downloadIntegrityReportPdf() {
+		if (!browser || !email) return;
+
+		try {
+			isDownloadingReport = true;
+			const response = await api(`/enterprise/integrity-report/${email.id}/pdf`);
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			const blob = await response.blob();
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `integrity-report-${email.id}.pdf`;
+			document.body.appendChild(a);
+			a.click();
+			window.URL.revokeObjectURL(url);
+			a.remove();
+		} catch (error) {
+			console.error('Integrity report download failed:', error);
+			setAlert({
+				type: 'error',
+				title: $t('app.archive.integrity_report_download_error'),
+				message: '',
+				duration: 5000,
+				show: true,
+			});
+		} finally {
+			isDownloadingReport = false;
+		}
+	}
+
 	async function confirmDelete() {
 		if (!email) return;
 		try {
@@ -193,21 +231,19 @@
 					<div class="space-y-4">
 						<div class="space-y-1">
 							<h3 class="font-semibold">{$t('app.archive.recipients')}</h3>
-							<Card.Description>
-								<p>
-									{$t('app.archive.to')}: {email.recipients
-										.map((r) => r.email || r.name)
-										.join(', ')}
-								</p>
-							</Card.Description>
+							<p class="text-muted-foreground text-sm">
+								{$t('app.archive.to')}: {email.recipients
+									.map((r) => r.email || r.name)
+									.join(', ')}
+							</p>
 						</div>
-						<div class=" space-y-1">
+						<div class="space-y-1">
 							<h3 class="font-semibold">{$t('app.archive.meta_data')}</h3>
-							<Card.Description class="space-y-2">
+							<div class="text-muted-foreground text-sm space-y-2">
 								{#if email.path}
 									<div class="flex flex-wrap items-center gap-2">
 										<span>{$t('app.archive.folder')}:</span>
-										<span class="  bg-muted truncate rounded p-1.5 text-xs"
+										<span class="bg-muted truncate rounded p-1.5 text-xs"
 											>{email.path || '/'}</span
 										>
 									</div>
@@ -216,7 +252,7 @@
 									<div class="flex flex-wrap items-center gap-2">
 										<span> {$t('app.archive.tags')}: </span>
 										{#each email.tags as tag}
-											<span class="  bg-muted truncate rounded p-1.5 text-xs"
+											<span class="bg-muted truncate rounded p-1.5 text-xs"
 												>{tag}</span
 											>
 										{/each}
@@ -224,11 +260,11 @@
 								{/if}
 								<div class="flex flex-wrap items-center gap-2">
 									<span>{$t('app.archive.size')}:</span>
-									<span class="  bg-muted truncate rounded p-1.5 text-xs"
+									<span class="bg-muted truncate rounded p-1.5 text-xs"
 										>{formatBytes(email.sizeBytes)}</span
 									>
 								</div>
-							</Card.Description>
+							</div>
 						</div>
 						<div>
 							<h3 class="font-semibold">{$t('app.archive.email_preview')}</h3>
@@ -347,6 +383,22 @@
 								</li>
 							{/each}
 						</ul>
+						{#if enterpriseMode}
+							<Button
+								variant="outline"
+								size="sm"
+								class="mt-2 w-full text-xs"
+								onclick={downloadIntegrityReportPdf}
+								disabled={isDownloadingReport}
+							>
+								<FileDown class="mr-1.5 h-3.5 w-3.5" />
+								{#if isDownloadingReport}
+									{$t('app.archive.downloading_integrity_report')}
+								{:else}
+									{$t('app.archive.download_integrity_report_pdf')}
+								{/if}
+							</Button>
+						{/if}
 					</Card.Content>
 				</Card.Root>
 			{:else}
@@ -357,6 +409,17 @@
 						{$t('app.archive.integrity_check_failed_message')}
 					</Alert.Description>
 				</Alert.Root>
+			{/if}
+			<!-- Thread discovery -->
+			{#if email.thread && email.thread.length > 1}
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>{$t('app.archive.email_thread')}</Card.Title>
+					</Card.Header>
+					<Card.Content>
+						<EmailThread thread={email.thread} currentEmailId={email.id} />
+					</Card.Content>
+				</Card.Root>
 			{/if}
 			<!-- Legal Holds card (Enterprise only) -->
 			{#if enterpriseMode}
@@ -790,17 +853,6 @@
 				</Card.Root>
 
 				
-			{/if}
-
-			{#if email.thread && email.thread.length > 1}
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>{$t('app.archive.email_thread')}</Card.Title>
-					</Card.Header>
-					<Card.Content>
-						<EmailThread thread={email.thread} currentEmailId={email.id} />
-					</Card.Content>
-				</Card.Root>
 			{/if}
 		</div>
 	</div>

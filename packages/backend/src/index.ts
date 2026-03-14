@@ -11,3 +11,4 @@ export { AuditService } from './services/AuditService';
 export * from './config'
 export * from './jobs/queues'
 export { RetentionHook } from './hooks/RetentionHook';
+export { IntegrityService } from './services/IntegrityService';
