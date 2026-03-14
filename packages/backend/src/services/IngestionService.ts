@@ -15,6 +15,7 @@ import { ingestionQueue } from '../jobs/queues';
 import type { JobType } from 'bullmq';
 import { StorageService } from './StorageService';
 import type { IInitialImportJob, EmailObject } from '@open-archiver/types';
+import { stripAttachmentsFromEml } from '../helpers/emlUtils';
 import {
 	archivedEmails,
 	attachments as attachmentsSchema,
@@ -446,7 +447,10 @@ export class IngestionService {
 				return null;
 			}
 
-			const emlBuffer = email.eml ?? Buffer.from(email.body, 'utf-8');
+			const rawEmlBuffer = email.eml ?? Buffer.from(email.body, 'utf-8');
+			// Strip non-inline attachments from the .eml to avoid double-storing
+			// attachment data (attachments are stored separately).
+			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer);
 			const emailHash = createHash('sha256').update(emlBuffer).digest('hex');
 			const sanitizedPath = email.path ? email.path : '';
 			const emailPath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/emails/${sanitizedPath}${email.id}.eml`;
