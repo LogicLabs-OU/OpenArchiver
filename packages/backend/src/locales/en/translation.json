@@ -66,5 +66,12 @@
 	},
 	"api": {
 		"requestBodyInvalid": "Invalid request body."
+	},
+	"upload": {
+		"invalid_request": "The upload request is invalid or malformed.",
+		"stream_error": "An error occurred while receiving the file. Please try again.",
+		"parse_error": "Failed to parse the uploaded file data.",
+		"storage_error": "Failed to save the uploaded file to storage. Please try again.",
+		"connection_error": "The connection was lost during the upload."
 	}
 }

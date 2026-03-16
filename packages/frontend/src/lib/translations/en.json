@@ -232,7 +232,8 @@
 				"mbox_file": "Mbox File",
 				"heads_up": "Heads up!",
 				"org_wide_warning": "Please note that this is an organization-wide operation. This kind of ingestions will import and index <b>all</b> email inboxes in your organization. If you want to import only specific email inboxes, use the IMAP connector.",
-				"upload_failed": "Upload Failed, please try again"
+				"upload_failed": "Upload Failed, please try again",
+				"upload_network_error": "The server could not process the upload. The file may exceed the configured upload size limit (BODY_SIZE_LIMIT). For very large files, use the Local Path option instead."
 			},
 			"role_form": {
 				"policies_json": "Policies (JSON)",

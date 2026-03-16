@@ -72,7 +72,9 @@
 	let fileUploading = $state(false);
 
 	let importMethod = $state<'upload' | 'local'>(
-		source?.credentials && 'localFilePath' in source.credentials && source.credentials.localFilePath
+		source?.credentials &&
+			'localFilePath' in source.credentials &&
+			source.credentials.localFilePath
 			? 'local'
 			: 'upload'
 	);
@@ -119,16 +121,25 @@
 				method: 'POST',
 				body: uploadFormData,
 			});
-			const result = await response.json();
+
+			// Safely parse the response body — it may not be valid JSON
+			// (e.g. if the proxy rejected the request with an HTML error page)
+			let result: Record<string, string>;
+			try {
+				result = await response.json();
+			} catch {
+				throw new Error($t('app.components.ingestion_source_form.upload_network_error'));
+			}
+
 			if (!response.ok) {
-				throw new Error(result.message || 'File upload failed');
+				throw new Error(
+					result.message || $t('app.components.ingestion_source_form.upload_failed')
+				);
 			}
 
 			formData.providerConfig.uploadedFilePath = result.filePath;
 			formData.providerConfig.uploadedFileName = file.name;
-			fileUploading = false;
 		} catch (error) {
-			fileUploading = false;
 			const message = error instanceof Error ? error.message : String(error);
 			setAlert({
 				type: 'error',
@@ -137,6 +148,10 @@
 				duration: 5000,
 				show: true,
 			});
+			// Reset file input so the user can retry with the same file
+			target.value = '';
+		} finally {
+			fileUploading = false;
 		}
 	};
 </script>
@@ -259,15 +274,21 @@
 		</div>
 	{:else if formData.provider === 'pst_import'}
 		<div class="grid grid-cols-4 items-start gap-4">
-			<Label class="text-left pt-2">{$t('app.components.ingestion_source_form.import_method')}</Label>
+			<Label class="pt-2 text-left"
+				>{$t('app.components.ingestion_source_form.import_method')}</Label
+			>
 			<RadioGroup.Root bind:value={importMethod} class="col-span-3 flex flex-col space-y-1">
 				<div class="flex items-center space-x-2">
 					<RadioGroup.Item value="upload" id="pst-upload" />
-					<Label for="pst-upload">{$t('app.components.ingestion_source_form.upload_file')}</Label>
+					<Label for="pst-upload"
+						>{$t('app.components.ingestion_source_form.upload_file')}</Label
+					>
 				</div>
 				<div class="flex items-center space-x-2">
 					<RadioGroup.Item value="local" id="pst-local" />
-					<Label for="pst-local">{$t('app.components.ingestion_source_form.local_path')}</Label>
+					<Label for="pst-local"
+						>{$t('app.components.ingestion_source_form.local_path')}</Label
+					>
 				</div>
 			</RadioGroup.Root>
 		</div>
@@ -305,15 +326,21 @@
 		{/if}
 	{:else if formData.provider === 'eml_import'}
 		<div class="grid grid-cols-4 items-start gap-4">
-			<Label class="text-left pt-2">{$t('app.components.ingestion_source_form.import_method')}</Label>
+			<Label class="pt-2 text-left"
+				>{$t('app.components.ingestion_source_form.import_method')}</Label
+			>
 			<RadioGroup.Root bind:value={importMethod} class="col-span-3 flex flex-col space-y-1">
 				<div class="flex items-center space-x-2">
 					<RadioGroup.Item value="upload" id="eml-upload" />
-					<Label for="eml-upload">{$t('app.components.ingestion_source_form.upload_file')}</Label>
+					<Label for="eml-upload"
+						>{$t('app.components.ingestion_source_form.upload_file')}</Label
+					>
 				</div>
 				<div class="flex items-center space-x-2">
 					<RadioGroup.Item value="local" id="eml-local" />
-					<Label for="eml-local">{$t('app.components.ingestion_source_form.local_path')}</Label>
+					<Label for="eml-local"
+						>{$t('app.components.ingestion_source_form.local_path')}</Label
+					>
 				</div>
 			</RadioGroup.Root>
 		</div>
@@ -351,15 +378,21 @@
 		{/if}
 	{:else if formData.provider === 'mbox_import'}
 		<div class="grid grid-cols-4 items-start gap-4">
-			<Label class="text-left pt-2">{$t('app.components.ingestion_source_form.import_method')}</Label>
+			<Label class="pt-2 text-left"
+				>{$t('app.components.ingestion_source_form.import_method')}</Label
+			>
 			<RadioGroup.Root bind:value={importMethod} class="col-span-3 flex flex-col space-y-1">
 				<div class="flex items-center space-x-2">
 					<RadioGroup.Item value="upload" id="mbox-upload" />
-					<Label for="mbox-upload">{$t('app.components.ingestion_source_form.upload_file')}</Label>
+					<Label for="mbox-upload"
+						>{$t('app.components.ingestion_source_form.upload_file')}</Label
+					>
 				</div>
 				<div class="flex items-center space-x-2">
 					<RadioGroup.Item value="local" id="mbox-local" />
-					<Label for="mbox-local">{$t('app.components.ingestion_source_form.local_path')}</Label>
+					<Label for="mbox-local"
+						>{$t('app.components.ingestion_source_form.local_path')}</Label
+					>
 				</div>
 			</RadioGroup.Root>
 		</div>
