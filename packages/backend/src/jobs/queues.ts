@@ -1,7 +1,5 @@
-import { Queue, FlowProducer } from 'bullmq';
+import { Queue } from 'bullmq';
 import { connection } from '../config/redis';
-
-export const flowProducer = new FlowProducer({ connection });
 
 // Default job options
 const defaultJobOptions = {

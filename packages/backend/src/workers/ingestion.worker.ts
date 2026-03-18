@@ -25,6 +25,10 @@ const processor = async (job: any) => {
 
 const worker = new Worker('ingestion', processor, {
 	connection,
+	// Configurable via INGESTION_WORKER_CONCURRENCY env var. Tune based on available RAM.
+	concurrency: process.env.INGESTION_WORKER_CONCURRENCY
+		? parseInt(process.env.INGESTION_WORKER_CONCURRENCY, 10)
+		: 5,
 	removeOnComplete: {
 		count: 100, // keep last 100 jobs
 	},

@@ -30,11 +30,23 @@ const handleRequest: RequestHandler = async ({ request, params, fetch }) => {
 		const response = await fetch(proxyRequest);
 
 		return response;
-	} catch (error) {
+	} catch (error: any) {
 		console.error('Proxy request failed:', error);
+
+		// Handle SvelteKit HttpError (e.g. from request.arrayBuffer() exceeding BODY_SIZE_LIMIT)
+		// Or other types of errors, formatting them into the standard ApiErrorResponse
+		const statusCode = error?.status || 500;
+		const message =
+			error?.body?.message || error?.message || 'Failed to connect to the backend service.';
+
 		return json(
-			{ message: `Failed to connect to the backend service. ${JSON.stringify(error)}` },
-			{ status: 500 }
+			{
+				status: 'error',
+				statusCode: statusCode,
+				message: message,
+				errors: null,
+			},
+			{ status: statusCode }
 		);
 	}
 };

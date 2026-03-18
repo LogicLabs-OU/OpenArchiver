@@ -149,6 +149,8 @@ export interface IInitialImportJob {
 export interface IProcessMailboxJob {
 	ingestionSourceId: string;
 	userEmail: string;
+	/** ID of the SyncSession tracking this sync cycle's progress */
+	sessionId: string;
 }
 
 export interface IPstProcessingJob {

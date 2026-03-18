@@ -1,38 +1,29 @@
 import { Job } from 'bullmq';
-import {
-	IProcessMailboxJob,
-	SyncState,
-	ProcessMailboxError,
-	PendingEmail,
-} from '@open-archiver/types';
+import { IProcessMailboxJob, ProcessMailboxError, PendingEmail } from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
 import { logger } from '../../config/logger';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
 import { StorageService } from '../../services/StorageService';
-import { IndexingService } from '../../services/IndexingService';
-import { SearchService } from '../../services/SearchService';
-import { DatabaseService } from '../../services/DatabaseService';
 import { config } from '../../config';
-import { indexingQueue } from '../queues';
+import { indexingQueue, ingestionQueue } from '../queues';
+import { SyncSessionService } from '../../services/SyncSessionService';
 
 /**
- * This processor handles the ingestion of emails for a single user's mailbox.
- * If an error occurs during processing (e.g., an API failure),
- * it catches the exception and returns a structured error object instead of throwing.
- * This prevents a single failed mailbox from halting the entire sync cycle for all users.
- * The parent 'sync-cycle-finished' job is responsible for inspecting the results of all
- * 'process-mailbox' jobs, aggregating successes, and reporting detailed failures.
+ * Handles ingestion of emails for a single user's mailbox.
+ *
+ * On completion, it reports its result to SyncSessionService using an atomic DB counter.
+ * If this is the last mailbox job in the session, it dispatches the 'sync-cycle-finished' job.
+ * This replaces the BullMQ FlowProducer parent/child pattern, avoiding the memory and Redis
+ * overhead of loading all children's return values at once.
  */
-export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncState, string>) => {
-	const { ingestionSourceId, userEmail } = job.data;
+export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
+	const { ingestionSourceId, userEmail, sessionId } = job.data;
 	const BATCH_SIZE: number = config.meili.indexingBatchSize;
 	let emailBatch: PendingEmail[] = [];
 
-	logger.info({ ingestionSourceId, userEmail }, `Processing mailbox for user`);
+	logger.info({ ingestionSourceId, userEmail, sessionId }, `Processing mailbox for user`);
 
-	const searchService = new SearchService();
 	const storageService = new StorageService();
-	const databaseService = new DatabaseService();
 
 	try {
 		const source = await IngestionService.findById(ingestionSourceId);
@@ -43,7 +34,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 		const connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
-		// Create a callback to check for duplicates without fetching full email content
+		// Pre-check for duplicates without fetching full email content
 		const checkDuplicate = async (messageId: string) => {
 			return await IngestionService.doesEmailExist(messageId, ingestionSourceId);
 		};
@@ -65,6 +56,12 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 					if (emailBatch.length >= BATCH_SIZE) {
 						await indexingQueue.add('index-email-batch', { emails: emailBatch });
 						emailBatch = [];
+						// Heartbeat: a single large mailbox can take hours to process.
+						// Without this, cleanStaleSessions() would see no activity on the
+						// session and incorrectly mark it as stale after 30 minutes.
+						// We piggyback on the existing batch flush cadence — no extra DB
+						// writes beyond what we'd do anyway.
+						await SyncSessionService.heartbeat(sessionId);
 					}
 				}
 			}
@@ -77,8 +74,26 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
 		logger.info({ ingestionSourceId, userEmail }, `Finished processing mailbox for user`);
-		return newSyncState;
+
+		// Report success to the session and check if this is the last job
+		const { isLast, totalFailed } = await SyncSessionService.recordMailboxResult(
+			sessionId,
+			newSyncState
+		);
+
+		if (isLast) {
+			logger.info(
+				{ ingestionSourceId, sessionId },
+				'Last mailbox job completed, dispatching sync-cycle-finished'
+			);
+			await ingestionQueue.add('sync-cycle-finished', {
+				ingestionSourceId,
+				sessionId,
+				isInitialImport: false,
+			});
+		}
 	} catch (error) {
+		// Flush any buffered emails before reporting failure
 		if (emailBatch.length > 0) {
 			await indexingQueue.add('index-email-batch', { emails: emailBatch });
 			emailBatch = [];
@@ -90,6 +105,33 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob, SyncS
 			error: true,
 			message: `Failed to process mailbox for ${userEmail}: ${errorMessage}`,
 		};
-		return processMailboxError;
+
+		// Report failure to the session — this still counts towards the total
+		try {
+			const { isLast } = await SyncSessionService.recordMailboxResult(
+				sessionId,
+				processMailboxError
+			);
+
+			if (isLast) {
+				logger.info(
+					{ ingestionSourceId, sessionId },
+					'Last mailbox job (with error) completed, dispatching sync-cycle-finished'
+				);
+				await ingestionQueue.add('sync-cycle-finished', {
+					ingestionSourceId,
+					sessionId,
+					isInitialImport: false,
+				});
+			}
+		} catch (sessionError) {
+			logger.error(
+				{ err: sessionError, sessionId },
+				'Failed to record mailbox error in sync session'
+			);
+		}
+
+		// Do not re-throw — a single failed mailbox should not mark the BullMQ job as failed
+		// and trigger retries that would double-count against the session counter.
 	}
 };

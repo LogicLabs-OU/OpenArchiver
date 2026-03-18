@@ -4,7 +4,14 @@ The Jobs API provides endpoints for monitoring the job queues and the jobs withi
 
 ## Overview
 
-Open Archiver uses a job queue system to handle asynchronous tasks like email ingestion and indexing. The system is built on Redis and BullMQ and uses a producer-consumer pattern.
+Open Archiver uses a job queue system to handle asynchronous tasks like email ingestion and indexing. The system is built on Redis and BullMQ.
+
+There are two queues:
+
+- **`ingestion`** — handles all email ingestion and sync jobs (`initial-import`, `continuous-sync`, `process-mailbox`, `sync-cycle-finished`, `schedule-continuous-sync`)
+- **`indexing`** — handles batched Meilisearch document indexing (`index-email-batch`)
+
+Sync cycle coordination (tracking when all mailboxes in a sync have completed) is managed via the `sync_sessions` database table rather than BullMQ's built-in flow system. This keeps Redis memory usage stable regardless of how many mailboxes are being synced.
 
 ### Job Statuses
 
