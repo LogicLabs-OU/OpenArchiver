@@ -96,7 +96,7 @@ export class IntegrityService {
 						isValid: false,
 						reason: 'Could not read attachment file from storage.',
 						storedHash: attachment.contentHashSha256,
-						computedHash: "",
+						computedHash: '',
 					});
 				}
 			}

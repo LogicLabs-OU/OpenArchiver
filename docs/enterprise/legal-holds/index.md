@@ -61,17 +61,17 @@ Holds can optionally be linked to an `ediscovery_cases` record (`caseId` field) 
 
 ## Architecture Overview
 
-| Component       | Location                                                                       | Description                                                    |
-| --------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Types           | `packages/types/src/retention.types.ts`                                        | `LegalHold`, `EmailLegalHoldInfo`, `BulkApplyHoldResult` types |
-| Database Schema | `packages/backend/src/database/schema/compliance.ts`                           | `legal_holds` and `email_legal_holds` table definitions        |
-| Service         | `packages/enterprise/src/modules/legal-holds/LegalHoldService.ts`             | All business logic for CRUD, linkage, and bulk operations      |
-| Controller      | `packages/enterprise/src/modules/legal-holds/legal-hold.controller.ts`        | Express request handlers with Zod validation                   |
-| Routes          | `packages/enterprise/src/modules/legal-holds/legal-hold.routes.ts`            | Route registration with auth and feature guards                |
-| Module          | `packages/enterprise/src/modules/legal-holds/legal-hold.module.ts`            | App-startup integration and `RetentionHook` registration       |
-| Frontend Page   | `packages/frontend/src/routes/dashboard/compliance/legal-holds/`              | SvelteKit management page for holds                            |
-| Email Detail    | `packages/frontend/src/routes/dashboard/archived-emails/[id]/`                | Per-email hold card in the email detail view                   |
-| Lifecycle Guard | `packages/backend/src/hooks/RetentionHook.ts`                                  | Static hook that blocks deletion if a hold is active           |
+| Component       | Location                                                               | Description                                                    |
+| --------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Types           | `packages/types/src/retention.types.ts`                                | `LegalHold`, `EmailLegalHoldInfo`, `BulkApplyHoldResult` types |
+| Database Schema | `packages/backend/src/database/schema/compliance.ts`                   | `legal_holds` and `email_legal_holds` table definitions        |
+| Service         | `packages/enterprise/src/modules/legal-holds/LegalHoldService.ts`      | All business logic for CRUD, linkage, and bulk operations      |
+| Controller      | `packages/enterprise/src/modules/legal-holds/legal-hold.controller.ts` | Express request handlers with Zod validation                   |
+| Routes          | `packages/enterprise/src/modules/legal-holds/legal-hold.routes.ts`     | Route registration with auth and feature guards                |
+| Module          | `packages/enterprise/src/modules/legal-holds/legal-hold.module.ts`     | App-startup integration and `RetentionHook` registration       |
+| Frontend Page   | `packages/frontend/src/routes/dashboard/compliance/legal-holds/`       | SvelteKit management page for holds                            |
+| Email Detail    | `packages/frontend/src/routes/dashboard/archived-emails/[id]/`         | Per-email hold card in the email detail view                   |
+| Lifecycle Guard | `packages/backend/src/hooks/RetentionHook.ts`                          | Static hook that blocks deletion if a hold is active           |
 
 ## Data Model
 
@@ -89,12 +89,12 @@ Holds can optionally be linked to an `ediscovery_cases` record (`caseId` field) 
 
 ### `email_legal_holds` Join Table
 
-| Column                | Type          | Description                                                     |
-| --------------------- | ------------- | --------------------------------------------------------------- |
-| `email_id`            | `uuid` (FK)   | Reference to `archived_emails.id`. Cascades on delete.          |
-| `legal_hold_id`       | `uuid` (FK)   | Reference to `legal_holds.id`. Cascades on delete.              |
-| `applied_at`          | `timestamptz` | DB-server timestamp of when the link was created.               |
-| `applied_by_user_id`  | `uuid` (FK)   | User who applied the hold (nullable for system operations).     |
+| Column               | Type          | Description                                                 |
+| -------------------- | ------------- | ----------------------------------------------------------- |
+| `email_id`           | `uuid` (FK)   | Reference to `archived_emails.id`. Cascades on delete.      |
+| `legal_hold_id`      | `uuid` (FK)   | Reference to `legal_holds.id`. Cascades on delete.          |
+| `applied_at`         | `timestamptz` | DB-server timestamp of when the link was created.           |
+| `applied_by_user_id` | `uuid` (FK)   | User who applied the hold (nullable for system operations). |
 
 The table uses a composite primary key of `(email_id, legal_hold_id)`, enforcing uniqueness at the database level. Duplicate inserts use `ON CONFLICT DO NOTHING` for idempotency.
 
@@ -112,14 +112,14 @@ The lifecycle worker calls `legalHoldService.isEmailUnderActiveHold(emailId)` as
 
 All legal hold operations generate entries in `audit_logs`:
 
-| Action                           | `actionType` | `targetType`    | `targetId`        |
-| -------------------------------- | ------------ | --------------- | ----------------- |
-| Hold created                     | `CREATE`     | `LegalHold`     | hold ID           |
-| Hold updated / deactivated       | `UPDATE`     | `LegalHold`     | hold ID           |
-| Hold deleted                     | `DELETE`     | `LegalHold`     | hold ID           |
-| Email linked to hold (individual)| `UPDATE`     | `ArchivedEmail` | email ID          |
-| Email unlinked from hold         | `UPDATE`     | `ArchivedEmail` | email ID          |
-| Bulk apply via search            | `UPDATE`     | `LegalHold`     | hold ID + query JSON |
-| All emails released from hold    | `UPDATE`     | `LegalHold`     | hold ID           |
+| Action                            | `actionType` | `targetType`    | `targetId`           |
+| --------------------------------- | ------------ | --------------- | -------------------- |
+| Hold created                      | `CREATE`     | `LegalHold`     | hold ID              |
+| Hold updated / deactivated        | `UPDATE`     | `LegalHold`     | hold ID              |
+| Hold deleted                      | `DELETE`     | `LegalHold`     | hold ID              |
+| Email linked to hold (individual) | `UPDATE`     | `ArchivedEmail` | email ID             |
+| Email unlinked from hold          | `UPDATE`     | `ArchivedEmail` | email ID             |
+| Bulk apply via search             | `UPDATE`     | `LegalHold`     | hold ID + query JSON |
+| All emails released from hold     | `UPDATE`     | `LegalHold`     | hold ID              |
 
 Individual email link/unlink events target `ArchivedEmail` so that a per-email audit search surfaces the complete hold history for that email.

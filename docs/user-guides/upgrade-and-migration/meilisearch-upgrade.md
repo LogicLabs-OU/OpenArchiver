@@ -24,11 +24,11 @@ Add the `MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE` environment variable to your `dock
 
 ```yaml
 services:
-  meilisearch:
-    image: getmeili/meilisearch:v1.x # The new version you want to upgrade to
-    environment:
-      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
-      - MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE=true
+    meilisearch:
+        image: getmeili/meilisearch:v1.x # The new version you want to upgrade to
+        environment:
+            - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+            - MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE=true
 ```
 
 **Option 2: Using a CLI Option**
@@ -37,9 +37,9 @@ Alternatively, you can pass the `--experimental-dumpless-upgrade` flag in the co
 
 ```yaml
 services:
-  meilisearch:
-    image: getmeili/meilisearch:v1.x # The new version you want to upgrade to
-    command: meilisearch --experimental-dumpless-upgrade
+    meilisearch:
+        image: getmeili/meilisearch:v1.x # The new version you want to upgrade to
+        command: meilisearch --experimental-dumpless-upgrade
 ```
 
 After updating your configuration, restart your container:

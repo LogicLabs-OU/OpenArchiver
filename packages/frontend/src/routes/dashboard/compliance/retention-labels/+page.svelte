@@ -73,7 +73,7 @@
 					<Table.Row>
 						<Table.Cell class="font-medium">
 							<div>{label.name}</div>
-							<div class="mt-0.5 font-mono text-[10px] text-muted-foreground">
+							<div class="text-muted-foreground mt-0.5 font-mono text-[10px]">
 								{label.id}
 							</div>
 							{#if label.description}
@@ -88,13 +88,14 @@
 						</Table.Cell>
 						<!-- Applied email count — shows a subtle badge with the number -->
 						<Table.Cell>
-						<div class="flex items-center gap-1.5">
+							<div class="flex items-center gap-1.5">
 								<Tag class="text-muted-foreground h-3.5 w-3.5" />
-								<Badge variant={label.appliedEmailCount > 0 ? 'secondary' : 'outline'}>
-								{label.appliedEmailCount}
-							</Badge>
+								<Badge
+									variant={label.appliedEmailCount > 0 ? 'secondary' : 'outline'}
+								>
+									{label.appliedEmailCount}
+								</Badge>
 							</div>
-							
 						</Table.Cell>
 						<Table.Cell>
 							{#if label.isDisabled}
@@ -286,12 +287,7 @@
 				<input type="hidden" name="id" value={selectedLabel.id} />
 				<div class="space-y-1.5">
 					<Label for="edit-name">{$t('app.retention_labels.name')}</Label>
-					<Input
-						id="edit-name"
-						name="name"
-						required
-						value={selectedLabel.name}
-					/>
+					<Input id="edit-name" name="name" required value={selectedLabel.name} />
 				</div>
 				<div class="space-y-1.5">
 					<Label for="edit-description">{$t('app.retention_labels.description')}</Label>
@@ -369,11 +365,7 @@
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer>
-			<Button
-				variant="outline"
-				onclick={() => (isDeleteOpen = false)}
-				disabled={isDeleting}
-			>
+			<Button variant="outline" onclick={() => (isDeleteOpen = false)} disabled={isDeleting}>
 				{$t('app.retention_labels.cancel')}
 			</Button>
 			{#if selectedLabel}

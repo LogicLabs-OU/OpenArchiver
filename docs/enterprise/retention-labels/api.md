@@ -23,22 +23,22 @@ Retrieves all retention labels, ordered by creation date ascending.
 
 ```json
 [
-    {
-        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        "name": "Legal Hold - Litigation ABC",
-        "description": "Extended retention for emails related to litigation ABC vs Company",
-        "retentionPeriodDays": 2555,
-        "isDisabled": false,
-        "createdAt": "2025-10-01T00:00:00.000Z"
-    },
-    {
-        "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012", 
-        "name": "Executive Communications",
-        "description": null,
-        "retentionPeriodDays": 3650,
-        "isDisabled": true,
-        "createdAt": "2025-09-15T12:30:00.000Z"
-    }
+	{
+		"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Legal Hold - Litigation ABC",
+		"description": "Extended retention for emails related to litigation ABC vs Company",
+		"retentionPeriodDays": 2555,
+		"isDisabled": false,
+		"createdAt": "2025-10-01T00:00:00.000Z"
+	},
+	{
+		"id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+		"name": "Executive Communications",
+		"description": null,
+		"retentionPeriodDays": 3650,
+		"isDisabled": true,
+		"createdAt": "2025-09-15T12:30:00.000Z"
+	}
 ]
 ```
 
@@ -55,9 +55,9 @@ Retrieves a single retention label by its UUID.
 
 #### Path Parameters
 
-| Parameter | Type   | Description                    |
-| --------- | ------ | ------------------------------ |
-| `id`      | `uuid` | The UUID of the label to get.  |
+| Parameter | Type   | Description                   |
+| --------- | ------ | ----------------------------- |
+| `id`      | `uuid` | The UUID of the label to get. |
 
 #### Response Body
 
@@ -76,19 +76,19 @@ Creates a new retention label. The label name must be unique across the system.
 
 #### Request Body
 
-| Field                | Type      | Required | Description                                                    |
-| -------------------- | --------- | -------- | -------------------------------------------------------------- |
-| `name`               | `string`  | Yes      | Unique label name. Max 255 characters.                         |
-| `description`        | `string`  | No       | Human-readable description. Max 1000 characters.               |
-| `retentionPeriodDays` | `integer` | Yes      | Number of days to retain emails with this label. Minimum 1.    |
+| Field                 | Type      | Required | Description                                                 |
+| --------------------- | --------- | -------- | ----------------------------------------------------------- |
+| `name`                | `string`  | Yes      | Unique label name. Max 255 characters.                      |
+| `description`         | `string`  | No       | Human-readable description. Max 1000 characters.            |
+| `retentionPeriodDays` | `integer` | Yes      | Number of days to retain emails with this label. Minimum 1. |
 
 #### Example Request
 
 ```json
 {
-    "name": "Financial Records - Q4 2025",
-    "description": "Extended retention for Q4 2025 financial correspondence per regulatory requirements",
-    "retentionPeriodDays": 2555
+	"name": "Financial Records - Q4 2025",
+	"description": "Extended retention for Q4 2025 financial correspondence per regulatory requirements",
+	"retentionPeriodDays": 2555
 }
 ```
 
@@ -111,9 +111,9 @@ Updates an existing retention label. Only the fields included in the request bod
 
 #### Path Parameters
 
-| Parameter | Type   | Description                       |
-| --------- | ------ | --------------------------------- |
-| `id`      | `uuid` | The UUID of the label to update.  |
+| Parameter | Type   | Description                      |
+| --------- | ------ | -------------------------------- |
+| `id`      | `uuid` | The UUID of the label to update. |
 
 #### Request Body
 
@@ -125,8 +125,8 @@ All fields from the create endpoint are accepted, and all are optional. Only pro
 
 ```json
 {
-    "name": "Financial Records - Q4 2025 (Updated)",
-    "description": "Updated description for Q4 2025 financial records retention"
+	"name": "Financial Records - Q4 2025 (Updated)",
+	"description": "Updated description for Q4 2025 financial records retention"
 }
 ```
 
@@ -150,9 +150,9 @@ Deletes or disables a retention label depending on its usage status.
 
 #### Path Parameters
 
-| Parameter | Type   | Description                       |
-| --------- | ------ | --------------------------------- |
-| `id`      | `uuid` | The UUID of the label to delete.  |
+| Parameter | Type   | Description                      |
+| --------- | ------ | -------------------------------- |
+| `id`      | `uuid` | The UUID of the label to delete. |
 
 #### Deletion Logic
 
@@ -163,7 +163,7 @@ Deletes or disables a retention label depending on its usage status.
 
 ```json
 {
-    "action": "deleted"
+	"action": "deleted"
 }
 ```
 
@@ -171,7 +171,7 @@ or
 
 ```json
 {
-    "action": "disabled"
+	"action": "disabled"
 }
 ```
 
@@ -195,9 +195,9 @@ Retrieves the retention label currently applied to a specific archived email.
 
 #### Path Parameters
 
-| Parameter | Type   | Description                           |
-| --------- | ------ | ------------------------------------- |
-| `emailId` | `uuid` | The UUID of the archived email.       |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `emailId` | `uuid` | The UUID of the archived email. |
 
 #### Response Body
 
@@ -211,11 +211,11 @@ Or the label information if a label is applied:
 
 ```json
 {
-    "labelId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "labelName": "Legal Hold - Litigation ABC",
-    "retentionPeriodDays": 2555,
-    "appliedAt": "2025-10-15T14:30:00.000Z",
-    "appliedByUserId": "user123"
+	"labelId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	"labelName": "Legal Hold - Litigation ABC",
+	"retentionPeriodDays": 2555,
+	"appliedAt": "2025-10-15T14:30:00.000Z",
+	"appliedByUserId": "user123"
 }
 ```
 
@@ -237,21 +237,21 @@ Applies a retention label to an archived email. If the email already has a label
 
 #### Path Parameters
 
-| Parameter | Type   | Description                           |
-| --------- | ------ | ------------------------------------- |
-| `emailId` | `uuid` | The UUID of the archived email.       |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `emailId` | `uuid` | The UUID of the archived email. |
 
 #### Request Body
 
-| Field     | Type   | Required | Description                          |
-| --------- | ------ | -------- | ------------------------------------ |
-| `labelId` | `uuid` | Yes      | The UUID of the label to apply.      |
+| Field     | Type   | Required | Description                     |
+| --------- | ------ | -------- | ------------------------------- |
+| `labelId` | `uuid` | Yes      | The UUID of the label to apply. |
 
 #### Example Request
 
 ```json
 {
-    "labelId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	"labelId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
 
@@ -259,11 +259,11 @@ Applies a retention label to an archived email. If the email already has a label
 
 ```json
 {
-    "labelId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "labelName": "Legal Hold - Litigation ABC",
-    "retentionPeriodDays": 2555,
-    "appliedAt": "2025-10-15T14:30:00.000Z",
-    "appliedByUserId": "user123"
+	"labelId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	"labelName": "Legal Hold - Litigation ABC",
+	"retentionPeriodDays": 2555,
+	"appliedAt": "2025-10-15T14:30:00.000Z",
+	"appliedByUserId": "user123"
 }
 ```
 
@@ -287,9 +287,9 @@ Removes the retention label from an archived email if one is applied.
 
 #### Path Parameters
 
-| Parameter | Type   | Description                           |
-| --------- | ------ | ------------------------------------- |
-| `emailId` | `uuid` | The UUID of the archived email.       |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `emailId` | `uuid` | The UUID of the archived email. |
 
 #### Response Body
 
@@ -297,7 +297,7 @@ If a label was removed:
 
 ```json
 {
-    "message": "Label removed successfully."
+	"message": "Label removed successfully."
 }
 ```
 
@@ -305,7 +305,7 @@ If no label was applied:
 
 ```json
 {
-    "message": "No label was applied to this email."
+	"message": "No label was applied to this email."
 }
 ```
 
@@ -322,10 +322,10 @@ All endpoints use the standard error response format:
 
 ```json
 {
-    "status": "error",
-    "statusCode": 404,
-    "message": "The requested resource could not be found.",
-    "errors": null
+	"status": "error",
+	"statusCode": 404,
+	"message": "The requested resource could not be found.",
+	"errors": null
 }
 ```
 
@@ -333,28 +333,28 @@ For validation errors (`422 Unprocessable Entity`):
 
 ```json
 {
-    "status": "error",
-    "statusCode": 422,
-    "message": "Invalid input provided.",
-    "errors": [
-        {
-            "field": "name",
-            "message": "Name is required."
-        },
-        {
-            "field": "retentionPeriodDays",
-            "message": "Retention period must be at least 1 day."
-        }
-    ]
+	"status": "error",
+	"statusCode": 422,
+	"message": "Invalid input provided.",
+	"errors": [
+		{
+			"field": "name",
+			"message": "Name is required."
+		},
+		{
+			"field": "retentionPeriodDays",
+			"message": "Retention period must be at least 1 day."
+		}
+	]
 }
 ```
 
 ## Validation Constraints
 
-| Field                | Constraint                                    |
-| -------------------- | --------------------------------------------- |
-| Label name           | 1–255 characters, must be unique.            |
-| Description          | Max 1000 characters.                          |
-| Retention period     | Positive integer (≥ 1 day).                  |
-| Label ID (UUID)      | Must be a valid UUID format.                 |
-| Email ID (UUID)      | Must be a valid UUID format.                 |
+| Field            | Constraint                        |
+| ---------------- | --------------------------------- |
+| Label name       | 1–255 characters, must be unique. |
+| Description      | Max 1000 characters.              |
+| Retention period | Positive integer (≥ 1 day).       |
+| Label ID (UUID)  | Must be a valid UUID format.      |
+| Email ID (UUID)  | Must be a valid UUID format.      |

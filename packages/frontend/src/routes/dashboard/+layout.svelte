@@ -146,7 +146,7 @@
 			<img src="/logos/logo-sq.svg" alt="OpenArchiver Logo" class="h-8 w-8" />
 			<span class="hidden sm:inline-block">Open Archiver</span>
 			{#if data.enterpriseMode}
-				<Badge class="text-[8px] font-bold px-1 py-0.5">Enterprise</Badge>
+				<Badge class="px-1 py-0.5 text-[8px] font-bold">Enterprise</Badge>
 			{/if}
 		</a>
 

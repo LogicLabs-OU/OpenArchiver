@@ -8,7 +8,7 @@ export * from './api/middleware/requirePermission';
 export { db } from './database';
 export * from './database/schema';
 export { AuditService } from './services/AuditService';
-export * from './config'
-export * from './jobs/queues'
+export * from './config';
+export * from './jobs/queues';
 export { RetentionHook } from './hooks/RetentionHook';
 export { IntegrityService } from './services/IntegrityService';

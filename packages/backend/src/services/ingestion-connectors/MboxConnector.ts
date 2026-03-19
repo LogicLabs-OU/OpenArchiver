@@ -93,10 +93,7 @@ export class MboxConnector implements IEmailConnector {
 
 			return true;
 		} catch (error) {
-			logger.error(
-				{ error, credentials: this.credentials },
-				'Mbox file validation failed.'
-			);
+			logger.error({ error, credentials: this.credentials }, 'Mbox file validation failed.');
 			throw error;
 		}
 	}

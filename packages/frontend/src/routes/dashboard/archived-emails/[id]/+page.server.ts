@@ -120,7 +120,10 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return { success: false, message: (res as { message?: string }).message || 'Failed to apply label' };
+			return {
+				success: false,
+				message: (res as { message?: string }).message || 'Failed to apply label',
+			};
 		}
 
 		return { success: true, action: 'applied' };
@@ -135,7 +138,10 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return { success: false, message: (res as { message?: string }).message || 'Failed to remove label' };
+			return {
+				success: false,
+				message: (res as { message?: string }).message || 'Failed to remove label',
+			};
 		}
 
 		return { success: true, action: 'removed' };

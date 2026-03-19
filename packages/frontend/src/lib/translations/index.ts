@@ -12,7 +12,7 @@ import nl from './nl.json';
 import ja from './ja.json';
 import et from './et.json';
 import el from './el.json';
-import bg from './bg.json'
+import bg from './bg.json';
 // This is your config object.
 // It defines the languages and how to load them.
 const config: Config = {

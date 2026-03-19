@@ -31,16 +31,16 @@ export class ApiKeyService {
 
 			await this.auditService.createAuditLog({
 				actorIdentifier: actor.id,
-			actionType: 'GENERATE',
-			targetType: 'ApiKey',
-			targetId: name,
-			actorIp,
-			details: {
-				keyName: name,
-			},
-		});
+				actionType: 'GENERATE',
+				targetType: 'ApiKey',
+				targetId: name,
+				actorIp,
+				details: {
+					keyName: name,
+				},
+			});
 
-		return key;
+			return key;
 		} catch (error) {
 			throw error;
 		}

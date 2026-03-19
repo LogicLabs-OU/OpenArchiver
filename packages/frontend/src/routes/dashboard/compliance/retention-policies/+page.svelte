@@ -63,7 +63,6 @@
 		const op = policy.conditions.logicalOperator;
 		return `${count} ${$t('app.retention_policies.rules')} (${op})`;
 	}
-
 </script>
 
 <svelte:head>
@@ -102,11 +101,13 @@
 					<Table.Row>
 						<Table.Cell class="font-medium">
 							<div>{policy.name}</div>
-							<div class="mt-0.5 font-mono text-[10px] text-muted-foreground">
+							<div class="text-muted-foreground mt-0.5 font-mono text-[10px]">
 								{policy.id}
 							</div>
 							{#if policy.description}
-								<div class="text-muted-foreground mt-0.5 text-xs">{policy.description}</div>
+								<div class="text-muted-foreground mt-0.5 text-xs">
+									{policy.description}
+								</div>
 							{/if}
 						</Table.Cell>
 						<Table.Cell>{policy.priority}</Table.Cell>
@@ -122,7 +123,9 @@
 							{:else}
 								<div class="flex flex-wrap gap-1">
 									{#each policy.ingestionScope as sourceId (sourceId)}
-										{@const source = ingestionSources.find((s) => s.id === sourceId)}
+										{@const source = ingestionSources.find(
+											(s) => s.id === sourceId
+										)}
 										<Badge variant="outline" class="text-xs">
 											{source?.name ?? sourceId.slice(0, 8) + '…'}
 										</Badge>
@@ -131,7 +134,9 @@
 							{/if}
 						</Table.Cell>
 						<Table.Cell>
-							<span class="text-muted-foreground text-sm">{conditionsSummary(policy)}</span>
+							<span class="text-muted-foreground text-sm"
+								>{conditionsSummary(policy)}</span
+							>
 						</Table.Cell>
 						<Table.Cell>
 							{#if policy.isActive}
@@ -330,7 +335,9 @@
 					</Select.Trigger>
 					<Select.Content>
 						<Select.Item value="">
-							<span class="italic">{$t('app.retention_policies.simulator_ingestion_all')}</span>
+							<span class="italic"
+								>{$t('app.retention_policies.simulator_ingestion_all')}</span
+							>
 						</Select.Item>
 						{#each ingestionSources as source (source.id)}
 							<Select.Item value={source.id}>
@@ -370,7 +377,9 @@
 				</div>
 			{:else}
 				<div class="space-y-3">
-					<div class="rounded-md border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
+					<div
+						class="rounded-md border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950"
+					>
 						<p class="text-sm font-medium text-green-800 dark:text-green-200">
 							{($t as any)('app.retention_policies.simulator_matched', {
 								days: evaluationResult.appliedRetentionDays,
@@ -379,18 +388,24 @@
 					</div>
 					{#if evaluationResult.matchingPolicyIds.length > 0}
 						<div class="space-y-1.5">
-							<p class="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+							<p
+								class="text-muted-foreground text-xs font-medium uppercase tracking-wide"
+							>
 								{$t('app.retention_policies.simulator_matching_policies')}
 							</p>
 							<div class="flex flex-wrap gap-2">
 								{#each evaluationResult.matchingPolicyIds as policyId (policyId)}
 									{@const matchedPolicy = policies.find((p) => p.id === policyId)}
 									<div class="flex items-center gap-1.5">
-										<code class="bg-muted rounded px-2 py-0.5 font-mono text-xs">
+										<code
+											class="bg-muted rounded px-2 py-0.5 font-mono text-xs"
+										>
 											{policyId}
 										</code>
 										{#if matchedPolicy}
-											<span class="text-muted-foreground text-xs">({matchedPolicy.name})</span>
+											<span class="text-muted-foreground text-xs"
+												>({matchedPolicy.name})</span
+											>
 										{/if}
 									</div>
 								{/each}
@@ -419,11 +434,7 @@
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer>
-			<Button
-				variant="outline"
-				onclick={() => (isDeleteOpen = false)}
-				disabled={isDeleting}
-			>
+			<Button variant="outline" onclick={() => (isDeleteOpen = false)} disabled={isDeleting}>
 				{$t('app.retention_policies.cancel')}
 			</Button>
 			{#if selectedPolicy}

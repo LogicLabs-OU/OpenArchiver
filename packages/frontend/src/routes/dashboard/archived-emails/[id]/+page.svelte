@@ -16,7 +16,16 @@
 	import * as Alert from '$lib/components/ui/alert';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as HoverCard from '$lib/components/ui/hover-card';
-	import { Clock, Trash2, CalendarClock, AlertCircle, Shield, CircleAlert, Tag, FileDown } from 'lucide-svelte';
+	import {
+		Clock,
+		Trash2,
+		CalendarClock,
+		AlertCircle,
+		Shield,
+		CircleAlert,
+		Tag,
+		FileDown,
+	} from 'lucide-svelte';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import type { LegalHold, EmailLegalHoldInfo } from '@open-archiver/types';
@@ -239,7 +248,7 @@
 						</div>
 						<div class="space-y-1">
 							<h3 class="font-semibold">{$t('app.archive.meta_data')}</h3>
-							<div class="text-muted-foreground text-sm space-y-2">
+							<div class="text-muted-foreground space-y-2 text-sm">
 								{#if email.path}
 									<div class="flex flex-wrap items-center gap-2">
 										<span>{$t('app.archive.folder')}:</span>
@@ -318,12 +327,16 @@
 							download(email.storagePath, `${email.subject || 'email'}.eml`)}
 						>{$t('app.archive.download_eml')}</Button
 					>
-					<Button variant="destructive" class="text-xs" onclick={() => (isDeleteDialogOpen = true)}>
+					<Button
+						variant="destructive"
+						class="text-xs"
+						onclick={() => (isDeleteDialogOpen = true)}
+					>
 						{$t('app.archive.delete_email')}
 					</Button>
 				</Card.Content>
 			</Card.Root>
-			
+
 			{#if integrityReport && integrityReport.length > 0}
 				<Card.Root>
 					<Card.Header>
@@ -445,14 +458,18 @@
 						{#if emailLegalHolds && emailLegalHolds.length > 0}
 							<div class="space-y-2">
 								{#each emailLegalHolds as holdInfo (holdInfo.legalHoldId)}
-									<div class="flex items-center justify-between rounded-md border p-2">
+									<div
+										class="flex items-center justify-between rounded-md border p-2"
+									>
 										<div class="min-w-0 flex-1">
 											<div class="flex items-center gap-2">
 												<span class="truncate text-xs font-medium">
 													{holdInfo.holdName}
 												</span>
 												{#if holdInfo.isActive}
-													<Badge class="bg-destructive text-white text-xs">
+													<Badge
+														class="bg-destructive text-xs text-white"
+													>
 														{$t('app.legal_holds.active')}
 													</Badge>
 												{:else}
@@ -527,15 +544,20 @@
 								>
 									<Select.Trigger class="w-full text-xs">
 										{#if selectedHoldId}
-											{legalHolds.find((h) => h.id === selectedHoldId)?.name ??
-												$t('app.archive_legal_holds.apply_hold_placeholder')}
+											{legalHolds.find((h) => h.id === selectedHoldId)
+												?.name ??
+												$t(
+													'app.archive_legal_holds.apply_hold_placeholder'
+												)}
 										{:else}
 											{$t('app.archive_legal_holds.apply_hold_placeholder')}
 										{/if}
 									</Select.Trigger>
 									<Select.Content class="text-xs">
 										{#each legalHolds as hold (hold.id)}
-											<Select.Item value={hold.id} class="text-xs">{hold.name}</Select.Item>
+											<Select.Item value={hold.id} class="text-xs"
+												>{hold.name}</Select.Item
+											>
 										{/each}
 									</Select.Content>
 								</Select.Root>
@@ -580,11 +602,14 @@
 					<Card.Content class="space-y-3">
 						<!-- Override notice: shown when an active retention label is applied -->
 						{#if emailRetentionLabel && !emailRetentionLabel.isLabelDisabled}
-							<div class="flex items-start align-middle gap-2 rounded-md px-2 py-1.5 bg-muted-foreground text-muted">
+							<div
+								class="bg-muted-foreground text-muted flex items-start gap-2 rounded-md px-2 py-1.5 align-middle"
+							>
 								<CircleAlert class=" h-4 w-4 flex-shrink-0" />
 								<div class=" text-xs">
 									{$t('app.archive.retention_policy_overridden_by_label')}
-									<span class="font-medium">{emailRetentionLabel.labelName}</span>.
+									<span class="font-medium">{emailRetentionLabel.labelName}</span
+									>.
 								</div>
 							</div>
 						{/if}
@@ -605,13 +630,13 @@
 									</Badge>
 								</div>
 								{#if scheduledDeletionDate}
-								<div class="flex items-center gap-2">
-									<CalendarClock
-										class="text-muted-foreground h-4 w-4 flex-shrink-0"
-									/>
-									<span class="text-xs font-medium"
-										>{$t('app.archive.retention_scheduled_deletion')}:</span
-									>
+									<div class="flex items-center gap-2">
+										<CalendarClock
+											class="text-muted-foreground h-4 w-4 flex-shrink-0"
+										/>
+										<span class="text-xs font-medium"
+											>{$t('app.archive.retention_scheduled_deletion')}:</span
+										>
 										<Badge
 											variant={scheduledDeletionDate <= new Date()
 												? 'destructive'
@@ -637,7 +662,7 @@
 										</div>
 										<div class="flex flex-wrap gap-1">
 											{#each retentionPolicy.matchingPolicyIds as policyId}
-												<Badge variant="outline" class="text-xs font-mono">
+												<Badge variant="outline" class="font-mono text-xs">
 													{policyId}
 												</Badge>
 											{/each}
@@ -682,12 +707,19 @@
 										<Badge variant="secondary">
 											{emailRetentionLabel.labelName}
 										</Badge>
-										<Badge variant="outline" class="text-muted-foreground text-xs">
+										<Badge
+											variant="outline"
+											class="text-muted-foreground text-xs"
+										>
 											{$t('app.archive_labels.label_inactive')}
 										</Badge>
 									</div>
-									<div class="flex items-start gap-2 rounded-md border border-dashed p-2">
-										<AlertCircle class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0" />
+									<div
+										class="flex items-start gap-2 rounded-md border border-dashed p-2"
+									>
+										<AlertCircle
+											class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0"
+										/>
 										<p class="text-muted-foreground text-xs">
 											{$t('app.archive_labels.label_inactive_note')}
 										</p>
@@ -731,7 +763,9 @@
 										</Badge>
 									</div>
 									<div class="flex items-center gap-2">
-										<Clock class="text-muted-foreground h-4 w-4 flex-shrink-0" />
+										<Clock
+											class="text-muted-foreground h-4 w-4 flex-shrink-0"
+										/>
 										<span class="text-xs font-medium">
 											{$t('app.archive.retention_period')}:
 										</span>
@@ -812,7 +846,8 @@
 								>
 									<Select.Trigger class="w-full text-xs">
 										{#if selectedLabelId}
-											{retentionLabels.find((l) => l.id === selectedLabelId)?.name ??
+											{retentionLabels.find((l) => l.id === selectedLabelId)
+												?.name ??
 												$t('app.archive_labels.select_label_placeholder')}
 										{:else}
 											{$t('app.archive_labels.select_label_placeholder')}
@@ -823,13 +858,14 @@
 											<Select.Item value={label.id}>
 												{label.name}
 												<span class="text-muted-foreground ml-1 text-xs">
-													({label.retentionPeriodDays} {$t('app.retention_labels.days')})
+													({label.retentionPeriodDays}
+													{$t('app.retention_labels.days')})
 												</span>
 											</Select.Item>
 										{/each}
 									</Select.Content>
 								</Select.Root>
-								
+
 								<Button
 									type="submit"
 									variant="outline"
@@ -851,8 +887,6 @@
 						{/if}
 					</Card.Content>
 				</Card.Root>
-
-				
 			{/if}
 		</div>
 	</div>

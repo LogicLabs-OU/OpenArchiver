@@ -47,18 +47,14 @@
 	let isEnabled = $state(policy?.isActive ?? true);
 
 	// Conditions state
-	let logicalOperator = $state<LogicalOperator>(
-		policy?.conditions?.logicalOperator ?? 'AND'
-	);
+	let logicalOperator = $state<LogicalOperator>(policy?.conditions?.logicalOperator ?? 'AND');
 	let rules = $state<RetentionRule[]>(
 		policy?.conditions?.rules ? [...policy.conditions.rules] : []
 	);
 
 	// Ingestion scope: set of selected ingestion source IDs
 	// Empty set = null scope = applies to all
-	let selectedIngestionIds = $state<Set<string>>(
-		new Set(policy?.ingestionScope ?? [])
-	);
+	let selectedIngestionIds = $state<Set<string>>(new Set(policy?.ingestionScope ?? []));
 
 	// The conditions JSON that gets sent as a hidden form field
 	const conditionsJson = $derived(JSON.stringify({ logicalOperator, rules }));
@@ -202,11 +198,7 @@
 
 	<!-- Enabled toggle — value written to hidden input above -->
 	<div class="flex items-center gap-3">
-		<Switch
-			id="rp-enabled"
-			checked={isEnabled}
-			onCheckedChange={(v) => (isEnabled = v)}
-		/>
+		<Switch id="rp-enabled" checked={isEnabled} onCheckedChange={(v) => (isEnabled = v)} />
 		<Label for="rp-enabled">{$t('app.retention_policies.active')}</Label>
 	</div>
 
@@ -310,7 +302,8 @@
 					onValueChange={(v) => updateRuleOperator(i, v as ConditionOperator)}
 				>
 					<Select.Trigger class="h-8 flex-1 text-xs">
-						{operatorOptions.find((o) => o.value === rule.operator)?.label ?? rule.operator}
+						{operatorOptions.find((o) => o.value === rule.operator)?.label ??
+							rule.operator}
 					</Select.Trigger>
 					<Select.Content>
 						{#each operatorOptions as opt}

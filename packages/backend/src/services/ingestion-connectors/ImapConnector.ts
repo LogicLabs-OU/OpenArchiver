@@ -221,7 +221,9 @@ export class ImapConnector implements IEmailConnector {
 
 								// Optimization: Verify existence using Message-ID from envelope before fetching full body
 								if (checkDuplicate && msg.envelope?.messageId) {
-									const isDuplicate = await checkDuplicate(msg.envelope.messageId);
+									const isDuplicate = await checkDuplicate(
+										msg.envelope.messageId
+									);
 									if (isDuplicate) {
 										logger.debug(
 											{

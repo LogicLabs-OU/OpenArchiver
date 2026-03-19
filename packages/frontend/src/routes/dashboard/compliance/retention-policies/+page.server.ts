@@ -1,7 +1,11 @@
 import { api } from '$lib/server/api';
 import { error } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { RetentionPolicy, PolicyEvaluationResult, SafeIngestionSource } from '@open-archiver/types';
+import type {
+	RetentionPolicy,
+	PolicyEvaluationResult,
+	SafeIngestionSource,
+} from '@open-archiver/types';
 
 export const load: PageServerLoad = async (event) => {
 	if (!event.locals.enterpriseMode) {

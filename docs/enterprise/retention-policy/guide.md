@@ -47,16 +47,16 @@ Conditions define which emails the policy targets. If no conditions are added, t
 
 ### Supported Operators
 
-| Operator       | Display Name  | Description                                                 |
-| -------------- | ------------- | ----------------------------------------------------------- |
-| `equals`       | Equals        | Exact case-insensitive match.                               |
-| `not_equals`   | Not Equals    | Inverse of equals.                                          |
-| `contains`     | Contains      | Case-insensitive substring match.                           |
-| `not_contains` | Not Contains  | Inverse of contains.                                        |
-| `starts_with`  | Starts With   | Case-insensitive prefix match.                              |
-| `ends_with`    | Ends With     | Case-insensitive suffix match.                              |
-| `domain_match` | Domain Match  | Matches when an email address ends with `@<value>`.         |
-| `regex_match`  | Regex Match   | ECMAScript regular expression (case-insensitive, max 200 chars). |
+| Operator       | Display Name | Description                                                      |
+| -------------- | ------------ | ---------------------------------------------------------------- |
+| `equals`       | Equals       | Exact case-insensitive match.                                    |
+| `not_equals`   | Not Equals   | Inverse of equals.                                               |
+| `contains`     | Contains     | Case-insensitive substring match.                                |
+| `not_contains` | Not Contains | Inverse of contains.                                             |
+| `starts_with`  | Starts With  | Case-insensitive prefix match.                                   |
+| `ends_with`    | Ends With    | Case-insensitive suffix match.                                   |
+| `domain_match` | Domain Match | Matches when an email address ends with `@<value>`.              |
+| `regex_match`  | Regex Match  | ECMAScript regular expression (case-insensitive, max 200 chars). |
 
 ### Policy Status
 

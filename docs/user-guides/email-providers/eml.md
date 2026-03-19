@@ -31,12 +31,13 @@ archive.zip
 3.  Select **EML Import** as the provider.
 4.  Enter a name for the ingestion source.
 5.  **Choose Import Method:**
-    *   **Upload File:** Click **Choose File** and select the zip archive containing your EML files. (Best for smaller archives)
-    *   **Local Path:** Enter the path to the zip file **inside the container**. (Best for large archives)
+    - **Upload File:** Click **Choose File** and select the zip archive containing your EML files. (Best for smaller archives)
+    - **Local Path:** Enter the path to the zip file **inside the container**. (Best for large archives)
 
     > **Note on Local Path:** When using Docker, the "Local Path" is relative to the container's filesystem.
-    > *   **Recommended:** Place your zip file in a `temp` folder inside your configured storage directory (`STORAGE_LOCAL_ROOT_PATH`). This path is already mounted. For example, if your storage path is `/data`, put the file in `/data/temp/emails.zip` and enter `/data/temp/emails.zip` as the path.
-    > *   **Alternative:** Mount a separate volume in `docker-compose.yml` (e.g., `- /host/path:/container/path`) and use the container path.
+    >
+    > - **Recommended:** Place your zip file in a `temp` folder inside your configured storage directory (`STORAGE_LOCAL_ROOT_PATH`). This path is already mounted. For example, if your storage path is `/data`, put the file in `/data/temp/emails.zip` and enter `/data/temp/emails.zip` as the path.
+    > - **Alternative:** Mount a separate volume in `docker-compose.yml` (e.g., `- /host/path:/container/path`) and use the container path.
 
 6.  Click the **Submit** button.
 

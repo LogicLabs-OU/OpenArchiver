@@ -6,19 +6,19 @@ The backend implementation of the retention policy engine is handled by the `Ret
 
 The `retention_policies` table is defined in `packages/backend/src/database/schema/compliance.ts` using Drizzle ORM:
 
-| Column                | Type                       | Description                                                                 |
-| --------------------- | -------------------------- | --------------------------------------------------------------------------- |
-| `id`                  | `uuid` (PK)               | Auto-generated unique identifier.                                           |
-| `name`                | `text` (unique, not null)  | Human-readable policy name.                                                 |
-| `description`         | `text`                     | Optional description.                                                       |
-| `priority`            | `integer` (not null)       | Priority for ordering. Lower = higher priority.                             |
-| `retention_period_days` | `integer` (not null)     | Number of days to retain matching emails.                                   |
-| `action_on_expiry`    | `enum` (not null)          | Action on expiry (`delete_permanently`).                                    |
-| `is_enabled`          | `boolean` (default: true)  | Whether the policy is active.                                               |
-| `conditions`          | `jsonb`                    | Serialized `RetentionRuleGroup` or null (null = matches all).               |
-| `ingestion_scope`     | `jsonb`                    | Array of ingestion source UUIDs or null (null = all sources).               |
-| `created_at`          | `timestamptz`              | Creation timestamp.                                                         |
-| `updated_at`          | `timestamptz`              | Last update timestamp.                                                      |
+| Column                  | Type                      | Description                                                   |
+| ----------------------- | ------------------------- | ------------------------------------------------------------- |
+| `id`                    | `uuid` (PK)               | Auto-generated unique identifier.                             |
+| `name`                  | `text` (unique, not null) | Human-readable policy name.                                   |
+| `description`           | `text`                    | Optional description.                                         |
+| `priority`              | `integer` (not null)      | Priority for ordering. Lower = higher priority.               |
+| `retention_period_days` | `integer` (not null)      | Number of days to retain matching emails.                     |
+| `action_on_expiry`      | `enum` (not null)         | Action on expiry (`delete_permanently`).                      |
+| `is_enabled`            | `boolean` (default: true) | Whether the policy is active.                                 |
+| `conditions`            | `jsonb`                   | Serialized `RetentionRuleGroup` or null (null = matches all). |
+| `ingestion_scope`       | `jsonb`                   | Array of ingestion source UUIDs or null (null = all sources). |
+| `created_at`            | `timestamptz`             | Creation timestamp.                                           |
+| `updated_at`            | `timestamptz`             | Last update timestamp.                                        |
 
 ## CRUD Operations
 
@@ -53,6 +53,7 @@ The evaluation engine is the core logic that determines which policies apply to 
 ### `evaluateEmail(metadata)`
 
 This is the primary evaluation method. It accepts email metadata and returns:
+
 - `appliedRetentionDays`: The longest matching retention period (max-duration-wins).
 - `matchingPolicyIds`: UUIDs of all policies that matched.
 - `actionOnExpiry`: Always `"delete_permanently"` in the current implementation.
@@ -68,6 +69,7 @@ The evaluation flow:
 ### `_evaluateRuleGroup(group, metadata)`
 
 Evaluates a `RetentionRuleGroup` using AND or OR logic:
+
 - **AND:** Every rule in the group must pass.
 - **OR:** At least one rule must pass.
 - An empty rules array evaluates to `true`.
@@ -76,27 +78,27 @@ Evaluates a `RetentionRuleGroup` using AND or OR logic:
 
 Evaluates a single rule against the email metadata. All string comparisons are case-insensitive (both sides are lowercased before comparison). The behavior depends on the field:
 
-| Field             | Behavior                                                                 |
-| ----------------- | ------------------------------------------------------------------------ |
-| `sender`          | Compares against the sender email address.                               |
-| `recipient`       | Passes if **any** recipient matches the operator.                        |
-| `subject`         | Compares against the email subject.                                      |
-| `attachment_type` | Passes if **any** attachment file extension matches (e.g., `.pdf`).      |
+| Field             | Behavior                                                            |
+| ----------------- | ------------------------------------------------------------------- |
+| `sender`          | Compares against the sender email address.                          |
+| `recipient`       | Passes if **any** recipient matches the operator.                   |
+| `subject`         | Compares against the email subject.                                 |
+| `attachment_type` | Passes if **any** attachment file extension matches (e.g., `.pdf`). |
 
 ### `_applyOperator(haystack, operator, needle)`
 
 Applies a string-comparison operator between two pre-lowercased strings:
 
-| Operator       | Implementation                                                                |
-| -------------- | ----------------------------------------------------------------------------- |
-| `equals`       | `haystack === needle`                                                         |
-| `not_equals`   | `haystack !== needle`                                                         |
-| `contains`     | `haystack.includes(needle)`                                                   |
-| `not_contains` | `!haystack.includes(needle)`                                                  |
-| `starts_with`  | `haystack.startsWith(needle)`                                                 |
-| `ends_with`    | `haystack.endsWith(needle)`                                                   |
-| `domain_match` | `haystack.endsWith('@' + needle)` (auto-prepends `@` if missing)             |
-| `regex_match`  | `new RegExp(needle, 'i').test(haystack)` with safety guards (see below)       |
+| Operator       | Implementation                                                          |
+| -------------- | ----------------------------------------------------------------------- |
+| `equals`       | `haystack === needle`                                                   |
+| `not_equals`   | `haystack !== needle`                                                   |
+| `contains`     | `haystack.includes(needle)`                                             |
+| `not_contains` | `!haystack.includes(needle)`                                            |
+| `starts_with`  | `haystack.startsWith(needle)`                                           |
+| `ends_with`    | `haystack.endsWith(needle)`                                             |
+| `domain_match` | `haystack.endsWith('@' + needle)` (auto-prepends `@` if missing)        |
+| `regex_match`  | `new RegExp(needle, 'i').test(haystack)` with safety guards (see below) |
 
 ### Security: `regex_match` Safeguards
 
@@ -133,6 +135,7 @@ The `RetentionPolicyModule` (`retention-policy.module.ts`) implements the `Archi
 ```
 
 All routes are protected by:
+
 1. `requireAuth` — Ensures the request includes a valid authentication token.
 2. `featureEnabled(OpenArchiverFeature.RETENTION_POLICY)` — Ensures the enterprise license includes the retention policy feature.
 3. `requirePermission('manage', 'all')` — Ensures the user has administrative permissions.

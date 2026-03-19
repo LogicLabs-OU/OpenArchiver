@@ -23,26 +23,26 @@ Retrieves all legal holds ordered by creation date ascending, each annotated wit
 
 ```json
 [
-    {
-        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        "name": "Project Titan Litigation — 2026",
-        "reason": "Preservation order received 2026-01-15 re: IP dispute",
-        "isActive": true,
-        "caseId": null,
-        "emailCount": 4821,
-        "createdAt": "2026-01-15T10:30:00.000Z",
-        "updatedAt": "2026-01-15T10:30:00.000Z"
-    },
-    {
-        "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
-        "name": "SEC Investigation Q3 2025",
-        "reason": null,
-        "isActive": false,
-        "caseId": "c3d4e5f6-a7b8-9012-cdef-345678901234",
-        "emailCount": 310,
-        "createdAt": "2025-09-01T08:00:00.000Z",
-        "updatedAt": "2025-11-20T16:45:00.000Z"
-    }
+	{
+		"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Project Titan Litigation — 2026",
+		"reason": "Preservation order received 2026-01-15 re: IP dispute",
+		"isActive": true,
+		"caseId": null,
+		"emailCount": 4821,
+		"createdAt": "2026-01-15T10:30:00.000Z",
+		"updatedAt": "2026-01-15T10:30:00.000Z"
+	},
+	{
+		"id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+		"name": "SEC Investigation Q3 2025",
+		"reason": null,
+		"isActive": false,
+		"caseId": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+		"emailCount": 310,
+		"createdAt": "2025-09-01T08:00:00.000Z",
+		"updatedAt": "2025-11-20T16:45:00.000Z"
+	}
 ]
 ```
 
@@ -59,9 +59,9 @@ Retrieves a single legal hold by its UUID.
 
 #### Path Parameters
 
-| Parameter | Type   | Description                   |
-| --------- | ------ | ----------------------------- |
-| `id`      | `uuid` | The UUID of the hold to get.  |
+| Parameter | Type   | Description                  |
+| --------- | ------ | ---------------------------- |
+| `id`      | `uuid` | The UUID of the hold to get. |
 
 #### Response
 
@@ -80,19 +80,19 @@ Creates a new legal hold. Holds are always created in the **active** state.
 
 #### Request Body
 
-| Field    | Type     | Required | Description                                                 |
-| -------- | -------- | -------- | ----------------------------------------------------------- |
-| `name`   | `string` | Yes      | Unique hold name. Max 255 characters.                       |
+| Field    | Type     | Required | Description                                                    |
+| -------- | -------- | -------- | -------------------------------------------------------------- |
+| `name`   | `string` | Yes      | Unique hold name. Max 255 characters.                          |
 | `reason` | `string` | No       | Legal basis or description for the hold. Max 2 000 characters. |
-| `caseId` | `uuid`   | No       | Optional UUID of an `ediscovery_cases` record to link to.  |
+| `caseId` | `uuid`   | No       | Optional UUID of an `ediscovery_cases` record to link to.      |
 
 #### Example Request
 
 ```json
 {
-    "name": "Project Titan Litigation — 2026",
-    "reason": "Preservation notice received from outside counsel on 2026-01-15 regarding IP dispute with ExCorp.",
-    "caseId": null
+	"name": "Project Titan Litigation — 2026",
+	"reason": "Preservation notice received from outside counsel on 2026-01-15 regarding IP dispute with ExCorp.",
+	"caseId": null
 }
 ```
 
@@ -115,25 +115,25 @@ Updates the name, reason, or `isActive` state of a hold. Only the fields provide
 
 #### Path Parameters
 
-| Parameter | Type   | Description                      |
-| --------- | ------ | -------------------------------- |
-| `id`      | `uuid` | The UUID of the hold to update.  |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `id`      | `uuid` | The UUID of the hold to update. |
 
 #### Request Body
 
 All fields are optional. At least one must be provided.
 
-| Field      | Type      | Description                                        |
-| ---------- | --------- | -------------------------------------------------- |
-| `name`     | `string`  | New hold name. Max 255 characters.                 |
-| `reason`   | `string`  | Updated reason/description. Max 2 000 characters.  |
+| Field      | Type      | Description                                         |
+| ---------- | --------- | --------------------------------------------------- |
+| `name`     | `string`  | New hold name. Max 255 characters.                  |
+| `reason`   | `string`  | Updated reason/description. Max 2 000 characters.   |
 | `isActive` | `boolean` | Set to `false` to deactivate, `true` to reactivate. |
 
 #### Example — Deactivate a Hold
 
 ```json
 {
-    "isActive": false
+	"isActive": false
 }
 ```
 
@@ -158,9 +158,9 @@ Permanently deletes a legal hold and (via database CASCADE) all associated `emai
 
 #### Path Parameters
 
-| Parameter | Type   | Description                      |
-| --------- | ------ | -------------------------------- |
-| `id`      | `uuid` | The UUID of the hold to delete.  |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `id`      | `uuid` | The UUID of the hold to delete. |
 
 #### Response
 
@@ -185,37 +185,37 @@ Applies a legal hold to **all emails matching a Meilisearch query**. The operati
 
 #### Path Parameters
 
-| Parameter | Type   | Description                         |
-| --------- | ------ | ----------------------------------- |
-| `id`      | `uuid` | The UUID of the hold to apply.      |
+| Parameter | Type   | Description                    |
+| --------- | ------ | ------------------------------ |
+| `id`      | `uuid` | The UUID of the hold to apply. |
 
 #### Request Body
 
-| Field         | Type     | Required | Description                                                         |
-| ------------- | -------- | -------- | ------------------------------------------------------------------- |
-| `searchQuery` | `object` | Yes      | A Meilisearch query object (see structure below).                   |
+| Field         | Type     | Required | Description                                       |
+| ------------- | -------- | -------- | ------------------------------------------------- |
+| `searchQuery` | `object` | Yes      | A Meilisearch query object (see structure below). |
 
 ##### `searchQuery` Object
 
-| Field              | Type     | Required | Description                                                        |
-| ------------------ | -------- | -------- | ------------------------------------------------------------------ |
-| `query`            | `string` | Yes      | Full-text search string. Pass `""` to match all documents.         |
-| `filters`          | `object` | No       | Key-value filter object (e.g., `{ "from": "user@corp.com" }`).     |
+| Field              | Type     | Required | Description                                                         |
+| ------------------ | -------- | -------- | ------------------------------------------------------------------- |
+| `query`            | `string` | Yes      | Full-text search string. Pass `""` to match all documents.          |
+| `filters`          | `object` | No       | Key-value filter object (e.g., `{ "from": "user@corp.com" }`).      |
 | `matchingStrategy` | `string` | No       | Meilisearch matching strategy: `"last"`, `"all"`, or `"frequency"`. |
 
 #### Example Request
 
 ```json
 {
-    "searchQuery": {
-        "query": "Project Titan confidential",
-        "filters": {
-            "from": "john.doe@acme.com",
-            "startDate": "2023-01-01",
-            "endDate": "2025-12-31"
-        },
-        "matchingStrategy": "all"
-    }
+	"searchQuery": {
+		"query": "Project Titan confidential",
+		"filters": {
+			"from": "john.doe@acme.com",
+			"startDate": "2023-01-01",
+			"endDate": "2025-12-31"
+		},
+		"matchingStrategy": "all"
+	}
 }
 ```
 
@@ -223,17 +223,17 @@ Applies a legal hold to **all emails matching a Meilisearch query**. The operati
 
 ```json
 {
-    "legalHoldId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "emailsLinked": 1247,
-    "queryUsed": {
-        "query": "Project Titan confidential",
-        "filters": {
-            "from": "john.doe@acme.com",
-            "startDate": "2023-01-01",
-            "endDate": "2025-12-31"
-        },
-        "matchingStrategy": "all"
-    }
+	"legalHoldId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	"emailsLinked": 1247,
+	"queryUsed": {
+		"query": "Project Titan confidential",
+		"filters": {
+			"from": "john.doe@acme.com",
+			"startDate": "2023-01-01",
+			"endDate": "2025-12-31"
+		},
+		"matchingStrategy": "all"
+	}
 }
 ```
 
@@ -260,15 +260,15 @@ Removes all `email_legal_holds` associations for the given hold in a single oper
 
 #### Path Parameters
 
-| Parameter | Type   | Description                          |
-| --------- | ------ | ------------------------------------ |
-| `id`      | `uuid` | The UUID of the hold to release.     |
+| Parameter | Type   | Description                      |
+| --------- | ------ | -------------------------------- |
+| `id`      | `uuid` | The UUID of the hold to release. |
 
 #### Response Body
 
 ```json
 {
-    "emailsReleased": 4821
+	"emailsReleased": 4821
 }
 ```
 
@@ -294,9 +294,9 @@ Returns all legal holds currently linked to a specific archived email, including
 
 #### Path Parameters
 
-| Parameter | Type   | Description                              |
-| --------- | ------ | ---------------------------------------- |
-| `emailId` | `uuid` | The UUID of the archived email.          |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `emailId` | `uuid` | The UUID of the archived email. |
 
 #### Response Body
 
@@ -304,20 +304,20 @@ Returns an empty array `[]` if no holds are applied, or an array of hold-link ob
 
 ```json
 [
-    {
-        "legalHoldId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        "holdName": "Project Titan Litigation — 2026",
-        "isActive": true,
-        "appliedAt": "2026-01-15T11:00:00.000Z",
-        "appliedByUserId": "user-uuid-here"
-    },
-    {
-        "legalHoldId": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
-        "holdName": "SEC Investigation Q3 2025",
-        "isActive": false,
-        "appliedAt": "2025-09-05T09:15:00.000Z",
-        "appliedByUserId": null
-    }
+	{
+		"legalHoldId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"holdName": "Project Titan Litigation — 2026",
+		"isActive": true,
+		"appliedAt": "2026-01-15T11:00:00.000Z",
+		"appliedByUserId": "user-uuid-here"
+	},
+	{
+		"legalHoldId": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+		"holdName": "SEC Investigation Q3 2025",
+		"isActive": false,
+		"appliedAt": "2025-09-05T09:15:00.000Z",
+		"appliedByUserId": null
+	}
 ]
 ```
 
@@ -338,21 +338,21 @@ Links a single archived email to an active legal hold. The operation is idempote
 
 #### Path Parameters
 
-| Parameter | Type   | Description                              |
-| --------- | ------ | ---------------------------------------- |
-| `emailId` | `uuid` | The UUID of the archived email.          |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `emailId` | `uuid` | The UUID of the archived email. |
 
 #### Request Body
 
-| Field    | Type   | Required | Description                          |
-| -------- | ------ | -------- | ------------------------------------ |
-| `holdId` | `uuid` | Yes      | The UUID of the hold to apply.       |
+| Field    | Type   | Required | Description                    |
+| -------- | ------ | -------- | ------------------------------ |
+| `holdId` | `uuid` | Yes      | The UUID of the hold to apply. |
 
 #### Example Request
 
 ```json
 {
-    "holdId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	"holdId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
 
@@ -362,11 +362,11 @@ Returns the hold-link object with the DB-authoritative `appliedAt` timestamp:
 
 ```json
 {
-    "legalHoldId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "holdName": "Project Titan Litigation — 2026",
-    "isActive": true,
-    "appliedAt": "2026-01-16T14:22:00.000Z",
-    "appliedByUserId": "user-uuid-here"
+	"legalHoldId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	"holdName": "Project Titan Litigation — 2026",
+	"isActive": true,
+	"appliedAt": "2026-01-16T14:22:00.000Z",
+	"appliedByUserId": "user-uuid-here"
 }
 ```
 
@@ -390,16 +390,16 @@ Unlinks a specific legal hold from a specific archived email. The hold itself is
 
 #### Path Parameters
 
-| Parameter | Type   | Description                              |
-| --------- | ------ | ---------------------------------------- |
-| `emailId` | `uuid` | The UUID of the archived email.          |
-| `holdId`  | `uuid` | The UUID of the hold to remove.          |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `emailId` | `uuid` | The UUID of the archived email. |
+| `holdId`  | `uuid` | The UUID of the hold to remove. |
 
 #### Response Body
 
 ```json
 {
-    "message": "Hold removed from email successfully."
+	"message": "Hold removed from email successfully."
 }
 ```
 
@@ -416,10 +416,10 @@ All endpoints use the standard error response format:
 
 ```json
 {
-    "status": "error",
-    "statusCode": 409,
-    "message": "Cannot delete an active legal hold. Deactivate it first to explicitly lift legal protection before deletion.",
-    "errors": null
+	"status": "error",
+	"statusCode": 409,
+	"message": "Cannot delete an active legal hold. Deactivate it first to explicitly lift legal protection before deletion.",
+	"errors": null
 }
 ```
 
@@ -427,15 +427,15 @@ For validation errors (`422 Unprocessable Entity`):
 
 ```json
 {
-    "status": "error",
-    "statusCode": 422,
-    "message": "Invalid input provided.",
-    "errors": [
-        {
-            "field": "name",
-            "message": "Name is required."
-        }
-    ]
+	"status": "error",
+	"statusCode": 422,
+	"message": "Invalid input provided.",
+	"errors": [
+		{
+			"field": "name",
+			"message": "Name is required."
+		}
+	]
 }
 ```
 
@@ -443,12 +443,12 @@ For validation errors (`422 Unprocessable Entity`):
 
 ## Validation Constraints
 
-| Field          | Constraint                                      |
-| -------------- | ----------------------------------------------- |
-| Hold name      | 1–255 characters.                               |
-| Reason         | Max 2 000 characters.                           |
-| `caseId`       | Must be a valid UUID if provided.               |
-| `holdId`       | Must be a valid UUID.                           |
-| `emailId`      | Must be a valid UUID.                           |
-| Search `query` | String (may be empty `""`).                     |
-| `matchingStrategy` | One of `"last"`, `"all"`, `"frequency"`.   |
+| Field              | Constraint                               |
+| ------------------ | ---------------------------------------- |
+| Hold name          | 1–255 characters.                        |
+| Reason             | Max 2 000 characters.                    |
+| `caseId`           | Must be a valid UUID if provided.        |
+| `holdId`           | Must be a valid UUID.                    |
+| `emailId`          | Must be a valid UUID.                    |
+| Search `query`     | String (may be empty `""`).              |
+| `matchingStrategy` | One of `"last"`, `"all"`, `"frequency"`. |

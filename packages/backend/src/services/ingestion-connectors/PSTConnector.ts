@@ -171,10 +171,7 @@ export class PSTConnector implements IEmailConnector {
 			}
 			return true;
 		} catch (error) {
-			logger.error(
-				{ error, credentials: this.credentials },
-				'PST file validation failed.'
-			);
+			logger.error({ error, credentials: this.credentials }, 'PST file validation failed.');
 			throw error;
 		}
 	}

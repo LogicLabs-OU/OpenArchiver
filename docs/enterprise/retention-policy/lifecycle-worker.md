@@ -13,7 +13,9 @@ The lifecycle worker is the automated enforcement component of the retention pol
 The lifecycle worker is registered as a repeatable BullMQ cron job on the `compliance-lifecycle` queue. It is scheduled to run daily at **02:00 UTC** by default. The cron schedule is configured via:
 
 ```typescript
-repeat: { pattern: '0 2 * * *' }  // daily at 02:00 UTC
+repeat: {
+	pattern: '0 2 * * *';
+} // daily at 02:00 UTC
 ```
 
 The `scheduleLifecycleJob()` function is called once during enterprise application startup to register the repeatable job with BullMQ.
@@ -62,12 +64,12 @@ If the entire job fails, BullMQ records the failure and the job ID and error are
 
 Automated deletions are attributed to a synthetic system actor in the audit log:
 
-| Field        | Value                                |
-| ------------ | ------------------------------------ |
-| ID           | `system:lifecycle-worker`            |
-| Email        | `system@open-archiver.internal`      |
-| Name         | System Lifecycle Worker              |
-| Actor IP     | `system`                             |
+| Field    | Value                           |
+| -------- | ------------------------------- |
+| ID       | `system:lifecycle-worker`       |
+| Email    | `system@open-archiver.internal` |
+| Name     | System Lifecycle Worker         |
+| Actor IP | `system`                        |
 
 This well-known identifier can be filtered in the [Audit Log](../audit-log/index.md) to view all retention-based deletions.
 
@@ -85,18 +87,18 @@ This ensures that every automated deletion is fully traceable back to the specif
 
 ## Configuration
 
-| Environment Variable      | Description                                          | Default |
-| ------------------------- | ---------------------------------------------------- | ------- |
-| `RETENTION_BATCH_SIZE`    | Number of emails to process per batch iteration.     | —       |
+| Environment Variable   | Description                                      | Default |
+| ---------------------- | ------------------------------------------------ | ------- |
+| `RETENTION_BATCH_SIZE` | Number of emails to process per batch iteration. | —       |
 
 ## BullMQ Worker Settings
 
-| Setting              | Value                  | Description                                        |
-| -------------------- | ---------------------- | -------------------------------------------------- |
-| Queue name           | `compliance-lifecycle` | The BullMQ queue name.                             |
-| Job ID               | `lifecycle-daily`      | Stable job ID for the repeatable cron job.         |
-| `removeOnComplete`   | Keep last 10           | Completed jobs retained for monitoring.            |
-| `removeOnFail`       | Keep last 50           | Failed jobs retained for debugging.                |
+| Setting            | Value                  | Description                                |
+| ------------------ | ---------------------- | ------------------------------------------ |
+| Queue name         | `compliance-lifecycle` | The BullMQ queue name.                     |
+| Job ID             | `lifecycle-daily`      | Stable job ID for the repeatable cron job. |
+| `removeOnComplete` | Keep last 10           | Completed jobs retained for monitoring.    |
+| `removeOnFail`     | Keep last 50           | Failed jobs retained for debugging.        |
 
 ## Integration with Deletion Guard
 

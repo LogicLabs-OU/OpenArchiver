@@ -50,18 +50,20 @@ export const retentionLabels = pgTable('retention_labels', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const emailRetentionLabels = pgTable('email_retention_labels', {
-	emailId: uuid('email_id')
-		.references(() => archivedEmails.id, { onDelete: 'cascade' })
-		.notNull(),
-	labelId: uuid('label_id')
-		.references(() => retentionLabels.id, { onDelete: 'cascade' })
-		.notNull(),
-	appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
-	appliedByUserId: uuid('applied_by_user_id').references(() => users.id),
-}, (t) => [
-	primaryKey({ columns: [t.emailId, t.labelId] }),
-]);
+export const emailRetentionLabels = pgTable(
+	'email_retention_labels',
+	{
+		emailId: uuid('email_id')
+			.references(() => archivedEmails.id, { onDelete: 'cascade' })
+			.notNull(),
+		labelId: uuid('label_id')
+			.references(() => retentionLabels.id, { onDelete: 'cascade' })
+			.notNull(),
+		appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+		appliedByUserId: uuid('applied_by_user_id').references(() => users.id),
+	},
+	(t) => [primaryKey({ columns: [t.emailId, t.labelId] })]
+);
 
 export const retentionEvents = pgTable('retention_events', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -105,9 +107,7 @@ export const emailLegalHolds = pgTable(
 		appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
 		appliedByUserId: uuid('applied_by_user_id').references(() => users.id),
 	},
-	(t) => [
-		primaryKey({ columns: [t.emailId, t.legalHoldId] }),
-	],
+	(t) => [primaryKey({ columns: [t.emailId, t.legalHoldId] })]
 );
 
 export const exportJobs = pgTable('export_jobs', {

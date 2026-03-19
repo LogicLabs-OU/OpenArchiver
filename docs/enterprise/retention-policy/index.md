@@ -43,13 +43,13 @@ The Retention Policy Engine requires:
 
 The feature is composed of the following components:
 
-| Component            | Location                                                              | Description                                                  |
-| -------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Types                | `packages/types/src/retention.types.ts`                               | Shared TypeScript types for policies, rules, and evaluation. |
-| Database Schema      | `packages/backend/src/database/schema/compliance.ts`                  | Drizzle ORM table definition for `retention_policies`.       |
-| Retention Service    | `packages/enterprise/src/modules/retention-policy/RetentionService.ts`| CRUD operations and the evaluation engine.                   |
-| API Controller       | `packages/enterprise/src/modules/retention-policy/retention-policy.controller.ts` | Express request handlers with Zod validation.    |
-| API Routes           | `packages/enterprise/src/modules/retention-policy/retention-policy.routes.ts`     | Route registration with auth and feature guards. |
-| Module               | `packages/enterprise/src/modules/retention-policy/retention-policy.module.ts`     | Enterprise module bootstrap.                     |
-| Lifecycle Worker     | `packages/enterprise/src/workers/lifecycle.worker.ts`                 | BullMQ worker for automated retention enforcement.           |
-| Frontend Page        | `packages/frontend/src/routes/dashboard/compliance/retention-policies/` | SvelteKit page for policy management and simulation.       |
+| Component         | Location                                                                          | Description                                                  |
+| ----------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Types             | `packages/types/src/retention.types.ts`                                           | Shared TypeScript types for policies, rules, and evaluation. |
+| Database Schema   | `packages/backend/src/database/schema/compliance.ts`                              | Drizzle ORM table definition for `retention_policies`.       |
+| Retention Service | `packages/enterprise/src/modules/retention-policy/RetentionService.ts`            | CRUD operations and the evaluation engine.                   |
+| API Controller    | `packages/enterprise/src/modules/retention-policy/retention-policy.controller.ts` | Express request handlers with Zod validation.                |
+| API Routes        | `packages/enterprise/src/modules/retention-policy/retention-policy.routes.ts`     | Route registration with auth and feature guards.             |
+| Module            | `packages/enterprise/src/modules/retention-policy/retention-policy.module.ts`     | Enterprise module bootstrap.                                 |
+| Lifecycle Worker  | `packages/enterprise/src/workers/lifecycle.worker.ts`                             | BullMQ worker for automated retention enforcement.           |
+| Frontend Page     | `packages/frontend/src/routes/dashboard/compliance/retention-policies/`           | SvelteKit page for policy management and simulation.         |

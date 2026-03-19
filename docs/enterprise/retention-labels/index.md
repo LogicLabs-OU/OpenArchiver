@@ -62,37 +62,37 @@ Apply custom retention periods to emails related to specific projects, contracts
 
 The feature is composed of the following components:
 
-| Component            | Location                                                              | Description                                                  |
-| -------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Types                | `packages/types/src/retention.types.ts`                               | Shared TypeScript types for labels and email label info.     |
-| Database Schema      | `packages/backend/src/database/schema/compliance.ts`                  | Drizzle ORM table definitions for retention labels.          |
-| Label Service        | `packages/enterprise/src/modules/retention-policy/RetentionLabelService.ts` | CRUD operations and label application logic.        |
-| API Controller       | `packages/enterprise/src/modules/retention-policy/retention-label.controller.ts` | Express request handlers with Zod validation.   |
-| API Routes           | `packages/enterprise/src/modules/retention-policy/retention-policy.routes.ts` | Route registration with auth and feature guards.    |
-| Frontend Page        | `packages/frontend/src/routes/dashboard/compliance/retention-labels/` | SvelteKit page for label management.                        |
-| Email Integration    | Individual archived email pages                                       | Label application UI in email detail views.                 |
+| Component         | Location                                                                         | Description                                              |
+| ----------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Types             | `packages/types/src/retention.types.ts`                                          | Shared TypeScript types for labels and email label info. |
+| Database Schema   | `packages/backend/src/database/schema/compliance.ts`                             | Drizzle ORM table definitions for retention labels.      |
+| Label Service     | `packages/enterprise/src/modules/retention-policy/RetentionLabelService.ts`      | CRUD operations and label application logic.             |
+| API Controller    | `packages/enterprise/src/modules/retention-policy/retention-label.controller.ts` | Express request handlers with Zod validation.            |
+| API Routes        | `packages/enterprise/src/modules/retention-policy/retention-policy.routes.ts`    | Route registration with auth and feature guards.         |
+| Frontend Page     | `packages/frontend/src/routes/dashboard/compliance/retention-labels/`            | SvelteKit page for label management.                     |
+| Email Integration | Individual archived email pages                                                  | Label application UI in email detail views.              |
 
 ## Data Model
 
 ### Retention Labels Table
 
-| Column               | Type          | Description                                                     |
-| -------------------- | ------------- | --------------------------------------------------------------- |
-| `id`                 | `uuid` (PK)   | Auto-generated unique identifier.                               |
-| `name`               | `varchar(255)` | Human-readable label name (unique constraint).                 |
-| `retention_period_days` | `integer`   | Number of days to retain emails with this label.               |
-| `description`        | `text`        | Optional description of the label's purpose.                   |
-| `is_disabled`        | `boolean`     | Whether the label is disabled (cannot be applied to new emails). |
-| `created_at`         | `timestamptz` | Creation timestamp.                                             |
+| Column                  | Type           | Description                                                      |
+| ----------------------- | -------------- | ---------------------------------------------------------------- |
+| `id`                    | `uuid` (PK)    | Auto-generated unique identifier.                                |
+| `name`                  | `varchar(255)` | Human-readable label name (unique constraint).                   |
+| `retention_period_days` | `integer`      | Number of days to retain emails with this label.                 |
+| `description`           | `text`         | Optional description of the label's purpose.                     |
+| `is_disabled`           | `boolean`      | Whether the label is disabled (cannot be applied to new emails). |
+| `created_at`            | `timestamptz`  | Creation timestamp.                                              |
 
 ### Email Label Applications Table
 
-| Column               | Type          | Description                                                     |
-| -------------------- | ------------- | --------------------------------------------------------------- |
-| `email_id`           | `uuid` (FK)   | Reference to the archived email.                               |
-| `label_id`           | `uuid` (FK)   | Reference to the retention label.                               |
-| `applied_at`         | `timestamptz` | Timestamp when the label was applied.                          |
-| `applied_by_user_id` | `uuid` (FK)   | User who applied the label (nullable for API key operations).  |
+| Column               | Type          | Description                                                   |
+| -------------------- | ------------- | ------------------------------------------------------------- |
+| `email_id`           | `uuid` (FK)   | Reference to the archived email.                              |
+| `label_id`           | `uuid` (FK)   | Reference to the retention label.                             |
+| `applied_at`         | `timestamptz` | Timestamp when the label was applied.                         |
+| `applied_by_user_id` | `uuid` (FK)   | User who applied the label (nullable for API key operations). |
 
 The table uses a composite primary key of `(email_id, label_id)` to enforce the one-label-per-email constraint at the database level.
 
@@ -107,7 +107,7 @@ The lifecycle worker queries the `email_retention_labels` table during email eva
 All retention label operations generate audit log entries:
 
 - **Label Creation**: Action type `CREATE`, target type `RetentionLabel`
-- **Label Updates**: Action type `UPDATE`, target type `RetentionLabel`  
+- **Label Updates**: Action type `UPDATE`, target type `RetentionLabel`
 - **Label Deletion/Disabling**: Action type `DELETE` or `UPDATE`, target type `RetentionLabel`
 - **Label Application**: Action type `UPDATE`, target type `ArchivedEmail`, details include label information
 - **Label Removal**: Action type `UPDATE`, target type `ArchivedEmail`, details include removed label information

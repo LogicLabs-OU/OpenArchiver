@@ -1,3544 +1,3301 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "Open Archiver API",
-    "version": "1.0.0",
-    "description": "REST API for Open Archiver — an open-source email archiving platform. All authenticated endpoints require a Bearer JWT token obtained from `POST /v1/auth/login`, or an API key passed as a Bearer token.",
-    "license": {
-      "name": "SEE LICENSE IN LICENSE",
-      "url": "https://github.com/LogicLabs-OU/OpenArchiver/blob/main/LICENSE"
-    },
-    "contact": {
-      "name": "Open Archiver",
-      "url": "https://openarchiver.com"
-    }
-  },
-  "servers": [
-    {
-      "url": "http://localhost:3001",
-      "description": "Local development"
-    }
-  ],
-  "security": [
-    {
-      "bearerAuth": []
-    },
-    {
-      "apiKeyAuth": []
-    }
-  ],
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "JWT obtained from `POST /v1/auth/login`. Pass as `Authorization: Bearer <token>`."
-      },
-      "apiKeyAuth": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-API-KEY",
-        "description": "API key generated via `POST /v1/api-keys`. Pass as `X-API-KEY: <key>`."
-      }
-    },
-    "responses": {
-      "Unauthorized": {
-        "description": "Authentication is required or the token is invalid/expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorMessage"
-            },
-            "example": {
-              "message": "Unauthorized"
-            }
-          }
-        }
-      },
-      "Forbidden": {
-        "description": "The authenticated user does not have permission to perform this action.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorMessage"
-            },
-            "example": {
-              "message": "Forbidden"
-            }
-          }
-        }
-      },
-      "NotFound": {
-        "description": "The requested resource was not found.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorMessage"
-            },
-            "example": {
-              "message": "Not found"
-            }
-          }
-        }
-      },
-      "InternalServerError": {
-        "description": "An unexpected error occurred on the server.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorMessage"
-            },
-            "example": {
-              "message": "Internal server error"
-            }
-          }
-        }
-      }
-    },
-    "schemas": {
-      "ErrorMessage": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "description": "Human-readable error description.",
-            "example": "An error occurred."
-          }
-        },
-        "required": [
-          "message"
-        ]
-      },
-      "MessageResponse": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "example": "Operation completed successfully."
-          }
-        },
-        "required": [
-          "message"
-        ]
-      },
-      "ValidationError": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "example": "Request body is invalid."
-          },
-          "errors": {
-            "type": "string",
-            "description": "Zod validation error details."
-          }
-        },
-        "required": [
-          "message"
-        ]
-      },
-      "LoginResponse": {
-        "type": "object",
-        "properties": {
-          "accessToken": {
-            "type": "string",
-            "description": "JWT for authenticating subsequent requests.",
-            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-          },
-          "user": {
-            "$ref": "#/components/schemas/User"
-          }
-        },
-        "required": [
-          "accessToken",
-          "user"
-        ]
-      },
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "first_name": {
-            "type": "string",
-            "nullable": true,
-            "example": "Jane"
-          },
-          "last_name": {
-            "type": "string",
-            "nullable": true,
-            "example": "Doe"
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "example": "jane.doe@example.com"
-          },
-          "role": {
-            "$ref": "#/components/schemas/Role",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "email",
-          "createdAt"
-        ]
-      },
-      "Role": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "slug": {
-            "type": "string",
-            "nullable": true,
-            "example": "predefined_super_admin"
-          },
-          "name": {
-            "type": "string",
-            "example": "Super Admin"
-          },
-          "policies": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CaslPolicy"
-            }
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "policies",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CaslPolicy": {
-        "type": "object",
-        "description": "An CASL-style permission policy statement. `action` and `subject` can be strings or arrays of strings. `conditions` optionally restricts access to specific resource attributes.",
-        "properties": {
-          "action": {
-            "oneOf": [
-              {
-                "type": "string",
-                "example": "read"
-              },
-              {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "example": [
-                  "read",
-                  "search"
-                ]
-              }
-            ]
-          },
-          "subject": {
-            "oneOf": [
-              {
-                "type": "string",
-                "example": "archive"
-              },
-              {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "example": [
-                  "archive",
-                  "ingestion"
-                ]
-              }
-            ]
-          },
-          "conditions": {
-            "type": "object",
-            "description": "Optional attribute-level conditions. Supports `${user.id}` interpolation.",
-            "example": {
-              "userId": "${user.id}"
-            }
-          }
-        },
-        "required": [
-          "action",
-          "subject"
-        ]
-      },
-      "ApiKey": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "name": {
-            "type": "string",
-            "example": "CI/CD Pipeline Key"
-          },
-          "key": {
-            "type": "string",
-            "description": "Partial/masked key — the raw value is only available at creation time.",
-            "example": "oa_live_abc1..."
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "expiresAt",
-          "createdAt"
-        ]
-      },
-      "SafeIngestionSource": {
-        "type": "object",
-        "description": "An ingestion source with sensitive credential fields removed.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "name": {
-            "type": "string",
-            "example": "Company Google Workspace"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "google_workspace",
-              "microsoft_365",
-              "generic_imap",
-              "pst_import",
-              "eml_import",
-              "mbox_import"
-            ],
-            "example": "google_workspace"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "paused",
-              "error",
-              "pending_auth",
-              "syncing",
-              "importing",
-              "auth_success",
-              "imported"
-            ],
-            "example": "active"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "lastSyncStartedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "lastSyncFinishedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "lastSyncStatusMessage": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "provider",
-          "status",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateIngestionSourceDto": {
-        "type": "object",
-        "required": [
-          "name",
-          "provider",
-          "providerConfig"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "Company Google Workspace"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "google_workspace",
-              "microsoft_365",
-              "generic_imap",
-              "pst_import",
-              "eml_import",
-              "mbox_import"
-            ]
-          },
-          "providerConfig": {
-            "type": "object",
-            "description": "Provider-specific configuration. See the ingestion source guides for the required fields per provider.",
-            "example": {
-              "serviceAccountKeyJson": "{\"type\":\"service_account\",...}",
-              "impersonatedAdminEmail": "admin@example.com"
-            }
-          }
-        }
-      },
-      "UpdateIngestionSourceDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "google_workspace",
-              "microsoft_365",
-              "generic_imap",
-              "pst_import",
-              "eml_import",
-              "mbox_import"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "paused",
-              "error",
-              "pending_auth",
-              "syncing",
-              "importing",
-              "auth_success",
-              "imported"
-            ]
-          },
-          "providerConfig": {
-            "type": "object"
-          }
-        }
-      },
-      "Recipient": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "nullable": true,
-            "example": "John Doe"
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "example": "john.doe@example.com"
-          }
-        },
-        "required": [
-          "email"
-        ]
-      },
-      "Attachment": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "filename": {
-            "type": "string",
-            "example": "invoice.pdf"
-          },
-          "mimeType": {
-            "type": "string",
-            "nullable": true,
-            "example": "application/pdf"
-          },
-          "sizeBytes": {
-            "type": "integer",
-            "example": 204800
-          },
-          "storagePath": {
-            "type": "string",
-            "example": "open-archiver/attachments/abc123.pdf"
-          }
-        },
-        "required": [
-          "id",
-          "filename",
-          "sizeBytes",
-          "storagePath"
-        ]
-      },
-      "ThreadEmail": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "ArchivedEmail ID.",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "subject": {
-            "type": "string",
-            "nullable": true,
-            "example": "Re: Q4 Invoice"
-          },
-          "sentAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "senderEmail": {
-            "type": "string",
-            "format": "email",
-            "example": "finance@vendor.com"
-          }
-        },
-        "required": [
-          "id",
-          "sentAt",
-          "senderEmail"
-        ]
-      },
-      "ArchivedEmail": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "ingestionSourceId": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "userEmail": {
-            "type": "string",
-            "format": "email",
-            "example": "user@company.com"
-          },
-          "messageIdHeader": {
-            "type": "string",
-            "nullable": true
-          },
-          "sentAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "subject": {
-            "type": "string",
-            "nullable": true,
-            "example": "Q4 Invoice"
-          },
-          "senderName": {
-            "type": "string",
-            "nullable": true,
-            "example": "Finance Dept"
-          },
-          "senderEmail": {
-            "type": "string",
-            "format": "email",
-            "example": "finance@vendor.com"
-          },
-          "recipients": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Recipient"
-            }
-          },
-          "storagePath": {
-            "type": "string"
-          },
-          "storageHashSha256": {
-            "type": "string",
-            "description": "SHA-256 hash of the raw email file, stored at archival time."
-          },
-          "sizeBytes": {
-            "type": "integer"
-          },
-          "isIndexed": {
-            "type": "boolean"
-          },
-          "hasAttachments": {
-            "type": "boolean"
-          },
-          "isOnLegalHold": {
-            "type": "boolean"
-          },
-          "archivedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "attachments": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Attachment"
-            }
-          },
-          "thread": {
-            "type": "array",
-            "description": "Other emails in the same thread, ordered by sentAt. Only present on single-email GET responses.",
-            "items": {
-              "$ref": "#/components/schemas/ThreadEmail"
-            }
-          },
-          "path": {
-            "type": "string",
-            "nullable": true
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "ingestionSourceId",
-          "userEmail",
-          "sentAt",
-          "senderEmail",
-          "recipients",
-          "storagePath",
-          "storageHashSha256",
-          "sizeBytes",
-          "isIndexed",
-          "hasAttachments",
-          "isOnLegalHold",
-          "archivedAt"
-        ]
-      },
-      "PaginatedArchivedEmails": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ArchivedEmail"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "example": 1234
-          },
-          "page": {
-            "type": "integer",
-            "example": 1
-          },
-          "limit": {
-            "type": "integer",
-            "example": 10
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "limit"
-        ]
-      },
-      "SearchResults": {
-        "type": "object",
-        "properties": {
-          "hits": {
-            "type": "array",
-            "description": "Array of matching archived email objects, potentially with highlighted fields.",
-            "items": {
-              "type": "object"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "example": 42
-          },
-          "page": {
-            "type": "integer",
-            "example": 1
-          },
-          "limit": {
-            "type": "integer",
-            "example": 10
-          },
-          "totalPages": {
-            "type": "integer",
-            "example": 5
-          },
-          "processingTimeMs": {
-            "type": "integer",
-            "description": "Meilisearch query processing time in milliseconds.",
-            "example": 12
-          }
-        },
-        "required": [
-          "hits",
-          "total",
-          "page",
-          "limit",
-          "totalPages",
-          "processingTimeMs"
-        ]
-      },
-      "IntegrityCheckResult": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "email",
-              "attachment"
-            ],
-            "description": "Whether this result is for the email itself or one of its attachments."
-          },
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "filename": {
-            "type": "string",
-            "description": "Attachment filename. Only present when `type` is `attachment`.",
-            "example": "invoice.pdf"
-          },
-          "isValid": {
-            "type": "boolean",
-            "description": "True if the stored and computed hashes match."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Human-readable explanation if `isValid` is false."
-          },
-          "storedHash": {
-            "type": "string",
-            "description": "SHA-256 hash stored at archival time.",
-            "example": "a3f1b2c4..."
-          },
-          "computedHash": {
-            "type": "string",
-            "description": "SHA-256 hash computed during this verification run.",
-            "example": "a3f1b2c4..."
-          }
-        },
-        "required": [
-          "type",
-          "id",
-          "isValid",
-          "storedHash",
-          "computedHash"
-        ]
-      },
-      "QueueCounts": {
-        "type": "object",
-        "properties": {
-          "active": {
-            "type": "integer",
-            "example": 0
-          },
-          "completed": {
-            "type": "integer",
-            "example": 56
-          },
-          "failed": {
-            "type": "integer",
-            "example": 4
-          },
-          "delayed": {
-            "type": "integer",
-            "example": 0
-          },
-          "waiting": {
-            "type": "integer",
-            "example": 0
-          },
-          "paused": {
-            "type": "integer",
-            "example": 0
-          }
-        },
-        "required": [
-          "active",
-          "completed",
-          "failed",
-          "delayed",
-          "waiting",
-          "paused"
-        ]
-      },
-      "QueueOverview": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "ingestion"
-          },
-          "counts": {
-            "$ref": "#/components/schemas/QueueCounts"
-          }
-        },
-        "required": [
-          "name",
-          "counts"
-        ]
-      },
-      "Job": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "nullable": true,
-            "example": "1"
-          },
-          "name": {
-            "type": "string",
-            "example": "initial-import"
-          },
-          "data": {
-            "type": "object",
-            "description": "Job payload data.",
-            "example": {
-              "ingestionSourceId": "clx1y2z3a0000b4d2"
-            }
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "active",
-              "completed",
-              "failed",
-              "delayed",
-              "waiting",
-              "paused"
-            ],
-            "example": "failed"
-          },
-          "failedReason": {
-            "type": "string",
-            "nullable": true,
-            "example": "Error: Connection timed out"
-          },
-          "timestamp": {
-            "type": "integer",
-            "example": 1678886400000
-          },
-          "processedOn": {
-            "type": "integer",
-            "nullable": true,
-            "example": 1678886401000
-          },
-          "finishedOn": {
-            "type": "integer",
-            "nullable": true,
-            "example": 1678886402000
-          },
-          "attemptsMade": {
-            "type": "integer",
-            "example": 5
-          },
-          "stacktrace": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "returnValue": {
-            "nullable": true
-          },
-          "ingestionSourceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "error": {
-            "description": "Shorthand copy of `failedReason` for easier access.",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "data",
-          "state",
-          "timestamp",
-          "attemptsMade",
-          "stacktrace"
-        ]
-      },
-      "QueueDetails": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "ingestion"
-          },
-          "counts": {
-            "$ref": "#/components/schemas/QueueCounts"
-          },
-          "jobs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Job"
-            }
-          },
-          "pagination": {
-            "type": "object",
-            "properties": {
-              "currentPage": {
-                "type": "integer",
-                "example": 1
-              },
-              "totalPages": {
-                "type": "integer",
-                "example": 3
-              },
-              "totalJobs": {
-                "type": "integer",
-                "example": 25
-              },
-              "limit": {
-                "type": "integer",
-                "example": 10
-              }
-            },
-            "required": [
-              "currentPage",
-              "totalPages",
-              "totalJobs",
-              "limit"
-            ]
-          }
-        },
-        "required": [
-          "name",
-          "counts",
-          "jobs",
-          "pagination"
-        ]
-      },
-      "DashboardStats": {
-        "type": "object",
-        "properties": {
-          "totalEmailsArchived": {
-            "type": "integer",
-            "example": 125000
-          },
-          "totalStorageUsed": {
-            "type": "integer",
-            "description": "Total storage used by all archived emails in bytes.",
-            "example": 5368709120
-          },
-          "failedIngestionsLast7Days": {
-            "type": "integer",
-            "description": "Number of ingestion sources in error state updated in the last 7 days.",
-            "example": 2
-          }
-        }
-      },
-      "IngestionSourceStats": {
-        "type": "object",
-        "description": "Summary of an ingestion source including its storage usage.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "name": {
-            "type": "string",
-            "example": "Company Google Workspace"
-          },
-          "provider": {
-            "type": "string",
-            "example": "google_workspace"
-          },
-          "status": {
-            "type": "string",
-            "example": "active"
-          },
-          "storageUsed": {
-            "type": "integer",
-            "description": "Total bytes stored for emails from this ingestion source.",
-            "example": 1073741824
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "provider",
-          "status",
-          "storageUsed"
-        ]
-      },
-      "RecentSync": {
-        "type": "object",
-        "description": "Summary of a recent sync session.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "clx1y2z3a0000b4d2"
-          },
-          "sourceName": {
-            "type": "string",
-            "example": "Company Google Workspace"
-          },
-          "startTime": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "duration": {
-            "type": "integer",
-            "description": "Duration in milliseconds.",
-            "example": 4500
-          },
-          "emailsProcessed": {
-            "type": "integer",
-            "example": 120
-          },
-          "status": {
-            "type": "string",
-            "example": "completed"
-          }
-        },
-        "required": [
-          "id",
-          "sourceName",
-          "startTime",
-          "duration",
-          "emailsProcessed",
-          "status"
-        ]
-      },
-      "IndexedInsights": {
-        "type": "object",
-        "description": "Insights derived from the search index.",
-        "properties": {
-          "topSenders": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "sender": {
-                  "type": "string",
-                  "example": "finance@vendor.com"
-                },
-                "count": {
-                  "type": "integer",
-                  "example": 342
-                }
-              },
-              "required": [
-                "sender",
-                "count"
-              ]
-            }
-          }
-        },
-        "required": [
-          "topSenders"
-        ]
-      },
-      "SystemSettings": {
-        "type": "object",
-        "description": "Non-sensitive system configuration values.",
-        "properties": {
-          "language": {
-            "type": "string",
-            "enum": [
-              "en",
-              "es",
-              "fr",
-              "de",
-              "it",
-              "pt",
-              "nl",
-              "ja",
-              "et",
-              "el"
-            ],
-            "example": "en",
-            "description": "Default UI language code."
-          },
-          "theme": {
-            "type": "string",
-            "enum": [
-              "light",
-              "dark",
-              "system"
-            ],
-            "example": "system",
-            "description": "Default color theme."
-          },
-          "supportEmail": {
-            "type": "string",
-            "format": "email",
-            "nullable": true,
-            "example": "support@example.com",
-            "description": "Public-facing support email address."
-          }
-        }
-      }
-    }
-  },
-  "paths": {
-    "/v1/api-keys": {
-      "post": {
-        "summary": "Generate an API key",
-        "description": "Generates a new API key for the authenticated user. The raw key value is only returned once at creation time. The key name must be between 1–255 characters. Expiry is required and must be within 730 days (2 years). Disabled in demo mode.\n",
-        "operationId": "generateApiKey",
-        "tags": [
-          "API Keys"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "name",
-                  "expiresInDays"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 255,
-                    "example": "CI/CD Pipeline Key"
-                  },
-                  "expiresInDays": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 730,
-                    "example": 90
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "API key created. The raw `key` value is only shown once.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "key": {
-                      "type": "string",
-                      "description": "The raw API key. Store this securely — it will not be shown again.",
-                      "example": "oa_live_abc123..."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error (name too short/long, expiry out of range).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "description": "Disabled in demo mode.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "get": {
-        "summary": "List API keys",
-        "description": "Returns all API keys belonging to the currently authenticated user. The raw key value is not included.",
-        "operationId": "getApiKeys",
-        "tags": [
-          "API Keys"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of API keys (without raw key values).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ApiKey"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
-    "/v1/api-keys/{id}": {
-      "delete": {
-        "summary": "Delete an API key",
-        "description": "Permanently revokes and deletes an API key by ID. Only the owning user can delete their own keys. Disabled in demo mode.",
-        "operationId": "deleteApiKey",
-        "tags": [
-          "API Keys"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "The ID of the API key to delete.",
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "API key deleted. No content returned."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "description": "Disabled in demo mode.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/archived-emails/ingestion-source/{ingestionSourceId}": {
-      "get": {
-        "summary": "List archived emails for an ingestion source",
-        "description": "Returns a paginated list of archived emails belonging to the specified ingestion source. Requires `read:archive` permission.",
-        "operationId": "getArchivedEmails",
-        "tags": [
-          "Archived Emails"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "ingestionSourceId",
-            "in": "path",
-            "required": true,
-            "description": "The ID of the ingestion source to retrieve emails for.",
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number for pagination.",
-            "schema": {
-              "type": "integer",
-              "default": 1,
-              "example": 1
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "description": "Number of items per page.",
-            "schema": {
-              "type": "integer",
-              "default": 10,
-              "example": 10
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated list of archived emails.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaginatedArchivedEmails"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/archived-emails/{id}": {
-      "get": {
-        "summary": "Get a single archived email",
-        "description": "Retrieves the full details of a single archived email by ID, including attachments and thread. Requires `read:archive` permission.",
-        "operationId": "getArchivedEmailById",
-        "tags": [
-          "Archived Emails"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "The ID of the archived email.",
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Archived email details.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArchivedEmail"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete an archived email",
-        "description": "Permanently deletes an archived email by ID. Deletion must be enabled in system settings and the email must not be on legal hold. Requires `delete:archive` permission.",
-        "operationId": "deleteArchivedEmail",
-        "tags": [
-          "Archived Emails"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "The ID of the archived email to delete.",
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Email deleted successfully. No content returned."
-          },
-          "400": {
-            "description": "Deletion is disabled in system settings, or the email is blocked by a retention policy / legal hold.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/auth/setup": {
-      "post": {
-        "summary": "Initial setup",
-        "description": "Creates the initial administrator user. Can only be called once when no users exist.",
-        "operationId": "authSetup",
-        "tags": [
-          "Auth"
-        ],
-        "security": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "email",
-                  "password",
-                  "first_name",
-                  "last_name"
-                ],
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "example": "admin@example.com"
-                  },
-                  "password": {
-                    "type": "string",
-                    "format": "password",
-                    "example": "securepassword123"
-                  },
-                  "first_name": {
-                    "type": "string",
-                    "example": "Admin"
-                  },
-                  "last_name": {
-                    "type": "string",
-                    "example": "User"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Admin user created and logged in successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "All fields are required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Setup has already been completed (users already exist).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/auth/login": {
-      "post": {
-        "summary": "Login",
-        "description": "Authenticates a user with email and password and returns a JWT access token.",
-        "operationId": "authLogin",
-        "tags": [
-          "Auth"
-        ],
-        "security": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "email",
-                  "password"
-                ],
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "example": "user@example.com"
-                  },
-                  "password": {
-                    "type": "string",
-                    "format": "password",
-                    "example": "securepassword123"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Authentication successful.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Email and password are required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid credentials.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/auth/status": {
-      "get": {
-        "summary": "Check setup status",
-        "description": "Returns whether the application has been set up (i.e., whether an admin user exists).",
-        "operationId": "authStatus",
-        "tags": [
-          "Auth"
-        ],
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Setup status returned.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "needsSetup": {
-                      "type": "boolean",
-                      "description": "True if no admin user exists and setup is required.",
-                      "example": false
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/dashboard/stats": {
-      "get": {
-        "summary": "Get dashboard stats",
-        "description": "Returns high-level statistics including total archived emails, total storage used, and failed ingestions in the last 7 days. Requires `read:dashboard` permission.",
-        "operationId": "getDashboardStats",
-        "tags": [
-          "Dashboard"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Dashboard statistics.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DashboardStats"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    },
-    "/v1/dashboard/ingestion-history": {
-      "get": {
-        "summary": "Get ingestion history",
-        "description": "Returns time-series data of email ingestion counts for the last 30 days. Requires `read:dashboard` permission.",
-        "operationId": "getIngestionHistory",
-        "tags": [
-          "Dashboard"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ingestion history wrapped in a `history` array.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "history": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "date": {
-                            "type": "string",
-                            "format": "date-time",
-                            "description": "Truncated to day precision (UTC)."
-                          },
-                          "count": {
-                            "type": "integer"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "required": [
-                    "history"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    },
-    "/v1/dashboard/ingestion-sources": {
-      "get": {
-        "summary": "Get ingestion source summaries",
-        "description": "Returns a summary list of ingestion sources with their storage usage. Requires `read:dashboard` permission.",
-        "operationId": "getDashboardIngestionSources",
-        "tags": [
-          "Dashboard"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of ingestion source summaries.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/IngestionSourceStats"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    },
-    "/v1/dashboard/recent-syncs": {
-      "get": {
-        "summary": "Get recent sync activity",
-        "description": "Returns the most recent sync sessions across all ingestion sources. Requires `read:dashboard` permission.",
-        "operationId": "getRecentSyncs",
-        "tags": [
-          "Dashboard"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of recent sync sessions.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RecentSync"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    },
-    "/v1/dashboard/indexed-insights": {
-      "get": {
-        "summary": "Get indexed email insights",
-        "description": "Returns top-sender statistics from the search index. Requires `read:dashboard` permission.",
-        "operationId": "getIndexedInsights",
-        "tags": [
-          "Dashboard"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Indexed email insights.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IndexedInsights"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    },
-    "/v1/iam/roles": {
-      "get": {
-        "summary": "List all roles",
-        "description": "Returns all IAM roles. If predefined roles do not yet exist, they are created automatically. Requires `read:roles` permission.",
-        "operationId": "getRoles",
-        "tags": [
-          "IAM"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of roles.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Role"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "post": {
-        "summary": "Create a role",
-        "description": "Creates a new IAM role with the given name and CASL policies. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "createRole",
-        "tags": [
-          "IAM"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "name",
-                  "policies"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "example": "Compliance Officer"
-                  },
-                  "policies": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/CaslPolicy"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Role created.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Role"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing fields or invalid policy.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/iam/roles/{id}": {
-      "get": {
-        "summary": "Get a role",
-        "description": "Returns a single IAM role by ID. Requires `read:roles` permission.",
-        "operationId": "getRoleById",
-        "tags": [
-          "IAM"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Role details.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Role"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete a role",
-        "description": "Permanently deletes an IAM role. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "deleteRole",
-        "tags": [
-          "IAM"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Role deleted. No content returned."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "put": {
-        "summary": "Update a role",
-        "description": "Updates the name or policies of an IAM role. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "updateRole",
-        "tags": [
-          "IAM"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "example": "Senior Compliance Officer"
-                  },
-                  "policies": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/CaslPolicy"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated role.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Role"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "No update fields provided or invalid policy.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/ingestion-sources": {
-      "post": {
-        "summary": "Create an ingestion source",
-        "description": "Creates a new ingestion source and validates the connection. Returns the created source without credentials. Requires `create:ingestion` permission.",
-        "operationId": "createIngestionSource",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateIngestionSourceDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Ingestion source created successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeIngestionSource"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input or connection test failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      },
-      "get": {
-        "summary": "List ingestion sources",
-        "description": "Returns all ingestion sources accessible to the authenticated user. Credentials are excluded from the response. Requires `read:ingestion` permission.",
-        "operationId": "listIngestionSources",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Array of ingestion sources.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SafeIngestionSource"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/ingestion-sources/{id}": {
-      "get": {
-        "summary": "Get an ingestion source",
-        "description": "Returns a single ingestion source by ID. Credentials are excluded. Requires `read:ingestion` permission.",
-        "operationId": "getIngestionSourceById",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ingestion source details.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeIngestionSource"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "put": {
-        "summary": "Update an ingestion source",
-        "description": "Updates configuration for an existing ingestion source. Requires `update:ingestion` permission.",
-        "operationId": "updateIngestionSource",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateIngestionSourceDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated ingestion source.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeIngestionSource"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete an ingestion source",
-        "description": "Permanently deletes an ingestion source. Deletion must be enabled in system settings. Requires `delete:ingestion` permission.",
-        "operationId": "deleteIngestionSource",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Ingestion source deleted. No content returned."
-          },
-          "400": {
-            "description": "Deletion disabled or constraint error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/ingestion-sources/{id}/import": {
-      "post": {
-        "summary": "Trigger initial import",
-        "description": "Enqueues an initial import job for the ingestion source. This imports all historical emails. Requires `create:ingestion` permission.",
-        "operationId": "triggerInitialImport",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Initial import job accepted and queued.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/ingestion-sources/{id}/pause": {
-      "post": {
-        "summary": "Pause an ingestion source",
-        "description": "Sets the ingestion source status to `paused`, stopping continuous sync. Requires `update:ingestion` permission.",
-        "operationId": "pauseIngestionSource",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ingestion source paused. Returns the updated source.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeIngestionSource"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/ingestion-sources/{id}/sync": {
-      "post": {
-        "summary": "Force sync",
-        "description": "Triggers an out-of-schedule continuous sync for the ingestion source. Requires `sync:ingestion` permission.",
-        "operationId": "triggerForceSync",
-        "tags": [
-          "Ingestion"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Force sync job accepted and queued.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/integrity/{id}": {
-      "get": {
-        "summary": "Check email integrity",
-        "description": "Verifies the SHA-256 hash of an archived email and all its attachments against the hashes stored at archival time. Returns per-item integrity results. Requires `read:archive` permission.",
-        "operationId": "checkIntegrity",
-        "tags": [
-          "Integrity"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "UUID of the archived email to verify.",
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Integrity check results for the email and its attachments.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/IntegrityCheckResult"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid UUID format.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/jobs/queues": {
-      "get": {
-        "summary": "List all queues",
-        "description": "Returns all BullMQ job queues and their current job counts broken down by status. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "getQueues",
-        "tags": [
-          "Jobs"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of queue overviews.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "queues": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/QueueOverview"
-                      }
-                    }
-                  },
-                  "example": {
-                    "queues": [
-                      {
-                        "name": "ingestion",
-                        "counts": {
-                          "active": 0,
-                          "completed": 56,
-                          "failed": 4,
-                          "delayed": 3,
-                          "waiting": 0,
-                          "paused": 0
-                        }
-                      },
-                      {
-                        "name": "indexing",
-                        "counts": {
-                          "active": 0,
-                          "completed": 0,
-                          "failed": 0,
-                          "delayed": 0,
-                          "waiting": 0,
-                          "paused": 0
-                        }
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/jobs/queues/{queueName}": {
-      "get": {
-        "summary": "Get jobs in a queue",
-        "description": "Returns a paginated list of jobs within a specific queue, filtered by status. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "getQueueJobs",
-        "tags": [
-          "Jobs"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "queueName",
-            "in": "path",
-            "required": true,
-            "description": "The name of the queue (e.g. `ingestion` or `indexing`).",
-            "schema": {
-              "type": "string",
-              "example": "ingestion"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "description": "Filter jobs by status.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "completed",
-                "failed",
-                "delayed",
-                "waiting",
-                "paused"
-              ],
-              "default": "failed"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 10
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Detailed view of the queue including paginated jobs.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/QueueDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "description": "Queue not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/search": {
-      "get": {
-        "summary": "Search archived emails",
-        "description": "Performs a full-text search across indexed archived emails using Meilisearch. Requires `search:archive` permission.",
-        "operationId": "searchEmails",
-        "tags": [
-          "Search"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "keywords",
-            "in": "query",
-            "required": true,
-            "description": "The search query string.",
-            "schema": {
-              "type": "string",
-              "example": "invoice Q4"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number for pagination.",
-            "schema": {
-              "type": "integer",
-              "default": 1,
-              "example": 1
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "description": "Number of results per page.",
-            "schema": {
-              "type": "integer",
-              "default": 10,
-              "example": 10
-            }
-          },
-          {
-            "name": "matchingStrategy",
-            "in": "query",
-            "required": false,
-            "description": "Meilisearch matching strategy. `last` returns results containing at least one keyword; `all` requires all keywords; `frequency` sorts by keyword frequency.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "last",
-                "all",
-                "frequency"
-              ],
-              "default": "last"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Search results.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchResults"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Keywords parameter is required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/settings/system": {
-      "get": {
-        "summary": "Get system settings",
-        "description": "Returns non-sensitive system settings such as language, timezone, and feature flags. This endpoint is public — no authentication required. Sensitive settings are never exposed.\n",
-        "operationId": "getSystemSettings",
-        "tags": [
-          "Settings"
-        ],
-        "responses": {
-          "200": {
-            "description": "Current system settings.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SystemSettings"
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "put": {
-        "summary": "Update system settings",
-        "description": "Updates system settings. Requires `manage:settings` permission.",
-        "operationId": "updateSystemSettings",
-        "tags": [
-          "Settings"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SystemSettings"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated system settings.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SystemSettings"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/storage/download": {
-      "get": {
-        "summary": "Download a stored file",
-        "description": "Downloads a file from the configured storage backend (local filesystem or S3-compatible). The path is sanitized to prevent directory traversal attacks. Requires `read:archive` permission.\n",
-        "operationId": "downloadFile",
-        "tags": [
-          "Storage"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "description": "The relative storage path of the file to download.",
-            "schema": {
-              "type": "string",
-              "example": "open-archiver/emails/abc123.eml"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The file content as a binary stream. The `Content-Disposition` header is set to trigger a browser download.",
-            "headers": {
-              "Content-Disposition": {
-                "description": "Attachment filename.",
-                "schema": {
-                  "type": "string",
-                  "example": "attachment; filename=\"abc123.eml\""
-                }
-              }
-            },
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "File path is required or invalid.",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "description": "File not found in storage.",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/upload": {
-      "post": {
-        "summary": "Upload a file",
-        "description": "Uploads a file (PST, EML, MBOX, or other) to temporary storage for subsequent use in an ingestion source. Returns the storage path, which should be passed as `uploadedFilePath` when creating a file-based ingestion source. Requires `create:ingestion` permission.\n",
-        "operationId": "uploadFile",
-        "tags": [
-          "Upload"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "The file to upload."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "File uploaded successfully. Returns the storage path.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "filePath": {
-                      "type": "string",
-                      "description": "The storage path of the uploaded file. Use this as `uploadedFilePath` when creating a file-based ingestion source.",
-                      "example": "open-archiver/tmp/uuid-filename.pst"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid multipart request.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/v1/users": {
-      "get": {
-        "summary": "List all users",
-        "description": "Returns all user accounts in the system. Requires `read:users` permission.",
-        "operationId": "getUsers",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of users.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/User"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      },
-      "post": {
-        "summary": "Create a user",
-        "description": "Creates a new user account and optionally assigns a role. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "createUser",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "email",
-                  "first_name",
-                  "last_name",
-                  "password"
-                ],
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "example": "jane.doe@example.com"
-                  },
-                  "first_name": {
-                    "type": "string",
-                    "example": "Jane"
-                  },
-                  "last_name": {
-                    "type": "string",
-                    "example": "Doe"
-                  },
-                  "password": {
-                    "type": "string",
-                    "format": "password",
-                    "example": "securepassword123"
-                  },
-                  "roleId": {
-                    "type": "string",
-                    "description": "Optional role ID to assign to the user.",
-                    "example": "clx1y2z3a0000b4d2"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "User created.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    },
-    "/v1/users/profile": {
-      "get": {
-        "summary": "Get current user profile",
-        "description": "Returns the profile of the currently authenticated user.",
-        "operationId": "getProfile",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Current user's profile.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      },
-      "patch": {
-        "summary": "Update current user profile",
-        "description": "Updates the email, first name, or last name of the currently authenticated user. Disabled in demo mode.",
-        "operationId": "updateProfile",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email"
-                  },
-                  "first_name": {
-                    "type": "string"
-                  },
-                  "last_name": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated user profile.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "description": "Disabled in demo mode.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/users/profile/password": {
-      "post": {
-        "summary": "Update password",
-        "description": "Updates the password of the currently authenticated user. The current password must be provided for verification. Disabled in demo mode.",
-        "operationId": "updatePassword",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "currentPassword",
-                  "newPassword"
-                ],
-                "properties": {
-                  "currentPassword": {
-                    "type": "string",
-                    "format": "password"
-                  },
-                  "newPassword": {
-                    "type": "string",
-                    "format": "password"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Password updated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Current password is incorrect.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "description": "Disabled in demo mode.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/users/{id}": {
-      "get": {
-        "summary": "Get a user",
-        "description": "Returns a single user by ID. Requires `read:users` permission.",
-        "operationId": "getUser",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "User details.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      },
-      "put": {
-        "summary": "Update a user",
-        "description": "Updates a user's email, name, or role assignment. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "updateUser",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email"
-                  },
-                  "first_name": {
-                    "type": "string"
-                  },
-                  "last_name": {
-                    "type": "string"
-                  },
-                  "roleId": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated user.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete a user",
-        "description": "Permanently deletes a user. Cannot delete the last remaining user. Requires `manage:all` (Super Admin) permission.",
-        "operationId": "deleteUser",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "apiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "clx1y2z3a0000b4d2"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "User deleted. No content returned."
-          },
-          "400": {
-            "description": "Cannot delete the only remaining user.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorMessage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      }
-    }
-  },
-  "tags": []
+	"openapi": "3.1.0",
+	"info": {
+		"title": "Open Archiver API",
+		"version": "1.0.0",
+		"description": "REST API for Open Archiver — an open-source email archiving platform. All authenticated endpoints require a Bearer JWT token obtained from `POST /v1/auth/login`, or an API key passed as a Bearer token.",
+		"license": {
+			"name": "SEE LICENSE IN LICENSE",
+			"url": "https://github.com/LogicLabs-OU/OpenArchiver/blob/main/LICENSE"
+		},
+		"contact": {
+			"name": "Open Archiver",
+			"url": "https://openarchiver.com"
+		}
+	},
+	"servers": [
+		{
+			"url": "http://localhost:3001",
+			"description": "Local development"
+		}
+	],
+	"security": [
+		{
+			"bearerAuth": []
+		},
+		{
+			"apiKeyAuth": []
+		}
+	],
+	"components": {
+		"securitySchemes": {
+			"bearerAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT",
+				"description": "JWT obtained from `POST /v1/auth/login`. Pass as `Authorization: Bearer <token>`."
+			},
+			"apiKeyAuth": {
+				"type": "apiKey",
+				"in": "header",
+				"name": "X-API-KEY",
+				"description": "API key generated via `POST /v1/api-keys`. Pass as `X-API-KEY: <key>`."
+			}
+		},
+		"responses": {
+			"Unauthorized": {
+				"description": "Authentication is required or the token is invalid/expired.",
+				"content": {
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/ErrorMessage"
+						},
+						"example": {
+							"message": "Unauthorized"
+						}
+					}
+				}
+			},
+			"Forbidden": {
+				"description": "The authenticated user does not have permission to perform this action.",
+				"content": {
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/ErrorMessage"
+						},
+						"example": {
+							"message": "Forbidden"
+						}
+					}
+				}
+			},
+			"NotFound": {
+				"description": "The requested resource was not found.",
+				"content": {
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/ErrorMessage"
+						},
+						"example": {
+							"message": "Not found"
+						}
+					}
+				}
+			},
+			"InternalServerError": {
+				"description": "An unexpected error occurred on the server.",
+				"content": {
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/ErrorMessage"
+						},
+						"example": {
+							"message": "Internal server error"
+						}
+					}
+				}
+			}
+		},
+		"schemas": {
+			"ErrorMessage": {
+				"type": "object",
+				"properties": {
+					"message": {
+						"type": "string",
+						"description": "Human-readable error description.",
+						"example": "An error occurred."
+					}
+				},
+				"required": ["message"]
+			},
+			"MessageResponse": {
+				"type": "object",
+				"properties": {
+					"message": {
+						"type": "string",
+						"example": "Operation completed successfully."
+					}
+				},
+				"required": ["message"]
+			},
+			"ValidationError": {
+				"type": "object",
+				"properties": {
+					"message": {
+						"type": "string",
+						"example": "Request body is invalid."
+					},
+					"errors": {
+						"type": "string",
+						"description": "Zod validation error details."
+					}
+				},
+				"required": ["message"]
+			},
+			"LoginResponse": {
+				"type": "object",
+				"properties": {
+					"accessToken": {
+						"type": "string",
+						"description": "JWT for authenticating subsequent requests.",
+						"example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+					},
+					"user": {
+						"$ref": "#/components/schemas/User"
+					}
+				},
+				"required": ["accessToken", "user"]
+			},
+			"User": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"first_name": {
+						"type": "string",
+						"nullable": true,
+						"example": "Jane"
+					},
+					"last_name": {
+						"type": "string",
+						"nullable": true,
+						"example": "Doe"
+					},
+					"email": {
+						"type": "string",
+						"format": "email",
+						"example": "jane.doe@example.com"
+					},
+					"role": {
+						"$ref": "#/components/schemas/Role",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": ["id", "email", "createdAt"]
+			},
+			"Role": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"slug": {
+						"type": "string",
+						"nullable": true,
+						"example": "predefined_super_admin"
+					},
+					"name": {
+						"type": "string",
+						"example": "Super Admin"
+					},
+					"policies": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/CaslPolicy"
+						}
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": ["id", "name", "policies", "createdAt", "updatedAt"]
+			},
+			"CaslPolicy": {
+				"type": "object",
+				"description": "An CASL-style permission policy statement. `action` and `subject` can be strings or arrays of strings. `conditions` optionally restricts access to specific resource attributes.",
+				"properties": {
+					"action": {
+						"oneOf": [
+							{
+								"type": "string",
+								"example": "read"
+							},
+							{
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"example": ["read", "search"]
+							}
+						]
+					},
+					"subject": {
+						"oneOf": [
+							{
+								"type": "string",
+								"example": "archive"
+							},
+							{
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"example": ["archive", "ingestion"]
+							}
+						]
+					},
+					"conditions": {
+						"type": "object",
+						"description": "Optional attribute-level conditions. Supports `${user.id}` interpolation.",
+						"example": {
+							"userId": "${user.id}"
+						}
+					}
+				},
+				"required": ["action", "subject"]
+			},
+			"ApiKey": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"name": {
+						"type": "string",
+						"example": "CI/CD Pipeline Key"
+					},
+					"key": {
+						"type": "string",
+						"description": "Partial/masked key — the raw value is only available at creation time.",
+						"example": "oa_live_abc1..."
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": ["id", "name", "expiresAt", "createdAt"]
+			},
+			"SafeIngestionSource": {
+				"type": "object",
+				"description": "An ingestion source with sensitive credential fields removed.",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"name": {
+						"type": "string",
+						"example": "Company Google Workspace"
+					},
+					"provider": {
+						"type": "string",
+						"enum": [
+							"google_workspace",
+							"microsoft_365",
+							"generic_imap",
+							"pst_import",
+							"eml_import",
+							"mbox_import"
+						],
+						"example": "google_workspace"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"active",
+							"paused",
+							"error",
+							"pending_auth",
+							"syncing",
+							"importing",
+							"auth_success",
+							"imported"
+						],
+						"example": "active"
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSyncStartedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"lastSyncFinishedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"lastSyncStatusMessage": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": ["id", "name", "provider", "status", "createdAt", "updatedAt"]
+			},
+			"CreateIngestionSourceDto": {
+				"type": "object",
+				"required": ["name", "provider", "providerConfig"],
+				"properties": {
+					"name": {
+						"type": "string",
+						"example": "Company Google Workspace"
+					},
+					"provider": {
+						"type": "string",
+						"enum": [
+							"google_workspace",
+							"microsoft_365",
+							"generic_imap",
+							"pst_import",
+							"eml_import",
+							"mbox_import"
+						]
+					},
+					"providerConfig": {
+						"type": "object",
+						"description": "Provider-specific configuration. See the ingestion source guides for the required fields per provider.",
+						"example": {
+							"serviceAccountKeyJson": "{\"type\":\"service_account\",...}",
+							"impersonatedAdminEmail": "admin@example.com"
+						}
+					}
+				}
+			},
+			"UpdateIngestionSourceDto": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"provider": {
+						"type": "string",
+						"enum": [
+							"google_workspace",
+							"microsoft_365",
+							"generic_imap",
+							"pst_import",
+							"eml_import",
+							"mbox_import"
+						]
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"active",
+							"paused",
+							"error",
+							"pending_auth",
+							"syncing",
+							"importing",
+							"auth_success",
+							"imported"
+						]
+					},
+					"providerConfig": {
+						"type": "object"
+					}
+				}
+			},
+			"Recipient": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"nullable": true,
+						"example": "John Doe"
+					},
+					"email": {
+						"type": "string",
+						"format": "email",
+						"example": "john.doe@example.com"
+					}
+				},
+				"required": ["email"]
+			},
+			"Attachment": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"filename": {
+						"type": "string",
+						"example": "invoice.pdf"
+					},
+					"mimeType": {
+						"type": "string",
+						"nullable": true,
+						"example": "application/pdf"
+					},
+					"sizeBytes": {
+						"type": "integer",
+						"example": 204800
+					},
+					"storagePath": {
+						"type": "string",
+						"example": "open-archiver/attachments/abc123.pdf"
+					}
+				},
+				"required": ["id", "filename", "sizeBytes", "storagePath"]
+			},
+			"ThreadEmail": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "ArchivedEmail ID.",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"subject": {
+						"type": "string",
+						"nullable": true,
+						"example": "Re: Q4 Invoice"
+					},
+					"sentAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"senderEmail": {
+						"type": "string",
+						"format": "email",
+						"example": "finance@vendor.com"
+					}
+				},
+				"required": ["id", "sentAt", "senderEmail"]
+			},
+			"ArchivedEmail": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"ingestionSourceId": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"userEmail": {
+						"type": "string",
+						"format": "email",
+						"example": "user@company.com"
+					},
+					"messageIdHeader": {
+						"type": "string",
+						"nullable": true
+					},
+					"sentAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"subject": {
+						"type": "string",
+						"nullable": true,
+						"example": "Q4 Invoice"
+					},
+					"senderName": {
+						"type": "string",
+						"nullable": true,
+						"example": "Finance Dept"
+					},
+					"senderEmail": {
+						"type": "string",
+						"format": "email",
+						"example": "finance@vendor.com"
+					},
+					"recipients": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Recipient"
+						}
+					},
+					"storagePath": {
+						"type": "string"
+					},
+					"storageHashSha256": {
+						"type": "string",
+						"description": "SHA-256 hash of the raw email file, stored at archival time."
+					},
+					"sizeBytes": {
+						"type": "integer"
+					},
+					"isIndexed": {
+						"type": "boolean"
+					},
+					"hasAttachments": {
+						"type": "boolean"
+					},
+					"isOnLegalHold": {
+						"type": "boolean"
+					},
+					"archivedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"attachments": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Attachment"
+						}
+					},
+					"thread": {
+						"type": "array",
+						"description": "Other emails in the same thread, ordered by sentAt. Only present on single-email GET responses.",
+						"items": {
+							"$ref": "#/components/schemas/ThreadEmail"
+						}
+					},
+					"path": {
+						"type": "string",
+						"nullable": true
+					},
+					"tags": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"ingestionSourceId",
+					"userEmail",
+					"sentAt",
+					"senderEmail",
+					"recipients",
+					"storagePath",
+					"storageHashSha256",
+					"sizeBytes",
+					"isIndexed",
+					"hasAttachments",
+					"isOnLegalHold",
+					"archivedAt"
+				]
+			},
+			"PaginatedArchivedEmails": {
+				"type": "object",
+				"properties": {
+					"items": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ArchivedEmail"
+						}
+					},
+					"total": {
+						"type": "integer",
+						"example": 1234
+					},
+					"page": {
+						"type": "integer",
+						"example": 1
+					},
+					"limit": {
+						"type": "integer",
+						"example": 10
+					}
+				},
+				"required": ["items", "total", "page", "limit"]
+			},
+			"SearchResults": {
+				"type": "object",
+				"properties": {
+					"hits": {
+						"type": "array",
+						"description": "Array of matching archived email objects, potentially with highlighted fields.",
+						"items": {
+							"type": "object"
+						}
+					},
+					"total": {
+						"type": "integer",
+						"example": 42
+					},
+					"page": {
+						"type": "integer",
+						"example": 1
+					},
+					"limit": {
+						"type": "integer",
+						"example": 10
+					},
+					"totalPages": {
+						"type": "integer",
+						"example": 5
+					},
+					"processingTimeMs": {
+						"type": "integer",
+						"description": "Meilisearch query processing time in milliseconds.",
+						"example": 12
+					}
+				},
+				"required": ["hits", "total", "page", "limit", "totalPages", "processingTimeMs"]
+			},
+			"IntegrityCheckResult": {
+				"type": "object",
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": ["email", "attachment"],
+						"description": "Whether this result is for the email itself or one of its attachments."
+					},
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"filename": {
+						"type": "string",
+						"description": "Attachment filename. Only present when `type` is `attachment`.",
+						"example": "invoice.pdf"
+					},
+					"isValid": {
+						"type": "boolean",
+						"description": "True if the stored and computed hashes match."
+					},
+					"reason": {
+						"type": "string",
+						"description": "Human-readable explanation if `isValid` is false."
+					},
+					"storedHash": {
+						"type": "string",
+						"description": "SHA-256 hash stored at archival time.",
+						"example": "a3f1b2c4..."
+					},
+					"computedHash": {
+						"type": "string",
+						"description": "SHA-256 hash computed during this verification run.",
+						"example": "a3f1b2c4..."
+					}
+				},
+				"required": ["type", "id", "isValid", "storedHash", "computedHash"]
+			},
+			"QueueCounts": {
+				"type": "object",
+				"properties": {
+					"active": {
+						"type": "integer",
+						"example": 0
+					},
+					"completed": {
+						"type": "integer",
+						"example": 56
+					},
+					"failed": {
+						"type": "integer",
+						"example": 4
+					},
+					"delayed": {
+						"type": "integer",
+						"example": 0
+					},
+					"waiting": {
+						"type": "integer",
+						"example": 0
+					},
+					"paused": {
+						"type": "integer",
+						"example": 0
+					}
+				},
+				"required": ["active", "completed", "failed", "delayed", "waiting", "paused"]
+			},
+			"QueueOverview": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"example": "ingestion"
+					},
+					"counts": {
+						"$ref": "#/components/schemas/QueueCounts"
+					}
+				},
+				"required": ["name", "counts"]
+			},
+			"Job": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"nullable": true,
+						"example": "1"
+					},
+					"name": {
+						"type": "string",
+						"example": "initial-import"
+					},
+					"data": {
+						"type": "object",
+						"description": "Job payload data.",
+						"example": {
+							"ingestionSourceId": "clx1y2z3a0000b4d2"
+						}
+					},
+					"state": {
+						"type": "string",
+						"enum": ["active", "completed", "failed", "delayed", "waiting", "paused"],
+						"example": "failed"
+					},
+					"failedReason": {
+						"type": "string",
+						"nullable": true,
+						"example": "Error: Connection timed out"
+					},
+					"timestamp": {
+						"type": "integer",
+						"example": 1678886400000
+					},
+					"processedOn": {
+						"type": "integer",
+						"nullable": true,
+						"example": 1678886401000
+					},
+					"finishedOn": {
+						"type": "integer",
+						"nullable": true,
+						"example": 1678886402000
+					},
+					"attemptsMade": {
+						"type": "integer",
+						"example": 5
+					},
+					"stacktrace": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"returnValue": {
+						"nullable": true
+					},
+					"ingestionSourceId": {
+						"type": "string",
+						"nullable": true
+					},
+					"error": {
+						"description": "Shorthand copy of `failedReason` for easier access.",
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"data",
+					"state",
+					"timestamp",
+					"attemptsMade",
+					"stacktrace"
+				]
+			},
+			"QueueDetails": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"example": "ingestion"
+					},
+					"counts": {
+						"$ref": "#/components/schemas/QueueCounts"
+					},
+					"jobs": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Job"
+						}
+					},
+					"pagination": {
+						"type": "object",
+						"properties": {
+							"currentPage": {
+								"type": "integer",
+								"example": 1
+							},
+							"totalPages": {
+								"type": "integer",
+								"example": 3
+							},
+							"totalJobs": {
+								"type": "integer",
+								"example": 25
+							},
+							"limit": {
+								"type": "integer",
+								"example": 10
+							}
+						},
+						"required": ["currentPage", "totalPages", "totalJobs", "limit"]
+					}
+				},
+				"required": ["name", "counts", "jobs", "pagination"]
+			},
+			"DashboardStats": {
+				"type": "object",
+				"properties": {
+					"totalEmailsArchived": {
+						"type": "integer",
+						"example": 125000
+					},
+					"totalStorageUsed": {
+						"type": "integer",
+						"description": "Total storage used by all archived emails in bytes.",
+						"example": 5368709120
+					},
+					"failedIngestionsLast7Days": {
+						"type": "integer",
+						"description": "Number of ingestion sources in error state updated in the last 7 days.",
+						"example": 2
+					}
+				}
+			},
+			"IngestionSourceStats": {
+				"type": "object",
+				"description": "Summary of an ingestion source including its storage usage.",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"name": {
+						"type": "string",
+						"example": "Company Google Workspace"
+					},
+					"provider": {
+						"type": "string",
+						"example": "google_workspace"
+					},
+					"status": {
+						"type": "string",
+						"example": "active"
+					},
+					"storageUsed": {
+						"type": "integer",
+						"description": "Total bytes stored for emails from this ingestion source.",
+						"example": 1073741824
+					}
+				},
+				"required": ["id", "name", "provider", "status", "storageUsed"]
+			},
+			"RecentSync": {
+				"type": "object",
+				"description": "Summary of a recent sync session.",
+				"properties": {
+					"id": {
+						"type": "string",
+						"example": "clx1y2z3a0000b4d2"
+					},
+					"sourceName": {
+						"type": "string",
+						"example": "Company Google Workspace"
+					},
+					"startTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"duration": {
+						"type": "integer",
+						"description": "Duration in milliseconds.",
+						"example": 4500
+					},
+					"emailsProcessed": {
+						"type": "integer",
+						"example": 120
+					},
+					"status": {
+						"type": "string",
+						"example": "completed"
+					}
+				},
+				"required": [
+					"id",
+					"sourceName",
+					"startTime",
+					"duration",
+					"emailsProcessed",
+					"status"
+				]
+			},
+			"IndexedInsights": {
+				"type": "object",
+				"description": "Insights derived from the search index.",
+				"properties": {
+					"topSenders": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"sender": {
+									"type": "string",
+									"example": "finance@vendor.com"
+								},
+								"count": {
+									"type": "integer",
+									"example": 342
+								}
+							},
+							"required": ["sender", "count"]
+						}
+					}
+				},
+				"required": ["topSenders"]
+			},
+			"SystemSettings": {
+				"type": "object",
+				"description": "Non-sensitive system configuration values.",
+				"properties": {
+					"language": {
+						"type": "string",
+						"enum": ["en", "es", "fr", "de", "it", "pt", "nl", "ja", "et", "el"],
+						"example": "en",
+						"description": "Default UI language code."
+					},
+					"theme": {
+						"type": "string",
+						"enum": ["light", "dark", "system"],
+						"example": "system",
+						"description": "Default color theme."
+					},
+					"supportEmail": {
+						"type": "string",
+						"format": "email",
+						"nullable": true,
+						"example": "support@example.com",
+						"description": "Public-facing support email address."
+					}
+				}
+			}
+		}
+	},
+	"paths": {
+		"/v1/api-keys": {
+			"post": {
+				"summary": "Generate an API key",
+				"description": "Generates a new API key for the authenticated user. The raw key value is only returned once at creation time. The key name must be between 1–255 characters. Expiry is required and must be within 730 days (2 years). Disabled in demo mode.\n",
+				"operationId": "generateApiKey",
+				"tags": ["API Keys"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["name", "expiresInDays"],
+								"properties": {
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 255,
+										"example": "CI/CD Pipeline Key"
+									},
+									"expiresInDays": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 730,
+										"example": 90
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "API key created. The raw `key` value is only shown once.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"key": {
+											"type": "string",
+											"description": "The raw API key. Store this securely — it will not be shown again.",
+											"example": "oa_live_abc123..."
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error (name too short/long, expiry out of range).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationError"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"description": "Disabled in demo mode.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"get": {
+				"summary": "List API keys",
+				"description": "Returns all API keys belonging to the currently authenticated user. The raw key value is not included.",
+				"operationId": "getApiKeys",
+				"tags": ["API Keys"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "List of API keys (without raw key values).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/ApiKey"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					}
+				}
+			}
+		},
+		"/v1/api-keys/{id}": {
+			"delete": {
+				"summary": "Delete an API key",
+				"description": "Permanently revokes and deletes an API key by ID. Only the owning user can delete their own keys. Disabled in demo mode.",
+				"operationId": "deleteApiKey",
+				"tags": ["API Keys"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"description": "The ID of the API key to delete.",
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "API key deleted. No content returned."
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"description": "Disabled in demo mode.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/archived-emails/ingestion-source/{ingestionSourceId}": {
+			"get": {
+				"summary": "List archived emails for an ingestion source",
+				"description": "Returns a paginated list of archived emails belonging to the specified ingestion source. Requires `read:archive` permission.",
+				"operationId": "getArchivedEmails",
+				"tags": ["Archived Emails"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "ingestionSourceId",
+						"in": "path",
+						"required": true,
+						"description": "The ID of the ingestion source to retrieve emails for.",
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"required": false,
+						"description": "Page number for pagination.",
+						"schema": {
+							"type": "integer",
+							"default": 1,
+							"example": 1
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "Number of items per page.",
+						"schema": {
+							"type": "integer",
+							"default": 10,
+							"example": 10
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Paginated list of archived emails.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PaginatedArchivedEmails"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/archived-emails/{id}": {
+			"get": {
+				"summary": "Get a single archived email",
+				"description": "Retrieves the full details of a single archived email by ID, including attachments and thread. Requires `read:archive` permission.",
+				"operationId": "getArchivedEmailById",
+				"tags": ["Archived Emails"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"description": "The ID of the archived email.",
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Archived email details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ArchivedEmail"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"delete": {
+				"summary": "Delete an archived email",
+				"description": "Permanently deletes an archived email by ID. Deletion must be enabled in system settings and the email must not be on legal hold. Requires `delete:archive` permission.",
+				"operationId": "deleteArchivedEmail",
+				"tags": ["Archived Emails"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"description": "The ID of the archived email to delete.",
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Email deleted successfully. No content returned."
+					},
+					"400": {
+						"description": "Deletion is disabled in system settings, or the email is blocked by a retention policy / legal hold.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/auth/setup": {
+			"post": {
+				"summary": "Initial setup",
+				"description": "Creates the initial administrator user. Can only be called once when no users exist.",
+				"operationId": "authSetup",
+				"tags": ["Auth"],
+				"security": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["email", "password", "first_name", "last_name"],
+								"properties": {
+									"email": {
+										"type": "string",
+										"format": "email",
+										"example": "admin@example.com"
+									},
+									"password": {
+										"type": "string",
+										"format": "password",
+										"example": "securepassword123"
+									},
+									"first_name": {
+										"type": "string",
+										"example": "Admin"
+									},
+									"last_name": {
+										"type": "string",
+										"example": "User"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Admin user created and logged in successfully.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/LoginResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "All fields are required.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Setup has already been completed (users already exist).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/auth/login": {
+			"post": {
+				"summary": "Login",
+				"description": "Authenticates a user with email and password and returns a JWT access token.",
+				"operationId": "authLogin",
+				"tags": ["Auth"],
+				"security": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["email", "password"],
+								"properties": {
+									"email": {
+										"type": "string",
+										"format": "email",
+										"example": "user@example.com"
+									},
+									"password": {
+										"type": "string",
+										"format": "password",
+										"example": "securepassword123"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Authentication successful.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/LoginResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Email and password are required.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Invalid credentials.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/auth/status": {
+			"get": {
+				"summary": "Check setup status",
+				"description": "Returns whether the application has been set up (i.e., whether an admin user exists).",
+				"operationId": "authStatus",
+				"tags": ["Auth"],
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "Setup status returned.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"needsSetup": {
+											"type": "boolean",
+											"description": "True if no admin user exists and setup is required.",
+											"example": false
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/dashboard/stats": {
+			"get": {
+				"summary": "Get dashboard stats",
+				"description": "Returns high-level statistics including total archived emails, total storage used, and failed ingestions in the last 7 days. Requires `read:dashboard` permission.",
+				"operationId": "getDashboardStats",
+				"tags": ["Dashboard"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Dashboard statistics.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DashboardStats"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					}
+				}
+			}
+		},
+		"/v1/dashboard/ingestion-history": {
+			"get": {
+				"summary": "Get ingestion history",
+				"description": "Returns time-series data of email ingestion counts for the last 30 days. Requires `read:dashboard` permission.",
+				"operationId": "getIngestionHistory",
+				"tags": ["Dashboard"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Ingestion history wrapped in a `history` array.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"history": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"date": {
+														"type": "string",
+														"format": "date-time",
+														"description": "Truncated to day precision (UTC)."
+													},
+													"count": {
+														"type": "integer"
+													}
+												}
+											}
+										}
+									},
+									"required": ["history"]
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					}
+				}
+			}
+		},
+		"/v1/dashboard/ingestion-sources": {
+			"get": {
+				"summary": "Get ingestion source summaries",
+				"description": "Returns a summary list of ingestion sources with their storage usage. Requires `read:dashboard` permission.",
+				"operationId": "getDashboardIngestionSources",
+				"tags": ["Dashboard"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "List of ingestion source summaries.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/IngestionSourceStats"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					}
+				}
+			}
+		},
+		"/v1/dashboard/recent-syncs": {
+			"get": {
+				"summary": "Get recent sync activity",
+				"description": "Returns the most recent sync sessions across all ingestion sources. Requires `read:dashboard` permission.",
+				"operationId": "getRecentSyncs",
+				"tags": ["Dashboard"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "List of recent sync sessions.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/RecentSync"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					}
+				}
+			}
+		},
+		"/v1/dashboard/indexed-insights": {
+			"get": {
+				"summary": "Get indexed email insights",
+				"description": "Returns top-sender statistics from the search index. Requires `read:dashboard` permission.",
+				"operationId": "getIndexedInsights",
+				"tags": ["Dashboard"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Indexed email insights.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IndexedInsights"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					}
+				}
+			}
+		},
+		"/v1/iam/roles": {
+			"get": {
+				"summary": "List all roles",
+				"description": "Returns all IAM roles. If predefined roles do not yet exist, they are created automatically. Requires `read:roles` permission.",
+				"operationId": "getRoles",
+				"tags": ["IAM"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "List of roles.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/Role"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"post": {
+				"summary": "Create a role",
+				"description": "Creates a new IAM role with the given name and CASL policies. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "createRole",
+				"tags": ["IAM"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["name", "policies"],
+								"properties": {
+									"name": {
+										"type": "string",
+										"example": "Compliance Officer"
+									},
+									"policies": {
+										"type": "array",
+										"items": {
+											"$ref": "#/components/schemas/CaslPolicy"
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Role created.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Role"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing fields or invalid policy.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/iam/roles/{id}": {
+			"get": {
+				"summary": "Get a role",
+				"description": "Returns a single IAM role by ID. Requires `read:roles` permission.",
+				"operationId": "getRoleById",
+				"tags": ["IAM"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Role details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Role"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"delete": {
+				"summary": "Delete a role",
+				"description": "Permanently deletes an IAM role. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "deleteRole",
+				"tags": ["IAM"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Role deleted. No content returned."
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"put": {
+				"summary": "Update a role",
+				"description": "Updates the name or policies of an IAM role. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "updateRole",
+				"tags": ["IAM"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"example": "Senior Compliance Officer"
+									},
+									"policies": {
+										"type": "array",
+										"items": {
+											"$ref": "#/components/schemas/CaslPolicy"
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated role.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Role"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "No update fields provided or invalid policy.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/ingestion-sources": {
+			"post": {
+				"summary": "Create an ingestion source",
+				"description": "Creates a new ingestion source and validates the connection. Returns the created source without credentials. Requires `create:ingestion` permission.",
+				"operationId": "createIngestionSource",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateIngestionSourceDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Ingestion source created successfully.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SafeIngestionSource"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Invalid input or connection test failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					}
+				}
+			},
+			"get": {
+				"summary": "List ingestion sources",
+				"description": "Returns all ingestion sources accessible to the authenticated user. Credentials are excluded from the response. Requires `read:ingestion` permission.",
+				"operationId": "listIngestionSources",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Array of ingestion sources.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/SafeIngestionSource"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/ingestion-sources/{id}": {
+			"get": {
+				"summary": "Get an ingestion source",
+				"description": "Returns a single ingestion source by ID. Credentials are excluded. Requires `read:ingestion` permission.",
+				"operationId": "getIngestionSourceById",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Ingestion source details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SafeIngestionSource"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"put": {
+				"summary": "Update an ingestion source",
+				"description": "Updates configuration for an existing ingestion source. Requires `update:ingestion` permission.",
+				"operationId": "updateIngestionSource",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateIngestionSourceDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated ingestion source.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SafeIngestionSource"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"delete": {
+				"summary": "Delete an ingestion source",
+				"description": "Permanently deletes an ingestion source. Deletion must be enabled in system settings. Requires `delete:ingestion` permission.",
+				"operationId": "deleteIngestionSource",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Ingestion source deleted. No content returned."
+					},
+					"400": {
+						"description": "Deletion disabled or constraint error.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/ingestion-sources/{id}/import": {
+			"post": {
+				"summary": "Trigger initial import",
+				"description": "Enqueues an initial import job for the ingestion source. This imports all historical emails. Requires `create:ingestion` permission.",
+				"operationId": "triggerInitialImport",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"description": "Initial import job accepted and queued.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/ingestion-sources/{id}/pause": {
+			"post": {
+				"summary": "Pause an ingestion source",
+				"description": "Sets the ingestion source status to `paused`, stopping continuous sync. Requires `update:ingestion` permission.",
+				"operationId": "pauseIngestionSource",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Ingestion source paused. Returns the updated source.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SafeIngestionSource"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/ingestion-sources/{id}/sync": {
+			"post": {
+				"summary": "Force sync",
+				"description": "Triggers an out-of-schedule continuous sync for the ingestion source. Requires `sync:ingestion` permission.",
+				"operationId": "triggerForceSync",
+				"tags": ["Ingestion"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"description": "Force sync job accepted and queued.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/integrity/{id}": {
+			"get": {
+				"summary": "Check email integrity",
+				"description": "Verifies the SHA-256 hash of an archived email and all its attachments against the hashes stored at archival time. Returns per-item integrity results. Requires `read:archive` permission.",
+				"operationId": "checkIntegrity",
+				"tags": ["Integrity"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"description": "UUID of the archived email to verify.",
+						"schema": {
+							"type": "string",
+							"format": "uuid",
+							"example": "550e8400-e29b-41d4-a716-446655440000"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Integrity check results for the email and its attachments.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/IntegrityCheckResult"
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Invalid UUID format.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationError"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/jobs/queues": {
+			"get": {
+				"summary": "List all queues",
+				"description": "Returns all BullMQ job queues and their current job counts broken down by status. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "getQueues",
+				"tags": ["Jobs"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "List of queue overviews.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"queues": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/QueueOverview"
+											}
+										}
+									},
+									"example": {
+										"queues": [
+											{
+												"name": "ingestion",
+												"counts": {
+													"active": 0,
+													"completed": 56,
+													"failed": 4,
+													"delayed": 3,
+													"waiting": 0,
+													"paused": 0
+												}
+											},
+											{
+												"name": "indexing",
+												"counts": {
+													"active": 0,
+													"completed": 0,
+													"failed": 0,
+													"delayed": 0,
+													"waiting": 0,
+													"paused": 0
+												}
+											}
+										]
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/jobs/queues/{queueName}": {
+			"get": {
+				"summary": "Get jobs in a queue",
+				"description": "Returns a paginated list of jobs within a specific queue, filtered by status. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "getQueueJobs",
+				"tags": ["Jobs"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "queueName",
+						"in": "path",
+						"required": true,
+						"description": "The name of the queue (e.g. `ingestion` or `indexing`).",
+						"schema": {
+							"type": "string",
+							"example": "ingestion"
+						}
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "Filter jobs by status.",
+						"schema": {
+							"type": "string",
+							"enum": [
+								"active",
+								"completed",
+								"failed",
+								"delayed",
+								"waiting",
+								"paused"
+							],
+							"default": "failed"
+						}
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "integer",
+							"default": 1
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "integer",
+							"default": 10
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Detailed view of the queue including paginated jobs.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QueueDetails"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"404": {
+						"description": "Queue not found.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/search": {
+			"get": {
+				"summary": "Search archived emails",
+				"description": "Performs a full-text search across indexed archived emails using Meilisearch. Requires `search:archive` permission.",
+				"operationId": "searchEmails",
+				"tags": ["Search"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "keywords",
+						"in": "query",
+						"required": true,
+						"description": "The search query string.",
+						"schema": {
+							"type": "string",
+							"example": "invoice Q4"
+						}
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"required": false,
+						"description": "Page number for pagination.",
+						"schema": {
+							"type": "integer",
+							"default": 1,
+							"example": 1
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "Number of results per page.",
+						"schema": {
+							"type": "integer",
+							"default": 10,
+							"example": 10
+						}
+					},
+					{
+						"name": "matchingStrategy",
+						"in": "query",
+						"required": false,
+						"description": "Meilisearch matching strategy. `last` returns results containing at least one keyword; `all` requires all keywords; `frequency` sorts by keyword frequency.",
+						"schema": {
+							"type": "string",
+							"enum": ["last", "all", "frequency"],
+							"default": "last"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Search results.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SearchResults"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Keywords parameter is required.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/settings/system": {
+			"get": {
+				"summary": "Get system settings",
+				"description": "Returns non-sensitive system settings such as language, timezone, and feature flags. This endpoint is public — no authentication required. Sensitive settings are never exposed.\n",
+				"operationId": "getSystemSettings",
+				"tags": ["Settings"],
+				"responses": {
+					"200": {
+						"description": "Current system settings.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SystemSettings"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			},
+			"put": {
+				"summary": "Update system settings",
+				"description": "Updates system settings. Requires `manage:settings` permission.",
+				"operationId": "updateSystemSettings",
+				"tags": ["Settings"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SystemSettings"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated system settings.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SystemSettings"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/storage/download": {
+			"get": {
+				"summary": "Download a stored file",
+				"description": "Downloads a file from the configured storage backend (local filesystem or S3-compatible). The path is sanitized to prevent directory traversal attacks. Requires `read:archive` permission.\n",
+				"operationId": "downloadFile",
+				"tags": ["Storage"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "path",
+						"in": "query",
+						"required": true,
+						"description": "The relative storage path of the file to download.",
+						"schema": {
+							"type": "string",
+							"example": "open-archiver/emails/abc123.eml"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The file content as a binary stream. The `Content-Disposition` header is set to trigger a browser download.",
+						"headers": {
+							"Content-Disposition": {
+								"description": "Attachment filename.",
+								"schema": {
+									"type": "string",
+									"example": "attachment; filename=\"abc123.eml\""
+								}
+							}
+						},
+						"content": {
+							"application/octet-stream": {
+								"schema": {
+									"type": "string",
+									"format": "binary"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "File path is required or invalid.",
+						"content": {
+							"text/plain": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"description": "File not found in storage.",
+						"content": {
+							"text/plain": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/upload": {
+			"post": {
+				"summary": "Upload a file",
+				"description": "Uploads a file (PST, EML, MBOX, or other) to temporary storage for subsequent use in an ingestion source. Returns the storage path, which should be passed as `uploadedFilePath` when creating a file-based ingestion source. Requires `create:ingestion` permission.\n",
+				"operationId": "uploadFile",
+				"tags": ["Upload"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"file": {
+										"type": "string",
+										"format": "binary",
+										"description": "The file to upload."
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "File uploaded successfully. Returns the storage path.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"filePath": {
+											"type": "string",
+											"description": "The storage path of the uploaded file. Use this as `uploadedFilePath` when creating a file-based ingestion source.",
+											"example": "open-archiver/tmp/uuid-filename.pst"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Invalid multipart request.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalServerError"
+					}
+				}
+			}
+		},
+		"/v1/users": {
+			"get": {
+				"summary": "List all users",
+				"description": "Returns all user accounts in the system. Requires `read:users` permission.",
+				"operationId": "getUsers",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "List of users.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/User"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					}
+				}
+			},
+			"post": {
+				"summary": "Create a user",
+				"description": "Creates a new user account and optionally assigns a role. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "createUser",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["email", "first_name", "last_name", "password"],
+								"properties": {
+									"email": {
+										"type": "string",
+										"format": "email",
+										"example": "jane.doe@example.com"
+									},
+									"first_name": {
+										"type": "string",
+										"example": "Jane"
+									},
+									"last_name": {
+										"type": "string",
+										"example": "Doe"
+									},
+									"password": {
+										"type": "string",
+										"format": "password",
+										"example": "securepassword123"
+									},
+									"roleId": {
+										"type": "string",
+										"description": "Optional role ID to assign to the user.",
+										"example": "clx1y2z3a0000b4d2"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "User created.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/User"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					}
+				}
+			}
+		},
+		"/v1/users/profile": {
+			"get": {
+				"summary": "Get current user profile",
+				"description": "Returns the profile of the currently authenticated user.",
+				"operationId": "getProfile",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Current user's profile.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/User"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					}
+				}
+			},
+			"patch": {
+				"summary": "Update current user profile",
+				"description": "Updates the email, first name, or last name of the currently authenticated user. Disabled in demo mode.",
+				"operationId": "updateProfile",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"email": {
+										"type": "string",
+										"format": "email"
+									},
+									"first_name": {
+										"type": "string"
+									},
+									"last_name": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated user profile.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/User"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"description": "Disabled in demo mode.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/users/profile/password": {
+			"post": {
+				"summary": "Update password",
+				"description": "Updates the password of the currently authenticated user. The current password must be provided for verification. Disabled in demo mode.",
+				"operationId": "updatePassword",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["currentPassword", "newPassword"],
+								"properties": {
+									"currentPassword": {
+										"type": "string",
+										"format": "password"
+									},
+									"newPassword": {
+										"type": "string",
+										"format": "password"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Password updated successfully.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Current password is incorrect.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"description": "Disabled in demo mode.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/users/{id}": {
+			"get": {
+				"summary": "Get a user",
+				"description": "Returns a single user by ID. Requires `read:users` permission.",
+				"operationId": "getUser",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "User details.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/User"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					}
+				}
+			},
+			"put": {
+				"summary": "Update a user",
+				"description": "Updates a user's email, name, or role assignment. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "updateUser",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"email": {
+										"type": "string",
+										"format": "email"
+									},
+									"first_name": {
+										"type": "string"
+									},
+									"last_name": {
+										"type": "string"
+									},
+									"roleId": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated user.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/User"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					}
+				}
+			},
+			"delete": {
+				"summary": "Delete a user",
+				"description": "Permanently deletes a user. Cannot delete the last remaining user. Requires `manage:all` (Super Admin) permission.",
+				"operationId": "deleteUser",
+				"tags": ["Users"],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"apiKeyAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "clx1y2z3a0000b4d2"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "User deleted. No content returned."
+					},
+					"400": {
+						"description": "Cannot delete the only remaining user.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorMessage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					}
+				}
+			}
+		}
+	},
+	"tags": []
 }

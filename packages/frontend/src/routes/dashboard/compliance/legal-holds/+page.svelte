@@ -112,7 +112,7 @@
 							<div class="flex items-center gap-2">
 								<div>
 									<div>{hold.name}</div>
-									<div class="mt-0.5 font-mono text-[10px] text-muted-foreground">
+									<div class="text-muted-foreground mt-0.5 font-mono text-[10px]">
 										{hold.id}
 									</div>
 								</div>
@@ -120,7 +120,9 @@
 						</Table.Cell>
 						<Table.Cell class="max-w-[300px]">
 							{#if hold.reason}
-								<span class="text-muted-foreground line-clamp-2 text-xs">{hold.reason}</span>
+								<span class="text-muted-foreground line-clamp-2 text-xs"
+									>{hold.reason}</span
+								>
 							{:else}
 								<span class="text-muted-foreground text-xs italic">
 									{$t('app.legal_holds.no_reason')}
@@ -179,33 +181,52 @@
 										</DropdownMenu.Item>
 									{/if}
 									<!-- Toggle active/inactive -->
-									<form method="POST" action="?/toggleActive" use:enhance={() => {
-										return async ({ result, update }) => {
-											if (result.type === 'success' && result.data?.success !== false) {
-												const newState = result.data?.isActive as boolean;
-												setAlert({
-													type: 'success',
-													title: newState
-														? $t('app.legal_holds.activated_success')
-														: $t('app.legal_holds.deactivated_success'),
-													message: '',
-													duration: 3000,
-													show: true,
-												});
-											} else if (result.type === 'success' && result.data?.success === false) {
-												setAlert({
-													type: 'error',
-													title: $t('app.legal_holds.update_error'),
-													message: String(result.data?.message ?? ''),
-													duration: 5000,
-													show: true,
-												});
-											}
-											await update();
-										};
-									}}>
+									<form
+										method="POST"
+										action="?/toggleActive"
+										use:enhance={() => {
+											return async ({ result, update }) => {
+												if (
+													result.type === 'success' &&
+													result.data?.success !== false
+												) {
+													const newState = result.data
+														?.isActive as boolean;
+													setAlert({
+														type: 'success',
+														title: newState
+															? $t(
+																	'app.legal_holds.activated_success'
+																)
+															: $t(
+																	'app.legal_holds.deactivated_success'
+																),
+														message: '',
+														duration: 3000,
+														show: true,
+													});
+												} else if (
+													result.type === 'success' &&
+													result.data?.success === false
+												) {
+													setAlert({
+														type: 'error',
+														title: $t('app.legal_holds.update_error'),
+														message: String(result.data?.message ?? ''),
+														duration: 5000,
+														show: true,
+													});
+												}
+												await update();
+											};
+										}}
+									>
 										<input type="hidden" name="id" value={hold.id} />
-										<input type="hidden" name="isActive" value={String(!hold.isActive)} />
+										<input
+											type="hidden"
+											name="isActive"
+											value={String(!hold.isActive)}
+										/>
 										<DropdownMenu.Item>
 											<button type="submit" class="w-full text-left">
 												{hold.isActive
@@ -362,11 +383,7 @@
 				</div>
 				<div class="space-y-1.5">
 					<Label for="edit-reason">{$t('app.legal_holds.reason')}</Label>
-					<Textarea
-						id="edit-reason"
-						name="reason"
-						value={selectedHold.reason ?? ''}
-					/>
+					<Textarea id="edit-reason" name="reason" value={selectedHold.reason ?? ''} />
 				</div>
 				<div class="flex justify-end gap-2">
 					<Button
@@ -464,7 +481,9 @@
 						<Input id="bulk-end" type="date" bind:value={bulkFiltersDateEnd} />
 					</div>
 				</div>
-				<div class="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
+				<div
+					class="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950"
+				>
 					<p class="text-xs text-amber-800 dark:text-amber-200">
 						{$t('app.legal_holds.bulk_apply_warning')}
 					</p>
@@ -478,7 +497,11 @@
 					>
 						{$t('app.legal_holds.cancel')}
 					</Button>
-					<Button type="submit" disabled={isFormLoading || (!bulkQuery && !bulkFiltersFrom && !bulkFiltersDateStart)}>
+					<Button
+						type="submit"
+						disabled={isFormLoading ||
+							(!bulkQuery && !bulkFiltersFrom && !bulkFiltersDateStart)}
+					>
 						{#if isFormLoading}
 							{$t('app.common.working')}
 						{:else}

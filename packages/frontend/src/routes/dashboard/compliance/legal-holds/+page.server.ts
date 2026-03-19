@@ -98,7 +98,10 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return { success: false, message: (res as { message?: string }).message || 'Failed to delete legal hold.' };
+			return {
+				success: false,
+				message: (res as { message?: string }).message || 'Failed to delete legal hold.',
+			};
 		}
 
 		return { success: true };
@@ -147,7 +150,8 @@ export const actions: Actions = {
 		if (!response.ok) {
 			return {
 				success: false,
-				message: (res as { message?: string }).message || 'Failed to release emails from hold.',
+				message:
+					(res as { message?: string }).message || 'Failed to release emails from hold.',
 			};
 		}
 

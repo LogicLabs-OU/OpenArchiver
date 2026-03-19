@@ -14,8 +14,8 @@ The main page displays a table of all legal holds with the following columns:
 - **Reason:** A short excerpt of the hold's reason/description. Shows _"No reason provided"_ if omitted.
 - **Emails:** A badge showing how many archived emails are currently linked to this hold.
 - **Status:** A badge indicating whether the hold is:
-  - **Active** (red badge): The hold is currently granting deletion immunity to linked emails.
-  - **Inactive** (gray badge): The hold is deactivated; linked emails are no longer immune.
+    - **Active** (red badge): The hold is currently granting deletion immunity to linked emails.
+    - **Inactive** (gray badge): The hold is deactivated; linked emails are no longer immune.
 - **Created At:** The date the hold was created, in local date format.
 - **Actions:** Dropdown menu with options depending on the hold's state (see below).
 
@@ -43,13 +43,14 @@ Click **Edit** from the actions dropdown to modify the hold's name or reason. Th
 
 The **Deactivate** / **Activate** option appears inline in the actions dropdown. Changing the active state does not remove any email links — it only determines whether those links grant deletion immunity.
 
-> **Important:** Deactivating a hold means that all emails linked *solely* to this hold lose their deletion immunity immediately. If any such emails have an expired retention period, they will be permanently deleted on the very next lifecycle worker cycle.
+> **Important:** Deactivating a hold means that all emails linked _solely_ to this hold lose their deletion immunity immediately. If any such emails have an expired retention period, they will be permanently deleted on the very next lifecycle worker cycle.
 
 ## Deleting a Hold
 
 A hold **cannot be deleted while it is active**. Attempting to delete an active hold returns a `409 Conflict` error with the message: _"Cannot delete an active legal hold. Deactivate it first..."_
 
 To delete a hold:
+
 1. **Deactivate** it first using the Activate/Deactivate action.
 2. Click **Delete** from the actions dropdown.
 3. Confirm in the dialog.
@@ -81,6 +82,7 @@ At least one of these fields must be filled before the **Apply Hold** button bec
 ### Bulk Apply and the Audit Log
 
 The audit log entry for a bulk apply contains:
+
 - `action: "BulkApplyHold"`
 - `searchQuery`: the exact JSON query used
 - `emailsLinked`: number of emails newly linked
@@ -99,6 +101,7 @@ A confirmation dialog is shown before the operation proceeds. On success, a noti
 ### Viewing Holds on a Specific Email
 
 On any archived email's detail page, the **Legal Holds** card lists all holds currently applied to that email, showing:
+
 - Hold name and active/inactive badge
 - Date the hold was applied
 
@@ -140,18 +143,22 @@ The **Delete Email** button on the email detail page is not disabled in the UI, 
 ## Troubleshooting
 
 ### Cannot Delete Hold — "Cannot delete an active legal hold"
+
 **Cause:** The hold is still active.  
 **Solution:** Use the **Deactivate** option from the actions dropdown first.
 
 ### Bulk Apply Returns 0 Emails
+
 **Cause 1:** The search query matched no documents in the Meilisearch index.  
 **Solution:** Verify the query in the main Search page to preview results before applying.  
 **Cause 2:** All Meilisearch results were stale (emails deleted from the archive before this operation).  
 **Solution:** This is a data state issue; the stale index entries will be cleaned up on the next index rebuild.
 
 ### Delete Email Returns an Error Instead of Deleting
+
 **Cause:** The email is under one or more active legal holds.  
 **Solution:** This is expected behavior. Deactivate or remove the hold(s) from this email before deleting.
 
 ### Hold Emails Count Shows 0 After Bulk Apply
+
 **Cause:** The `emailCount` field is fetched when the page loads. If the bulk operation was just completed, refresh the page to see the updated count.

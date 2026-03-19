@@ -63,12 +63,9 @@ export class ArchivedEmailController {
 		try {
 			checkDeletionEnabled();
 		} catch (error) {
-			return res
-				.status(400)
-				.json({
-					message:
-						error instanceof Error ? error.message : req.t('errors.deletionDisabled'),
-				});
+			return res.status(400).json({
+				message: error instanceof Error ? error.message : req.t('errors.deletionDisabled'),
+			});
 		}
 
 		const { id } = req.params;

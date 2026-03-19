@@ -138,7 +138,9 @@
 									<DropdownMenu.Trigger>
 										{#snippet child({ props })}
 											<Button {...props} variant="ghost" class="h-8 w-8 p-0">
-												<span class="sr-only">{$t('app.roles.open_menu')}</span>
+												<span class="sr-only"
+													>{$t('app.roles.open_menu')}</span
+												>
 												<MoreHorizontal class="h-4 w-4" />
 											</Button>
 										{/snippet}

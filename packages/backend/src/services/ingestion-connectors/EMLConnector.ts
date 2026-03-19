@@ -78,7 +78,9 @@ export class EMLConnector implements IEmailConnector {
 
 			if (!fileExist) {
 				if (this.credentials.localFilePath) {
-					throw Error(`EML Zip file not found at path: ${this.credentials.localFilePath}`);
+					throw Error(
+						`EML Zip file not found at path: ${this.credentials.localFilePath}`
+					);
 				} else {
 					throw Error(
 						'Uploaded EML Zip file not found. The upload may not have finished yet, or it failed.'
@@ -256,10 +258,7 @@ export class EMLConnector implements IEmailConnector {
 		}
 	}
 
-	private async parseMessage(
-		input: Buffer | Readable,
-		path: string
-	): Promise<EmailObject> {
+	private async parseMessage(input: Buffer | Readable, path: string): Promise<EmailObject> {
 		let emlBuffer: Buffer;
 		if (Buffer.isBuffer(input)) {
 			emlBuffer = input;

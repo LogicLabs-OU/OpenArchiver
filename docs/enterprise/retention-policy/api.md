@@ -21,18 +21,18 @@ Retrieves all retention policies, ordered by priority ascending.
 
 ```json
 [
-    {
-        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        "name": "Default 7-Year Retention",
-        "description": "Retain all emails for 7 years per regulatory requirements.",
-        "priority": 1,
-        "conditions": null,
-        "ingestionScope": null,
-        "retentionPeriodDays": 2555,
-        "isActive": true,
-        "createdAt": "2025-10-01T00:00:00.000Z",
-        "updatedAt": "2025-10-01T00:00:00.000Z"
-    }
+	{
+		"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Default 7-Year Retention",
+		"description": "Retain all emails for 7 years per regulatory requirements.",
+		"priority": 1,
+		"conditions": null,
+		"ingestionScope": null,
+		"retentionPeriodDays": 2555,
+		"isActive": true,
+		"createdAt": "2025-10-01T00:00:00.000Z",
+		"updatedAt": "2025-10-01T00:00:00.000Z"
+	}
 ]
 ```
 
@@ -70,34 +70,34 @@ Creates a new retention policy. The policy name must be unique across the system
 
 ### Request Body
 
-| Field               | Type                  | Required | Description                                                                                    |
-| ------------------- | --------------------- | -------- | ---------------------------------------------------------------------------------------------- |
-| `name`              | `string`              | Yes      | Unique policy name. Max 255 characters.                                                        |
-| `description`       | `string`              | No       | Human-readable description. Max 1000 characters.                                               |
-| `priority`          | `integer`             | Yes      | Positive integer. Lower values indicate higher priority.                                       |
-| `retentionPeriodDays` | `integer`           | Yes      | Number of days to retain matching emails. Minimum 1.                                           |
-| `actionOnExpiry`    | `string`              | Yes      | Action to take when the retention period expires. Currently only `"delete_permanently"`.        |
-| `isEnabled`         | `boolean`             | No       | Whether the policy is active. Defaults to `true`.                                              |
-| `conditions`        | `RuleGroup \| null`   | No       | Condition rules for targeting specific emails. `null` matches all emails.                      |
-| `ingestionScope`    | `string[] \| null`    | No       | Array of ingestion source UUIDs to scope the policy to. `null` applies to all sources.         |
+| Field                 | Type                | Required | Description                                                                              |
+| --------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `name`                | `string`            | Yes      | Unique policy name. Max 255 characters.                                                  |
+| `description`         | `string`            | No       | Human-readable description. Max 1000 characters.                                         |
+| `priority`            | `integer`           | Yes      | Positive integer. Lower values indicate higher priority.                                 |
+| `retentionPeriodDays` | `integer`           | Yes      | Number of days to retain matching emails. Minimum 1.                                     |
+| `actionOnExpiry`      | `string`            | Yes      | Action to take when the retention period expires. Currently only `"delete_permanently"`. |
+| `isEnabled`           | `boolean`           | No       | Whether the policy is active. Defaults to `true`.                                        |
+| `conditions`          | `RuleGroup \| null` | No       | Condition rules for targeting specific emails. `null` matches all emails.                |
+| `ingestionScope`      | `string[] \| null`  | No       | Array of ingestion source UUIDs to scope the policy to. `null` applies to all sources.   |
 
 #### Conditions (RuleGroup) Schema
 
 ```json
 {
-    "logicalOperator": "AND",
-    "rules": [
-        {
-            "field": "sender",
-            "operator": "domain_match",
-            "value": "example.com"
-        },
-        {
-            "field": "subject",
-            "operator": "contains",
-            "value": "invoice"
-        }
-    ]
+	"logicalOperator": "AND",
+	"rules": [
+		{
+			"field": "sender",
+			"operator": "domain_match",
+			"value": "example.com"
+		},
+		{
+			"field": "subject",
+			"operator": "contains",
+			"value": "invoice"
+		}
+	]
 }
 ```
 
@@ -105,18 +105,19 @@ Creates a new retention policy. The policy name must be unique across the system
 
 **Supported operators:**
 
-| Operator       | Description                                                        |
-| -------------- | ------------------------------------------------------------------ |
-| `equals`       | Exact case-insensitive match.                                      |
-| `not_equals`   | Inverse of `equals`.                                               |
-| `contains`     | Case-insensitive substring match.                                  |
-| `not_contains` | Inverse of `contains`.                                             |
-| `starts_with`  | Case-insensitive prefix match.                                     |
-| `ends_with`    | Case-insensitive suffix match.                                     |
-| `domain_match` | Matches when an email address ends with `@<value>`.                |
-| `regex_match`  | ECMAScript regex (case-insensitive). Max pattern length: 200 chars.|
+| Operator       | Description                                                         |
+| -------------- | ------------------------------------------------------------------- |
+| `equals`       | Exact case-insensitive match.                                       |
+| `not_equals`   | Inverse of `equals`.                                                |
+| `contains`     | Case-insensitive substring match.                                   |
+| `not_contains` | Inverse of `contains`.                                              |
+| `starts_with`  | Case-insensitive prefix match.                                      |
+| `ends_with`    | Case-insensitive suffix match.                                      |
+| `domain_match` | Matches when an email address ends with `@<value>`.                 |
+| `regex_match`  | ECMAScript regex (case-insensitive). Max pattern length: 200 chars. |
 
 **Validation limits:**
+
 - Maximum 50 rules per group.
 - Rule `value` must be between 1 and 500 characters.
 
@@ -124,27 +125,27 @@ Creates a new retention policy. The policy name must be unique across the system
 
 ```json
 {
-    "name": "Finance Department - 10 Year",
-    "description": "Extended retention for finance-related correspondence.",
-    "priority": 2,
-    "retentionPeriodDays": 3650,
-    "actionOnExpiry": "delete_permanently",
-    "conditions": {
-        "logicalOperator": "OR",
-        "rules": [
-            {
-                "field": "sender",
-                "operator": "domain_match",
-                "value": "finance.acme.com"
-            },
-            {
-                "field": "recipient",
-                "operator": "domain_match",
-                "value": "finance.acme.com"
-            }
-        ]
-    },
-    "ingestionScope": ["b2c3d4e5-f6a7-8901-bcde-f23456789012"]
+	"name": "Finance Department - 10 Year",
+	"description": "Extended retention for finance-related correspondence.",
+	"priority": 2,
+	"retentionPeriodDays": 3650,
+	"actionOnExpiry": "delete_permanently",
+	"conditions": {
+		"logicalOperator": "OR",
+		"rules": [
+			{
+				"field": "sender",
+				"operator": "domain_match",
+				"value": "finance.acme.com"
+			},
+			{
+				"field": "recipient",
+				"operator": "domain_match",
+				"value": "finance.acme.com"
+			}
+		]
+	},
+	"ingestionScope": ["b2c3d4e5-f6a7-8901-bcde-f23456789012"]
 }
 ```
 
@@ -220,25 +221,25 @@ Evaluates a set of email metadata against all active policies and returns the ap
 
 ### Request Body
 
-| Field                              | Type       | Required | Description                                              |
-| ---------------------------------- | ---------- | -------- | -------------------------------------------------------- |
-| `emailMetadata.sender`             | `string`   | Yes      | Sender email address. Max 500 characters.                |
-| `emailMetadata.recipients`         | `string[]` | Yes      | Recipient email addresses. Max 500 entries.              |
-| `emailMetadata.subject`            | `string`   | Yes      | Email subject line. Max 2000 characters.                 |
-| `emailMetadata.attachmentTypes`    | `string[]` | Yes      | File extensions (e.g., `[".pdf", ".xml"]`). Max 100.     |
-| `emailMetadata.ingestionSourceId`  | `uuid`     | No       | Optional ingestion source UUID for scope-aware evaluation.|
+| Field                             | Type       | Required | Description                                                |
+| --------------------------------- | ---------- | -------- | ---------------------------------------------------------- |
+| `emailMetadata.sender`            | `string`   | Yes      | Sender email address. Max 500 characters.                  |
+| `emailMetadata.recipients`        | `string[]` | Yes      | Recipient email addresses. Max 500 entries.                |
+| `emailMetadata.subject`           | `string`   | Yes      | Email subject line. Max 2000 characters.                   |
+| `emailMetadata.attachmentTypes`   | `string[]` | Yes      | File extensions (e.g., `[".pdf", ".xml"]`). Max 100.       |
+| `emailMetadata.ingestionSourceId` | `uuid`     | No       | Optional ingestion source UUID for scope-aware evaluation. |
 
 ### Example Request
 
 ```json
 {
-    "emailMetadata": {
-        "sender": "cfo@finance.acme.com",
-        "recipients": ["legal@acme.com"],
-        "subject": "Q4 Invoice Reconciliation",
-        "attachmentTypes": [".pdf", ".xlsx"],
-        "ingestionSourceId": "b2c3d4e5-f6a7-8901-bcde-f23456789012"
-    }
+	"emailMetadata": {
+		"sender": "cfo@finance.acme.com",
+		"recipients": ["legal@acme.com"],
+		"subject": "Q4 Invoice Reconciliation",
+		"attachmentTypes": [".pdf", ".xlsx"],
+		"ingestionSourceId": "b2c3d4e5-f6a7-8901-bcde-f23456789012"
+	}
 }
 ```
 
@@ -246,12 +247,12 @@ Evaluates a set of email metadata against all active policies and returns the ap
 
 ```json
 {
-    "appliedRetentionDays": 3650,
-    "actionOnExpiry": "delete_permanently",
-    "matchingPolicyIds": [
-        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        "c3d4e5f6-a7b8-9012-cdef-345678901234"
-    ]
+	"appliedRetentionDays": 3650,
+	"actionOnExpiry": "delete_permanently",
+	"matchingPolicyIds": [
+		"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"c3d4e5f6-a7b8-9012-cdef-345678901234"
+	]
 }
 ```
 
