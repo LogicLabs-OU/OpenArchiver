@@ -14,9 +14,41 @@
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import { t } from '$lib/translations';
+	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 
 	let { data }: { data: PageData } = $props();
 	let ingestionSources = $state(data.ingestionSources);
+
+	onMount(() => {
+		const params = $page.url.searchParams;
+		const error = params.get('error');
+		const connected = params.get('connected');
+
+		if (connected === 'google') {
+			setAlert({
+				type: 'success',
+				title: 'Gmail connected',
+				message: 'Your Gmail account has been connected and is being imported.',
+				duration: 6000,
+				show: true,
+			});
+		} else if (error) {
+			const messages: Record<string, string> = {
+				oauth_cancelled: 'Google sign-in was cancelled.',
+				oauth_invalid_state: 'OAuth state mismatch. Please try again.',
+				oauth_invalid_response: 'Invalid response from Google. Please try again.',
+				oauth_failed: 'Failed to connect Gmail account. Please try again.',
+			};
+			setAlert({
+				type: 'error',
+				title: 'Connection failed',
+				message: messages[error] ?? 'An unknown error occurred during Google sign-in.',
+				duration: 6000,
+				show: true,
+			});
+		}
+	});
 	let isDialogOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 	let selectedSource = $state<IngestionSource | null>(null);

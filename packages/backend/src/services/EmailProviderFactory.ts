@@ -1,6 +1,7 @@
 import type {
 	IngestionSource,
 	GoogleWorkspaceCredentials,
+	GoogleOAuthCredentials,
 	Microsoft365Credentials,
 	GenericImapCredentials,
 	PSTImportCredentials,
@@ -11,6 +12,7 @@ import type {
 	MailboxUser,
 } from '@open-archiver/types';
 import { GoogleWorkspaceConnector } from './ingestion-connectors/GoogleWorkspaceConnector';
+import { GoogleOAuthConnector } from './ingestion-connectors/GoogleOAuthConnector';
 import { MicrosoftConnector } from './ingestion-connectors/MicrosoftConnector';
 import { ImapConnector } from './ingestion-connectors/ImapConnector';
 import { PSTConnector } from './ingestion-connectors/PSTConnector';
@@ -38,6 +40,8 @@ export class EmailProviderFactory {
 		switch (source.provider) {
 			case 'google_workspace':
 				return new GoogleWorkspaceConnector(credentials as GoogleWorkspaceCredentials);
+			case 'google_oauth':
+				return new GoogleOAuthConnector(credentials as GoogleOAuthCredentials);
 			case 'microsoft_365':
 				return new MicrosoftConnector(credentials as Microsoft365Credentials);
 			case 'generic_imap':
