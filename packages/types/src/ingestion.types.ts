@@ -20,6 +20,7 @@ export type SyncState = {
 
 export type IngestionProvider =
 	| 'google_workspace'
+	| 'google_oauth'
 	| 'microsoft_365'
 	| 'generic_imap'
 	| 'pst_import'
@@ -63,6 +64,13 @@ export interface GoogleWorkspaceCredentials extends BaseIngestionCredentials {
 	impersonatedAdminEmail: string;
 }
 
+export interface GoogleOAuthCredentials extends BaseIngestionCredentials {
+	type: 'google_oauth';
+	email: string;
+	accessToken: string;
+	refreshToken: string;
+}
+
 export interface Microsoft365Credentials extends BaseIngestionCredentials {
 	type: 'microsoft_365';
 	clientId: string;
@@ -95,6 +103,7 @@ export interface MboxImportCredentials extends BaseIngestionCredentials {
 export type IngestionCredentials =
 	| GenericImapCredentials
 	| GoogleWorkspaceCredentials
+	| GoogleOAuthCredentials
 	| Microsoft365Credentials
 	| PSTImportCredentials
 	| EMLImportCredentials
