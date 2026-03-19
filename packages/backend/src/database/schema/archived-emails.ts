@@ -12,6 +12,9 @@ export const archivedEmails = pgTable(
 			.references(() => ingestionSources.id, { onDelete: 'cascade' }),
 		userEmail: text('user_email').notNull(),
 		messageIdHeader: text('message_id_header'),
+		/** The provider-specific message ID (e.g., Gmail API ID, Graph API ID).
+		 * Used by the pre-fetch duplicate check to avoid unnecessary API calls during retries. */
+		providerMessageId: text('provider_message_id'),
 		sentAt: timestamp('sent_at', { withTimezone: true }).notNull(),
 		subject: text('subject'),
 		senderName: text('sender_name'),
@@ -27,7 +30,10 @@ export const archivedEmails = pgTable(
 		path: text('path'),
 		tags: jsonb('tags'),
 	},
-	(table) => [index('thread_id_idx').on(table.threadId)]
+	(table) => [
+		index('thread_id_idx').on(table.threadId),
+		index('provider_msg_source_idx').on(table.providerMessageId, table.ingestionSourceId),
+	]
 );
 
 export const archivedEmailsRelations = relations(archivedEmails, ({ one }) => ({

@@ -225,7 +225,6 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 										);
 									};
 									const threadId = getThreadId(parsedEmail.headers);
-									console.log('threadId', threadId);
 									yield {
 										id: msgResponse.data.id!,
 										threadId,
@@ -348,7 +347,6 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 								);
 							};
 							const threadId = getThreadId(parsedEmail.headers);
-							console.log('threadId', threadId);
 							yield {
 								id: msgResponse.data.id!,
 								threadId,

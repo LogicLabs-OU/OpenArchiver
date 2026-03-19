@@ -136,7 +136,8 @@ export class MicrosoftConnector implements IEmailConnector {
 	 */
 	public async *fetchEmails(
 		userEmail: string,
-		syncState?: SyncState | null
+		syncState?: SyncState | null,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
 		this.newDeltaTokens = syncState?.microsoft?.[userEmail]?.deltaTokens || {};
 
@@ -152,7 +153,8 @@ export class MicrosoftConnector implements IEmailConnector {
 						userEmail,
 						folder.id,
 						folder.path,
-						this.newDeltaTokens[folder.id]
+						this.newDeltaTokens[folder.id],
+						checkDuplicate
 					);
 				}
 			}
@@ -214,7 +216,8 @@ export class MicrosoftConnector implements IEmailConnector {
 		userEmail: string,
 		folderId: string,
 		path: string,
-		deltaToken?: string
+		deltaToken?: string,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
 		let requestUrl: string | undefined;
 
@@ -235,6 +238,15 @@ export class MicrosoftConnector implements IEmailConnector {
 
 				for (const message of response.value) {
 					if (message.id && !message['@removed']) {
+						// Skip fetching raw content for already-imported messages
+						if (checkDuplicate && (await checkDuplicate(message.id))) {
+							logger.debug(
+								{ messageId: message.id, userEmail },
+								'Skipping duplicate email (pre-check)'
+							);
+							continue;
+						}
+
 						const rawEmail = await this.getRawEmail(userEmail, message.id);
 						if (rawEmail) {
 							const emailObject = await this.parseEmail(
@@ -243,7 +255,7 @@ export class MicrosoftConnector implements IEmailConnector {
 								userEmail,
 								path
 							);
-							emailObject.threadId = message.conversationId; // Add conversationId as threadId
+							emailObject.threadId = message.conversationId;
 							yield emailObject;
 						}
 					}

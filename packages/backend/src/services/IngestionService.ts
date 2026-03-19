@@ -8,7 +8,7 @@ import type {
 	IngestionProvider,
 	PendingEmail,
 } from '@open-archiver/types';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
 import { ingestionQueue } from '../jobs/queues';
@@ -392,8 +392,9 @@ export class IngestionService {
 	}
 
 	/**
-	 * Quickly checks if an email exists in the database by its Message-ID header.
-	 * This is used to skip downloading duplicate emails during ingestion.
+	 * Pre-fetch duplicate check to avoid unnecessary API calls during ingestion.
+	 * Checks both providerMessageId (for Google/Microsoft API IDs) and
+	 * messageIdHeader (for IMAP/PST/EML/Mbox RFC Message-IDs and pre-migration rows).
 	 */
 	public static async doesEmailExist(
 		messageId: string,
@@ -401,12 +402,14 @@ export class IngestionService {
 	): Promise<boolean> {
 		const existingEmail = await db.query.archivedEmails.findFirst({
 			where: and(
-				eq(archivedEmails.messageIdHeader, messageId),
-				eq(archivedEmails.ingestionSourceId, ingestionSourceId)
+				eq(archivedEmails.ingestionSourceId, ingestionSourceId),
+				or(
+					eq(archivedEmails.providerMessageId, messageId),
+					eq(archivedEmails.messageIdHeader, messageId)
+				)
 			),
 			columns: { id: true },
 		});
-
 		return !!existingEmail;
 	}
 
@@ -463,6 +466,7 @@ export class IngestionService {
 					userEmail,
 					threadId: email.threadId,
 					messageIdHeader: messageId,
+					providerMessageId: email.id,
 					sentAt: email.receivedAt,
 					subject: email.subject,
 					senderName: email.from[0]?.name,

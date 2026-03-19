@@ -1,0 +1,2 @@
+ALTER TABLE "archived_emails" ADD COLUMN "provider_message_id" text;--> statement-breakpoint
+CREATE INDEX "provider_msg_source_idx" ON "archived_emails" USING btree ("provider_message_id","ingestion_source_id");
