@@ -1,4 +1,6 @@
 import { defineConfig } from 'vitepress';
+import { useSidebar } from 'vitepress-openapi';
+import spec from '../api/openapi.json';
 
 export default defineConfig({
 	head: [
@@ -95,7 +97,12 @@ export default defineConfig({
 					{ text: 'Integrity Check', link: '/api/integrity' },
 					{ text: 'Search', link: '/api/search' },
 					{ text: 'Storage', link: '/api/storage' },
+					{ text: 'Upload', link: '/api/upload' },
 					{ text: 'Jobs', link: '/api/jobs' },
+					{ text: 'Users', link: '/api/users' },
+					{ text: 'IAM', link: '/api/iam' },
+					{ text: 'API Keys', link: '/api/api-keys' },
+					{ text: 'Settings', link: '/api/settings' },
 				],
 			},
 			{

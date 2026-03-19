@@ -19,8 +19,9 @@
 		"db:migrate:dev": "dotenv -- pnpm --filter @open-archiver/backend db:migrate:dev",
 		"docker-start:oss": "concurrently \"pnpm start:workers\" \"pnpm start:oss\"",
 		"docker-start:enterprise": "concurrently \"pnpm start:workers\" \"pnpm start:enterprise\"",
-		"docs:dev": "vitepress dev docs --port 3009",
-		"docs:build": "vitepress build docs",
+		"docs:gen-spec": "node packages/backend/scripts/generate-openapi-spec.mjs",
+		"docs:dev": "pnpm docs:gen-spec && vitepress dev docs --port 3009",
+		"docs:build": "pnpm docs:gen-spec && vitepress build docs",
 		"docs:preview": "vitepress preview docs",
 		"format": "prettier --write .",
 		"lint": "prettier --check ."
@@ -35,7 +36,8 @@
 		"prettier-plugin-svelte": "^3.4.0",
 		"prettier-plugin-tailwindcss": "^0.6.14",
 		"typescript": "5.8.3",
-		"vitepress": "^1.6.4"
+		"vitepress": "^1.6.4",
+		"vitepress-openapi": "^0.1.18"
 	},
 	"packageManager": "pnpm@10.13.1",
 	"engines": {

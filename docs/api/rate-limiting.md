@@ -1,3 +1,7 @@
+---
+aside: false
+---
+
 # Rate Limiting
 
 The API implements rate limiting as a security measure to protect your instance from denial-of-service (DoS) and brute-force attacks. This is a crucial feature for maintaining the security and stability of the application.
