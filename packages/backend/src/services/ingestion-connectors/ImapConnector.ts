@@ -197,7 +197,7 @@ export class ImapConnector implements IEmailConnector {
 
 					// Only fetch if the mailbox has messages, to avoid errors on empty mailboxes with some IMAP servers.
 					if (mailbox.exists > 0) {
-						const BATCH_SIZE = 250; // A configurable batch size
+						const BATCH_SIZE = 250;
 						let startUid = (lastUid || 0) + 1;
 						const maxUidToFetch = currentMaxUid;
 
@@ -205,10 +205,11 @@ export class ImapConnector implements IEmailConnector {
 							const endUid = Math.min(startUid + BATCH_SIZE - 1, maxUidToFetch);
 							const searchCriteria = { uid: `${startUid}:${endUid}` };
 
+							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
+							const uidsToFetch: number[] = [];
+
 							for await (const msg of this.client.fetch(searchCriteria, {
 								envelope: true,
-								source: true,
-								bodyStructure: true,
 								uid: true,
 							})) {
 								if (lastUid && msg.uid <= lastUid) {
@@ -219,7 +220,9 @@ export class ImapConnector implements IEmailConnector {
 									this.newMaxUids[mailboxPath] = msg.uid;
 								}
 
-								// Optimization: Verify existence using Message-ID from envelope before fetching full body
+								// Duplicate check against the Message-ID from the envelope.
+								// If a duplicate is found we skip fetching the full source entirely,
+								// avoiding loading attachment binary data into memory for known emails.
 								if (checkDuplicate && msg.envelope?.messageId) {
 									const isDuplicate = await checkDuplicate(
 										msg.envelope.messageId
@@ -237,18 +240,42 @@ export class ImapConnector implements IEmailConnector {
 									}
 								}
 
-								logger.debug({ mailboxPath, uid: msg.uid }, 'Processing message');
+								if (msg.envelope) {
+									uidsToFetch.push(msg.uid);
+								}
+							}
 
-								if (msg.envelope && msg.source) {
-									try {
-										yield await this.parseMessage(msg, mailboxPath);
-									} catch (err: any) {
-										logger.error(
-											{ err, mailboxPath, uid: msg.uid },
-											'Failed to parse message'
-										);
-										throw err;
+							// --- Pass 2: fetch full source one message at a time for non-duplicate UIDs.
+							for (const uid of uidsToFetch) {
+								logger.debug(
+									{ mailboxPath, uid },
+									'Fetching full source for message'
+								);
+
+								try {
+									const fullMsg = await this.withRetry(
+										async () =>
+											await this.client.fetchOne(
+												String(uid),
+												{
+													envelope: true,
+													source: true,
+													bodyStructure: true,
+													uid: true,
+												},
+												{ uid: true }
+											)
+									);
+
+									if (fullMsg && fullMsg.envelope && fullMsg.source) {
+										yield await this.parseMessage(fullMsg, mailboxPath);
 									}
+								} catch (err: any) {
+									logger.error(
+										{ err, mailboxPath, uid },
+										'Failed to fetch or parse message'
+									);
+									throw err;
 								}
 							}
 

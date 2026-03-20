@@ -11,8 +11,6 @@ export const load: LayoutLoad = async ({ url, data }) => {
 	if (data && data.systemSettings?.language) {
 		initLocale = data.systemSettings.language;
 	}
-
-	console.log(initLocale);
 	await loadTranslations(initLocale, pathname);
 
 	return {

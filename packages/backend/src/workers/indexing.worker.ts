@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { connection } from '../config/redis';
 import indexEmailBatchProcessor from '../jobs/processors/index-email-batch.processor';
+import { logger } from '../config/logger';
 
 const processor = async (job: any) => {
 	switch (job.name) {
@@ -21,7 +22,7 @@ const worker = new Worker('indexing', processor, {
 	},
 });
 
-console.log('Indexing worker started');
+logger.info('Indexing worker started');
 
 process.on('SIGINT', () => worker.close());
 process.on('SIGTERM', () => worker.close());

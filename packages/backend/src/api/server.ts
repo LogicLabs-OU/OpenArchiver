@@ -158,13 +158,12 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	// Load all provided extension modules
 	for (const module of modules) {
 		await module.initialize(app, authService);
-		console.log(`🏢 Enterprise module loaded: ${module.name}`);
+		logger.info(`🏢 Enterprise module loaded: ${module.name}`);
 	}
 	app.get('/', (req, res) => {
 		res.send('Backend is running!!');
 	});
-
-	console.log('✅ Core OSS modules loaded.');
+	logger.info('✅ Core OSS modules loaded.');
 
 	return app;
 }
