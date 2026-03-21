@@ -31,7 +31,7 @@ const options = {
 		},
 		servers: [
 			{
-				url: 'http://localhost:3001',
+				url: 'http://localhost:3000',
 				description: 'Local development',
 			},
 		],

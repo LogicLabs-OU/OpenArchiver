@@ -164,7 +164,8 @@
 			const response = await api(`/enterprise/integrity-report/${email.id}/pdf`);
 
 			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
+				const res = JSON.parse(await response.text());
+				throw new Error(res.message);
 			}
 
 			const blob = await response.blob();
@@ -178,10 +179,11 @@
 			a.remove();
 		} catch (error) {
 			console.error('Integrity report download failed:', error);
+
 			setAlert({
 				type: 'error',
 				title: $t('app.archive.integrity_report_download_error'),
-				message: '',
+				message: (error as string) || '',
 				duration: 5000,
 				show: true,
 			});
