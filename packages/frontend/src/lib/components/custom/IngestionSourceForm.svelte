@@ -27,6 +27,10 @@
 			label: $t('app.components.ingestion_source_form.provider_generic_imap'),
 		},
 		{
+			value: 'google_oauth',
+			label: 'Gmail (Connect with Google)',
+		},
+		{
 			value: 'google_workspace',
 			label: $t('app.components.ingestion_source_form.provider_google_workspace'),
 		},
@@ -93,6 +97,33 @@
 			}
 		}
 	});
+
+	const handleGoogleConnect = async () => {
+		if (!formData.name.trim()) {
+			setAlert({
+				type: 'error',
+				title: 'Name required',
+				message: 'Please enter a name for this connection before connecting.',
+				duration: 4000,
+				show: true,
+			});
+			return;
+		}
+		try {
+			const res = await api(`/oauth/google/authorize?name=${encodeURIComponent(formData.name)}`);
+			if (!res.ok) throw new Error('Failed to initiate Google OAuth.');
+			const { url } = await res.json();
+			window.location.href = url;
+		} catch (e) {
+			setAlert({
+				type: 'error',
+				title: 'Connection failed',
+				message: e instanceof Error ? e.message : 'Could not start Google OAuth flow.',
+				duration: 5000,
+				show: true,
+			});
+		}
+	};
 
 	const handleSubmit = async (event: Event) => {
 		event.preventDefault();
@@ -198,6 +229,26 @@
 				bind:value={formData.providerConfig.impersonatedAdminEmail}
 				class="col-span-3"
 			/>
+		</div>
+	{:else if formData.provider === 'google_oauth'}
+		<div class="flex flex-col items-center gap-4 py-2">
+			<p class="text-muted-foreground text-sm text-center">
+				Click the button below to securely connect your Gmail account via Google OAuth.
+				You will be redirected to Google to authorize access.
+			</p>
+			<button
+				type="button"
+				onclick={handleGoogleConnect}
+				class="flex items-center gap-3 rounded-md border border-[#dadce0] bg-white px-4 py-2 text-sm font-medium text-[#3c4043] shadow-sm hover:bg-gray-50 transition-colors"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" class="h-5 w-5">
+					<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+					<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+					<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+					<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+				</svg>
+				Sign in with Google
+			</button>
 		</div>
 	{:else if formData.provider === 'microsoft_365'}
 		<div class="grid grid-cols-4 items-center gap-4">
@@ -439,13 +490,15 @@
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
-	<Dialog.Footer>
-		<Button type="submit" disabled={isSubmitting || fileUploading}>
-			{#if isSubmitting}
-				{$t('app.components.common.submitting')}
-			{:else}
-				{$t('app.components.common.submit')}
-			{/if}
-		</Button>
-	</Dialog.Footer>
+	{#if formData.provider !== 'google_oauth'}
+		<Dialog.Footer>
+			<Button type="submit" disabled={isSubmitting || fileUploading}>
+				{#if isSubmitting}
+					{$t('app.components.common.submitting')}
+				{:else}
+					{$t('app.components.common.submit')}
+				{/if}
+			</Button>
+		</Dialog.Footer>
+	{/if}
 </form>
