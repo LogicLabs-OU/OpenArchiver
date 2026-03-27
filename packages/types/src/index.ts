@@ -14,3 +14,4 @@ export * from './integrity.types';
 export * from './jobs.types';
 export * from './license.types';
 export * from './retention.types';
+export * from './journaling.types';

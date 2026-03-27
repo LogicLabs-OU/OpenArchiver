@@ -24,7 +24,8 @@ export type IngestionProvider =
 	| 'generic_imap'
 	| 'pst_import'
 	| 'eml_import'
-	| 'mbox_import';
+	| 'mbox_import'
+	| 'smtp_journaling';
 
 export type IngestionStatus =
 	| 'active'
@@ -91,6 +92,12 @@ export interface MboxImportCredentials extends BaseIngestionCredentials {
 	localFilePath?: string;
 }
 
+export interface SmtpJournalingCredentials extends BaseIngestionCredentials {
+	type: 'smtp_journaling';
+	/** The ID of the journaling_sources row that owns this ingestion source */
+	journalingSourceId: string;
+}
+
 // Discriminated union for all possible credential types
 export type IngestionCredentials =
 	| GenericImapCredentials
@@ -98,7 +105,8 @@ export type IngestionCredentials =
 	| Microsoft365Credentials
 	| PSTImportCredentials
 	| EMLImportCredentials
-	| MboxImportCredentials;
+	| MboxImportCredentials
+	| SmtpJournalingCredentials;
 
 export interface IngestionSource {
 	id: string;

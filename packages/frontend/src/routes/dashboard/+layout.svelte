@@ -76,6 +76,16 @@
 
 	const enterpriseNavItems: NavItem[] = [
 		{
+			label: $t('app.archive.title'),
+			subMenu: [
+				{
+					href: '/dashboard/ingestions/journaling',
+					label: $t('app.journaling.title'),
+				},
+			],
+			position: 1,
+		},
+		{
 			label: 'Compliance',
 			subMenu: [
 				{ href: '/dashboard/compliance/audit-log', label: $t('app.audit_log.title') },

@@ -27,6 +27,7 @@ export const AuditLogTargetTypes = [
 	'ArchivedEmail',
 	'Dashboard',
 	'IngestionSource',
+	'JournalingSource',
 	'RetentionPolicy',
 	'RetentionLabel',
 	'LegalHold',

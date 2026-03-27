@@ -6,7 +6,7 @@ services:
         container_name: open-archiver
         restart: unless-stopped
         ports:
-            - '3000:3000' # Frontend
+            - '${PORT_FRONTEND:-3000}:3000' # Frontend
         env_file:
             - .env
         volumes:
@@ -42,7 +42,7 @@ services:
             - open-archiver-net
 
     meilisearch:
-        image: getmeili/meilisearch:v1.15
+        image: getmeili/meilisearch:v1.38
         container_name: meilisearch
         restart: unless-stopped
         environment:

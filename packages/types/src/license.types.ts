@@ -6,6 +6,7 @@ export enum OpenArchiverFeature {
 	RETENTION_POLICY = 'retention-policy',
 	LEGAL_HOLDS = 'legal-holds',
 	INTEGRITY_REPORT = 'integrity-report',
+	JOURNALING = 'journaling',
 	SSO = 'sso',
 	STATUS = 'status',
 	ALL = 'all',
