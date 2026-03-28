@@ -7,10 +7,11 @@ import type {
 	SyncState,
 	MailboxUser,
 } from '@open-archiver/types';
-import type { IEmailConnector } from '../EmailProviderFactory';
+import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { getThreadId } from './helpers/utils';
+import { writeEmailToTempFile } from './helpers/tempFile';
 
 /**
  * A connector for Google Workspace that uses a service account with domain-wide delegation
@@ -20,9 +21,11 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 	private credentials: GoogleWorkspaceCredentials;
 	private serviceAccountCreds: { client_email: string; private_key: string };
 	private newHistoryId: string | undefined;
+	private options: ConnectorOptions;
 
-	constructor(credentials: GoogleWorkspaceCredentials) {
+	constructor(credentials: GoogleWorkspaceCredentials, options?: ConnectorOptions) {
 		this.credentials = credentials;
+		this.options = options ?? { preserveOriginalFile: false };
 		try {
 			// Pre-parse the JSON key to catch errors early.
 			const parsedKey = JSON.parse(this.credentials.serviceAccountKeyJson);
@@ -201,48 +204,13 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 
 								if (msgResponse.data.raw) {
 									const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
-									const parsedEmail: ParsedMail = await simpleParser(rawEmail);
-									const attachments = parsedEmail.attachments.map(
-										(attachment: Attachment) => ({
-											filename: attachment.filename || 'untitled',
-											contentType: attachment.contentType,
-											size: attachment.size,
-											content: attachment.content as Buffer,
-										})
+									yield this.parseRawEmail(
+										rawEmail,
+										msgResponse.data.id!,
+										userEmail,
+										labels.path,
+										labels.tags
 									);
-									const mapAddresses = (
-										addresses: AddressObject | AddressObject[] | undefined
-									): EmailAddress[] => {
-										if (!addresses) return [];
-										const addressArray = Array.isArray(addresses)
-											? addresses
-											: [addresses];
-										return addressArray.flatMap((a) =>
-											a.value.map((v) => ({
-												name: v.name,
-												address: v.address || '',
-											}))
-										);
-									};
-									const threadId = getThreadId(parsedEmail.headers);
-									yield {
-										id: msgResponse.data.id!,
-										threadId,
-										userEmail: userEmail,
-										eml: rawEmail,
-										from: mapAddresses(parsedEmail.from),
-										to: mapAddresses(parsedEmail.to),
-										cc: mapAddresses(parsedEmail.cc),
-										bcc: mapAddresses(parsedEmail.bcc),
-										subject: parsedEmail.subject || '',
-										body: parsedEmail.text || '',
-										html: parsedEmail.html || '',
-										headers: parsedEmail.headers,
-										attachments,
-										receivedAt: parsedEmail.date || new Date(),
-										path: labels.path,
-										tags: labels.tags,
-									};
 								}
 							} catch (error: any) {
 								if (error.code === 404) {
@@ -326,45 +294,13 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 
 						if (msgResponse.data.raw) {
 							const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
-							const parsedEmail: ParsedMail = await simpleParser(rawEmail);
-							const attachments = parsedEmail.attachments.map(
-								(attachment: Attachment) => ({
-									filename: attachment.filename || 'untitled',
-									contentType: attachment.contentType,
-									size: attachment.size,
-									content: attachment.content as Buffer,
-								})
+							yield this.parseRawEmail(
+								rawEmail,
+								msgResponse.data.id!,
+								userEmail,
+								labels.path,
+								labels.tags
 							);
-							const mapAddresses = (
-								addresses: AddressObject | AddressObject[] | undefined
-							): EmailAddress[] => {
-								if (!addresses) return [];
-								const addressArray = Array.isArray(addresses)
-									? addresses
-									: [addresses];
-								return addressArray.flatMap((a) =>
-									a.value.map((v) => ({ name: v.name, address: v.address || '' }))
-								);
-							};
-							const threadId = getThreadId(parsedEmail.headers);
-							yield {
-								id: msgResponse.data.id!,
-								threadId,
-								userEmail: userEmail,
-								eml: rawEmail,
-								from: mapAddresses(parsedEmail.from),
-								to: mapAddresses(parsedEmail.to),
-								cc: mapAddresses(parsedEmail.cc),
-								bcc: mapAddresses(parsedEmail.bcc),
-								subject: parsedEmail.subject || '',
-								body: parsedEmail.text || '',
-								html: parsedEmail.html || '',
-								headers: parsedEmail.headers,
-								attachments,
-								receivedAt: parsedEmail.date || new Date(),
-								path: labels.path,
-								tags: labels.tags,
-							};
 						}
 					} catch (error: any) {
 						if (error.code === 404) {
@@ -380,6 +316,63 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			}
 			pageToken = listResponse.data.nextPageToken ?? undefined;
 		} while (pageToken);
+	}
+
+	/**
+	 * Parses a raw email buffer into an EmailObject, extracting metadata via simpleParser.
+	 * In preserve-original mode, attachment binary content is omitted to save memory.
+	 */
+	private async parseRawEmail(
+		rawEmail: Buffer,
+		messageId: string,
+		userEmail: string,
+		path: string,
+		tags: string[]
+	): Promise<EmailObject> {
+		const tempFilePath = await writeEmailToTempFile(rawEmail);
+		const parsedEmail: ParsedMail = await simpleParser(rawEmail);
+
+		// In preserve-original mode, skip extracting full attachment binary content
+		// to avoid unnecessary memory allocation — the raw EML on disk is the source of truth.
+		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
+			filename: attachment.filename || 'untitled',
+			contentType: attachment.contentType,
+			size: attachment.size,
+			content: this.options.preserveOriginalFile
+				? Buffer.alloc(0)
+				: (attachment.content as Buffer),
+		}));
+
+		const mapAddresses = (
+			addresses: AddressObject | AddressObject[] | undefined
+		): EmailAddress[] => {
+			if (!addresses) return [];
+			const addressArray = Array.isArray(addresses) ? addresses : [addresses];
+			return addressArray.flatMap((a) =>
+				a.value.map((v) => ({ name: v.name, address: v.address || '' }))
+			);
+		};
+
+		const threadId = getThreadId(parsedEmail.headers);
+
+		return {
+			id: messageId,
+			threadId,
+			userEmail,
+			tempFilePath,
+			from: mapAddresses(parsedEmail.from),
+			to: mapAddresses(parsedEmail.to),
+			cc: mapAddresses(parsedEmail.cc),
+			bcc: mapAddresses(parsedEmail.bcc),
+			subject: parsedEmail.subject || '',
+			body: parsedEmail.text || '',
+			html: parsedEmail.html || '',
+			headers: parsedEmail.headers,
+			attachments,
+			receivedAt: parsedEmail.date || new Date(),
+			path,
+			tags,
+		};
 	}
 
 	public getUpdatedSyncState(userEmail: string): SyncState {

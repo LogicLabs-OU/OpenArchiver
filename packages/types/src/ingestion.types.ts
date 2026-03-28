@@ -120,6 +120,9 @@ export interface IngestionSource {
 	lastSyncFinishedAt?: Date | null;
 	lastSyncStatusMessage?: string | null;
 	syncState?: SyncState | null;
+	/** When true, the raw EML file is stored without any modification (no attachment
+	 * stripping). Required for GoBD / SEC 17a-4 compliance. Defaults to false. */
+	preserveOriginalFile: boolean;
 }
 
 /**
@@ -133,6 +136,8 @@ export interface CreateIngestionSourceDto {
 	name: string;
 	provider: IngestionProvider;
 	providerConfig: Record<string, any>;
+	/** Store the unmodified raw EML for GoBD compliance. Defaults to false. */
+	preserveOriginalFile?: boolean;
 }
 
 export interface UpdateIngestionSourceDto {

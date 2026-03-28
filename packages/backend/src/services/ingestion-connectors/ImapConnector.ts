@@ -5,19 +5,25 @@ import type {
 	SyncState,
 	MailboxUser,
 } from '@open-archiver/types';
-import type { IEmailConnector } from '../EmailProviderFactory';
+import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { config } from '../../config';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { writeEmailToTempFile } from './helpers/tempFile';
 
 export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
+	private options: ConnectorOptions;
 
-	constructor(private credentials: GenericImapCredentials) {
+	constructor(
+		private credentials: GenericImapCredentials,
+		options?: ConnectorOptions
+	) {
+		this.options = options ?? { preserveOriginalFile: false };
 		this.client = this.createClient();
 	}
 
@@ -298,12 +304,21 @@ export class ImapConnector implements IEmailConnector {
 	}
 
 	private async parseMessage(msg: any, mailboxPath: string): Promise<EmailObject> {
+		// Write raw bytes to temp file to keep large buffers off the JS heap
+		const tempFilePath = await writeEmailToTempFile(msg.source);
+
+		// Parse only for metadata extraction (read-only)
 		const parsedEmail: ParsedMail = await simpleParser(msg.source);
+
+		// In preserve-original mode, skip extracting full attachment binary content
+		// to avoid unnecessary memory allocation — the raw EML on disk is the source of truth.
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
 			filename: attachment.filename || 'untitled',
 			contentType: attachment.contentType,
 			size: attachment.size,
-			content: attachment.content as Buffer,
+			content: this.options.preserveOriginalFile
+				? Buffer.alloc(0)
+				: (attachment.content as Buffer),
 		}));
 
 		const mapAddresses = (
@@ -331,7 +346,7 @@ export class ImapConnector implements IEmailConnector {
 			headers: parsedEmail.headers,
 			attachments,
 			receivedAt: parsedEmail.date || new Date(),
-			eml: msg.source,
+			tempFilePath,
 			path: mailboxPath,
 		};
 	}

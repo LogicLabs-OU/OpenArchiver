@@ -6,9 +6,10 @@ import type {
 	SyncState,
 	MailboxUser,
 } from '@open-archiver/types';
-import type { IEmailConnector } from '../EmailProviderFactory';
+import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
+import { writeEmailToTempFile } from './helpers/tempFile';
 import { ConfidentialClientApplication, Configuration, LogLevel } from '@azure/msal-node';
 import { Client } from '@microsoft/microsoft-graph-client';
 import type { User, MailFolder } from 'microsoft-graph';
@@ -23,9 +24,11 @@ export class MicrosoftConnector implements IEmailConnector {
 	private graphClient: Client;
 	// Store delta tokens for each folder during a sync operation.
 	private newDeltaTokens: { [folderId: string]: string };
+	private options: ConnectorOptions;
 
-	constructor(credentials: Microsoft365Credentials) {
+	constructor(credentials: Microsoft365Credentials, options?: ConnectorOptions) {
 		this.credentials = credentials;
+		this.options = options ?? { preserveOriginalFile: false };
 		this.newDeltaTokens = {}; // Initialize as an empty object
 
 		const msalConfig: Configuration = {
@@ -299,12 +302,18 @@ export class MicrosoftConnector implements IEmailConnector {
 		userEmail: string,
 		path: string
 	): Promise<EmailObject> {
+		const tempFilePath = await writeEmailToTempFile(rawEmail);
 		const parsedEmail: ParsedMail = await simpleParser(rawEmail);
+
+		// In preserve-original mode, skip extracting full attachment binary content
+		// to avoid unnecessary memory allocation — the raw EML on disk is the source of truth.
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
 			filename: attachment.filename || 'untitled',
 			contentType: attachment.contentType,
 			size: attachment.size,
-			content: attachment.content as Buffer,
+			content: this.options.preserveOriginalFile
+				? Buffer.alloc(0)
+				: (attachment.content as Buffer),
 		}));
 		const mapAddresses = (
 			addresses: AddressObject | AddressObject[] | undefined
@@ -319,7 +328,7 @@ export class MicrosoftConnector implements IEmailConnector {
 		return {
 			id: messageId,
 			userEmail: userEmail,
-			eml: rawEmail,
+			tempFilePath,
 			from: mapAddresses(parsedEmail.from),
 			to: mapAddresses(parsedEmail.to),
 			cc: mapAddresses(parsedEmail.cc),

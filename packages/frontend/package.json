@@ -28,7 +28,8 @@
 		"svelte-persisted-store": "^0.12.0",
 		"sveltekit-i18n": "^2.4.2",
 		"tailwind-merge": "^3.3.1",
-		"tailwind-variants": "^1.0.0"
+		"tailwind-variants": "^1.0.0",
+		"tippy.js": "^6.3.7"
 	},
 	"devDependencies": {
 		"@internationalized/date": "^3.8.2",

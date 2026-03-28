@@ -21,6 +21,7 @@ import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { RetentionHook } from '../hooks/RetentionHook';
+import { logger } from '../config/logger';
 
 interface DbRecipients {
 	to: { name: string; address: string }[];
@@ -263,7 +264,13 @@ export class ArchivedEmailService {
 					}
 				}
 			} catch (error) {
-				console.error('Failed to delete email attachments', error);
+				logger.error(
+					{
+						emailId,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					'Failed to delete email attachments'
+				);
 				throw new Error('Failed to delete email attachments');
 			}
 		}

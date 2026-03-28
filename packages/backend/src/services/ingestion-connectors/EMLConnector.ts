@@ -5,10 +5,11 @@ import type {
 	SyncState,
 	MailboxUser,
 } from '@open-archiver/types';
-import type { IEmailConnector } from '../EmailProviderFactory';
+import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { Readable } from 'stream';
 import { createHash } from 'crypto';
@@ -27,8 +28,13 @@ const streamToBuffer = (stream: Readable): Promise<Buffer> => {
 
 export class EMLConnector implements IEmailConnector {
 	private storage: StorageService;
+	private options: ConnectorOptions;
 
-	constructor(private credentials: EMLImportCredentials) {
+	constructor(
+		private credentials: EMLImportCredentials,
+		options?: ConnectorOptions
+	) {
+		this.options = options ?? { preserveOriginalFile: false };
 		this.storage = new StorageService();
 	}
 
@@ -266,13 +272,18 @@ export class EMLConnector implements IEmailConnector {
 			emlBuffer = await streamToBuffer(input);
 		}
 
+		const tempFilePath = await writeEmailToTempFile(emlBuffer);
 		const parsedEmail: ParsedMail = await simpleParser(emlBuffer);
 
+		// In preserve-original mode, skip extracting full attachment binary content
+		// to avoid unnecessary memory allocation — the raw EML on disk is the source of truth.
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
 			filename: attachment.filename || 'untitled',
 			contentType: attachment.contentType,
 			size: attachment.size,
-			content: attachment.content as Buffer,
+			content: this.options.preserveOriginalFile
+				? Buffer.alloc(0)
+				: (attachment.content as Buffer),
 		}));
 
 		const mapAddresses = (
@@ -313,7 +324,7 @@ export class EMLConnector implements IEmailConnector {
 			headers: parsedEmail.headers,
 			attachments,
 			receivedAt: parsedEmail.date || new Date(),
-			eml: emlBuffer,
+			tempFilePath,
 			path,
 		};
 	}

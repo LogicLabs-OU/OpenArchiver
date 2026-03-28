@@ -1,4 +1,4 @@
-import { jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { relations } from 'drizzle-orm';
 
@@ -34,6 +34,7 @@ export const ingestionSources = pgTable('ingestion_sources', {
 	lastSyncFinishedAt: timestamp('last_sync_finished_at', { withTimezone: true }),
 	lastSyncStatusMessage: text('last_sync_status_message'),
 	syncState: jsonb('sync_state'),
+	preserveOriginalFile: boolean('preserve_original_file').notNull().default(false),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

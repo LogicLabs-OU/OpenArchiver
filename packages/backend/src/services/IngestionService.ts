@@ -22,6 +22,7 @@ import {
 	emailAttachments,
 } from '../database/schema';
 import { createHash, randomUUID } from 'crypto';
+import { readFile, unlink } from 'fs/promises';
 import { logger } from '../config/logger';
 import { SearchService } from './SearchService';
 import { config } from '../config/index';
@@ -420,6 +421,9 @@ export class IngestionService {
 		userEmail: string
 	): Promise<PendingEmail | null> {
 		try {
+			// Read the raw bytes from the temp file written by the connector
+			const rawEmlBuffer = await readFile(email.tempFilePath);
+
 			// Generate a unique message ID for the email. If the email already has a message-id header, use that.
 			// Otherwise, generate a new one based on the email's hash, source ID, and email ID.
 			const messageIdHeader = email.headers.get('message-id');
@@ -431,7 +435,7 @@ export class IngestionService {
 			}
 			if (!messageId) {
 				messageId = `generated-${createHash('sha256')
-					.update(email.eml ?? Buffer.from(email.body, 'utf-8'))
+					.update(rawEmlBuffer)
 					.digest('hex')}-${source.id}-${email.id}`;
 			}
 			// Check if an email with the same message ID has already been imported for the current ingestion source. This is to prevent duplicate imports when an email is present in multiple mailboxes (e.g., "Inbox" and "All Mail").
@@ -450,13 +454,70 @@ export class IngestionService {
 				return null;
 			}
 
-			const rawEmlBuffer = email.eml ?? Buffer.from(email.body, 'utf-8');
-			// Strip non-inline attachments from the .eml to avoid double-storing
+			const sanitizedPath = email.path ? email.path : '';
+			const emailPath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/emails/${sanitizedPath}${email.id}.eml`;
+
+			// GoBD / Preserve Original File mode: store the unmodified raw EML as-is.
+			// No attachment stripping, no attachment table records — the full MIME body
+			// including attachments is preserved in the single .eml file.
+			if (source.preserveOriginalFile) {
+				const emailHash = createHash('sha256').update(rawEmlBuffer).digest('hex');
+
+				// Message-level deduplication by file hash
+				const hashDuplicate = await db.query.archivedEmails.findFirst({
+					where: and(
+						eq(archivedEmails.storageHashSha256, emailHash),
+						eq(archivedEmails.ingestionSourceId, source.id)
+					),
+					columns: { id: true },
+				});
+
+				if (hashDuplicate) {
+					logger.info(
+						{ emailHash, ingestionSourceId: source.id },
+						'Skipping duplicate email (hash-level dedup, preserve original mode)'
+					);
+					return null;
+				}
+
+				// Store the unmodified raw buffer — no modifications
+				await storage.put(emailPath, rawEmlBuffer);
+
+				const [archivedEmail] = await db
+					.insert(archivedEmails)
+					.values({
+						ingestionSourceId: source.id,
+						userEmail,
+						threadId: email.threadId,
+						messageIdHeader: messageId,
+						providerMessageId: email.id,
+						sentAt: email.receivedAt,
+						subject: email.subject,
+						senderName: email.from[0]?.name,
+						senderEmail: email.from[0]?.address,
+						recipients: {
+							to: email.to,
+							cc: email.cc,
+							bcc: email.bcc,
+						},
+						storagePath: emailPath,
+						storageHashSha256: emailHash,
+						sizeBytes: rawEmlBuffer.length,
+						hasAttachments: email.attachments.length > 0,
+						path: email.path,
+						tags: email.tags,
+					})
+					.returning();
+
+				return {
+					archivedEmailId: archivedEmail.id,
+				};
+			}
+
+			// Default mode: strip non-inline attachments from the .eml to avoid double-storing
 			// attachment data (attachments are stored separately).
 			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer);
 			const emailHash = createHash('sha256').update(emlBuffer).digest('hex');
-			const sanitizedPath = email.path ? email.path : '';
-			const emailPath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/emails/${sanitizedPath}${email.id}.eml`;
 			await storage.put(emailPath, emlBuffer);
 
 			const [archivedEmail] = await db
@@ -564,6 +625,14 @@ export class IngestionService {
 				ingestionSourceId: source.id,
 			});
 			return null;
+		} finally {
+			// Always clean up the temp file, regardless of success or failure
+			await unlink(email.tempFilePath).catch((err) =>
+				logger.warn(
+					{ err, tempFilePath: email.tempFilePath },
+					'Failed to delete temp email file'
+				)
+			);
 		}
 	}
 }

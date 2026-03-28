@@ -45,8 +45,10 @@ export interface EmailObject {
 	attachments: EmailAttachment[];
 	/** The date and time when the email was received. */
 	receivedAt: Date;
-	/** An optional buffer containing the full raw EML content of the email, which is useful for archival and compliance purposes. */
-	eml?: Buffer;
+	/** Path to a temporary file on disk containing the raw EML bytes.
+	 * Connectors write the raw email to tmpdir() and pass only the path,
+	 * keeping large buffers off the JS heap between yield and processEmail(). */
+	tempFilePath: string;
 	/** The email address of the user whose mailbox this email belongs to. */
 	userEmail?: string;
 	/** The folder path of the email in the source mailbox. */

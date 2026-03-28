@@ -5,10 +5,11 @@ import type {
 	SyncState,
 	MailboxUser,
 } from '@open-archiver/types';
-import type { IEmailConnector } from '../EmailProviderFactory';
+import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { Readable, Transform } from 'stream';
 import { createHash } from 'crypto';
@@ -54,8 +55,13 @@ class MboxSplitter extends Transform {
 
 export class MboxConnector implements IEmailConnector {
 	private storage: StorageService;
+	private options: ConnectorOptions;
 
-	constructor(private credentials: MboxImportCredentials) {
+	constructor(
+		private credentials: MboxImportCredentials,
+		options?: ConnectorOptions
+	) {
+		this.options = options ?? { preserveOriginalFile: false };
 		this.storage = new StorageService();
 	}
 
@@ -164,14 +170,42 @@ export class MboxConnector implements IEmailConnector {
 		}
 	}
 
-	private async parseMessage(emlBuffer: Buffer, path: string): Promise<EmailObject> {
+	/**
+	 * Strips the mbox "From " envelope line from the raw buffer.
+	 * The mbox format prepends each message with a "From sender@... timestamp\n"
+	 * line that is NOT part of the RFC 5322 message. Storing this line in the
+	 * .eml would produce an invalid file and corrupt the SHA-256 hash for GoBD
+	 * compliance purposes.
+	 */
+	private stripMboxEnvelope(buffer: Buffer): Buffer {
+		// The "From " line ends at the first \n — everything after is the real RFC 5322 message.
+		const fromPrefix = Buffer.from('From ');
+		if (buffer.subarray(0, fromPrefix.length).equals(fromPrefix)) {
+			const newlineIndex = buffer.indexOf(0x0a); // \n
+			if (newlineIndex !== -1) {
+				return buffer.subarray(newlineIndex + 1);
+			}
+		}
+		return buffer;
+	}
+
+	private async parseMessage(rawMboxBuffer: Buffer, path: string): Promise<EmailObject> {
+		// Strip the mbox "From " envelope line before writing to temp file.
+		// This line is an mbox transport artifact, not part of the RFC 5322 message.
+		const emlBuffer = this.stripMboxEnvelope(rawMboxBuffer);
+
+		const tempFilePath = await writeEmailToTempFile(emlBuffer);
 		const parsedEmail: ParsedMail = await simpleParser(emlBuffer);
 
+		// In preserve-original mode, skip extracting full attachment binary content
+		// to avoid unnecessary memory allocation — the raw EML on disk is the source of truth.
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
 			filename: attachment.filename || 'untitled',
 			contentType: attachment.contentType,
 			size: attachment.size,
-			content: attachment.content as Buffer,
+			content: this.options.preserveOriginalFile
+				? Buffer.alloc(0)
+				: (attachment.content as Buffer),
 		}));
 
 		const mapAddresses = (
@@ -226,7 +260,7 @@ export class MboxConnector implements IEmailConnector {
 			headers: parsedEmail.headers,
 			attachments,
 			receivedAt: parsedEmail.date || new Date(),
-			eml: emlBuffer,
+			tempFilePath,
 			path: finalPath,
 		};
 	}

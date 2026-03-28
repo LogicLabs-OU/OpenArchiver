@@ -52,7 +52,11 @@
 			"retention_matching_policies": "Matching Policies",
 			"retention_delete_permanently": "Permanent Deletion",
 			"retention_scheduled_deletion": "Scheduled Deletion",
-			"retention_policy_overridden_by_label": "This policy is overridden by retention label "
+			"retention_policy_overridden_by_label": "This policy is overridden by retention label ",
+			"embedded_attachments": "Embedded Attachments",
+			"embedded": "Embedded",
+			"embedded_attachment_title": "Embedded Attachment",
+			"embedded_attachment_description": "This attachment is embedded in the original email file and cannot be downloaded separately. To get this attachment, download the complete email (.eml) file."
 		},
 		"ingestions": {
 			"title": "Ingestion Sources",
@@ -233,7 +237,9 @@
 				"heads_up": "Heads up!",
 				"org_wide_warning": "Please note that this is an organization-wide operation. This kind of ingestions will import and index <b>all</b> email inboxes in your organization. If you want to import only specific email inboxes, use the IMAP connector.",
 				"upload_failed": "Upload Failed, please try again",
-				"upload_network_error": "The server could not process the upload. The file may exceed the configured upload size limit (BODY_SIZE_LIMIT). For very large files, use the Local Path option instead."
+				"upload_network_error": "The server could not process the upload. The file may exceed the configured upload size limit (BODY_SIZE_LIMIT). For very large files, use the Local Path option instead.",
+				"preserve_original_file": "Preserve Original File",
+				"preserve_original_file_tooltip": "When checked: Stores the exact, unmodified email file as received from the server. No attachments are stripped. Required for GoBD (Germany) and SEC 17a-4 compliance.<br><br>When unchecked: Strips non-inline attachments and stores them separately with deduplication, saving storage space."
 			},
 			"role_form": {
 				"policies_json": "Policies (JSON)",

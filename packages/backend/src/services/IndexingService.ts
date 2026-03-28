@@ -12,7 +12,7 @@ import { DatabaseService } from './DatabaseService';
 import { archivedEmails, attachments, emailAttachments } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
-import { simpleParser } from 'mailparser';
+import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
 import { logger } from '../config/logger';
 
 interface DbRecipients {
@@ -351,9 +351,13 @@ export class IndexingService {
 					content: textContent,
 				});
 			} catch (error) {
-				console.error(
-					`Failed to extract text from attachment: ${attachment.filename}`,
-					error
+				logger.error(
+					{
+						filename: attachment.filename,
+						mimeType: attachment.mimeType,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					'Failed to extract text from attachment'
 				);
 			}
 		}
@@ -378,8 +382,6 @@ export class IndexingService {
 		attachments: Attachment[],
 		userEmail: string //the owner of the email inbox
 	): Promise<EmailDocument> {
-		const attachmentContents = await this.extractAttachmentContents(attachments);
-
 		const emailBodyStream = await this.storageService.get(email.storagePath);
 		const emailBodyBuffer = await streamToBuffer(emailBodyStream);
 		const parsedEmail = await simpleParser(emailBodyBuffer);
@@ -388,6 +390,20 @@ export class IndexingService {
 			parsedEmail.html ||
 			(await extractText(emailBodyBuffer, 'text/plain')) ||
 			'';
+
+		// If there are linked attachment records, extract text from storage (default mode).
+		// Otherwise, if the email has attachments but no records (preserve original file mode),
+		// extract attachment text directly from the parsed EML body.
+		let attachmentContents: { filename: string; content: string }[];
+		if (attachments.length > 0) {
+			attachmentContents = await this.extractAttachmentContents(attachments);
+		} else if (email.hasAttachments && parsedEmail.attachments.length > 0) {
+			attachmentContents = await this.extractInlineAttachmentContents(
+				parsedEmail.attachments
+			);
+		} else {
+			attachmentContents = [];
+		}
 
 		const recipients = email.recipients as DbRecipients;
 		// console.log('email.userEmail', email.userEmail);
@@ -404,6 +420,40 @@ export class IndexingService {
 			timestamp: new Date(email.sentAt).getTime(),
 			ingestionSourceId: email.ingestionSourceId,
 		};
+	}
+
+	/**
+	 * Extracts text content from attachments embedded in the parsed EML.
+	 * Used in preserve-original-file (GoBD) mode where no separate attachment
+	 * records exist — the full MIME body is stored unmodified, so we parse
+	 * attachments directly from the in-memory parsed email.
+	 */
+	private async extractInlineAttachmentContents(
+		parsedAttachments: ParsedAttachment[]
+	): Promise<{ filename: string; content: string }[]> {
+		const extracted: { filename: string; content: string }[] = [];
+		for (const attachment of parsedAttachments) {
+			try {
+				const textContent = await extractText(
+					attachment.content,
+					attachment.contentType || ''
+				);
+				extracted.push({
+					filename: attachment.filename || 'untitled',
+					content: textContent,
+				});
+			} catch (error) {
+				logger.warn(
+					{
+						filename: attachment.filename,
+						mimeType: attachment.contentType,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					'Failed to extract text from inline attachment in preserve-original mode'
+				);
+			}
+		}
+		return extracted;
 	}
 
 	private async extractAttachmentContents(

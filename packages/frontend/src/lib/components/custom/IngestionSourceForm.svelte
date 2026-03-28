@@ -11,7 +11,9 @@
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { api } from '$lib/api.client';
-	import { Loader2 } from 'lucide-svelte';
+	import { Loader2, Info } from 'lucide-svelte';
+	import tippy from 'tippy.js';
+	import 'tippy.js/dist/tippy.css';
 	import { t } from '$lib/translations';
 	let {
 		source = null,
@@ -56,6 +58,7 @@
 			secure: true,
 			allowInsecureCert: false,
 		},
+		preserveOriginalFile: source?.preserveOriginalFile ?? false,
 	});
 
 	$effect(() => {
@@ -439,6 +442,29 @@
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
+
+	<div class="grid grid-cols-4 items-center gap-4">
+		<div class="flex items-center gap-1 text-left">
+			<Label for="preserveOriginalFile"
+				>{$t('app.components.ingestion_source_form.preserve_original_file')}</Label
+			>
+			<span
+				use:tippy={{
+					allowHTML: true,
+					content: $t(
+						'app.components.ingestion_source_form.preserve_original_file_tooltip'
+					),
+					interactive: true,
+					delay: 500,
+				}}
+				class="text-muted-foreground cursor-help"
+			>
+				<Info class="h-4 w-4" />
+			</span>
+		</div>
+		<Checkbox id="preserveOriginalFile" bind:checked={formData.preserveOriginalFile} />
+	</div>
+
 	<Dialog.Footer>
 		<Button type="submit" disabled={isSubmitting || fileUploading}>
 			{#if isSubmitting}

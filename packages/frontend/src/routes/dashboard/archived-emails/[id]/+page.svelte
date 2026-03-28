@@ -29,6 +29,8 @@
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import type { LegalHold, EmailLegalHoldInfo } from '@open-archiver/types';
+	import PostalMime, { type Attachment as PostalAttachment } from 'postal-mime';
+	import { Paperclip } from 'lucide-svelte';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let email = $derived(data.email);
@@ -76,6 +78,51 @@
 
 	// --- Integrity report PDF download state (enterprise only) ---
 	let isDownloadingReport = $state(false);
+
+	// --- Embedded attachment state (parsed from raw EML) ---
+	/** Non-inline attachments parsed from the raw EML via postal-mime */
+	let embeddedAttachments = $state<PostalAttachment[]>([]);
+	let isEmbeddedAttachmentDialogOpen = $state(false);
+	let selectedEmbeddedFilename = $state('');
+
+	/** Parse raw EML to extract non-inline attachments for display */
+	$effect(() => {
+		async function parseEmlAttachments() {
+			const raw = email?.raw;
+			if (!raw) return;
+
+			try {
+				let buffer: Uint8Array;
+				if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'Buffer') {
+					buffer = new Uint8Array(
+						(raw as unknown as { type: 'Buffer'; data: number[] }).data
+					);
+				} else {
+					buffer = new Uint8Array(raw as unknown as ArrayLike<number>);
+				}
+
+				const parsed = await new PostalMime().parse(buffer);
+				// Filter to non-inline attachments (those with a filename and no contentId,
+				// or with disposition=attachment)
+				embeddedAttachments = parsed.attachments.filter(
+					(att) => att.filename && (att.disposition === 'attachment' || !att.contentId)
+				);
+			} catch (error) {
+				console.error('Failed to parse EML for embedded attachments:', error);
+			}
+		}
+		parseEmlAttachments();
+	});
+
+	/**
+	 * Opens the confirmation dialog when a user tries to download an
+	 * embedded attachment. Since embedded attachments are not stored
+	 * separately, the user must download the entire EML file.
+	 */
+	function handleEmbeddedAttachmentDownload(filename: string) {
+		selectedEmbeddedFilename = filename;
+		isEmbeddedAttachmentDialogOpen = true;
+	}
 
 	// React to form results for label and hold actions
 	$effect(() => {
@@ -304,6 +351,53 @@
 													download(
 														attachment.storagePath,
 														attachment.filename
+													)}
+											>
+												{$t('app.archive.download')}
+											</Button>
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+						{#if embeddedAttachments.length > 0}
+							<div>
+								<h3 class="font-semibold">
+									{$t('app.archive.embedded_attachments')}
+								</h3>
+								<ul class="mt-2 space-y-2">
+									{#each embeddedAttachments as attachment}
+										<li
+											class="flex items-center justify-between rounded-md border p-2"
+										>
+											<div class="flex min-w-0 items-center gap-2">
+												<Paperclip
+													class="text-muted-foreground h-4 w-4 flex-shrink-0"
+												/>
+												<span class="truncate">
+													{attachment.filename}
+													{#if typeof attachment.content === 'string'}
+														({formatBytes(attachment.content.length)})
+													{:else if attachment.content}
+														({formatBytes(
+															attachment.content.byteLength
+														)})
+													{/if}
+												</span>
+												<Badge
+													variant="secondary"
+													class="flex-shrink-0 text-xs"
+												>
+													{$t('app.archive.embedded')}
+												</Badge>
+											</div>
+											<Button
+												variant="outline"
+												size="sm"
+												class="ml-2 flex-shrink-0 text-xs"
+												onclick={() =>
+													handleEmbeddedAttachmentDownload(
+														attachment.filename || 'attachment'
 													)}
 											>
 												{$t('app.archive.download')}
@@ -916,6 +1010,38 @@
 				</Button>
 				<Dialog.Close>
 					<Button type="button" variant="secondary">{$t('app.archive.cancel')}</Button>
+				</Dialog.Close>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
+
+	<!-- Embedded attachment download confirmation modal -->
+	<Dialog.Root bind:open={isEmbeddedAttachmentDialogOpen}>
+		<Dialog.Content class="sm:max-w-lg">
+			<Dialog.Header>
+				<Dialog.Title>
+					{$t('app.archive.embedded_attachment_title')}
+				</Dialog.Title>
+				<Dialog.Description>
+					<span class="font-medium">{selectedEmbeddedFilename}</span>
+					<br /><br />
+					{$t('app.archive.embedded_attachment_description')}
+				</Dialog.Description>
+			</Dialog.Header>
+			<Dialog.Footer class="sm:justify-start">
+				<Button
+					type="button"
+					onclick={() => {
+						download(email.storagePath, `${email.subject || 'email'}.eml`);
+						isEmbeddedAttachmentDialogOpen = false;
+					}}
+				>
+					{$t('app.archive.download_eml')}
+				</Button>
+				<Dialog.Close>
+					<Button type="button" variant="secondary">
+						{$t('app.archive.cancel')}
+					</Button>
 				</Dialog.Close>
 			</Dialog.Footer>
 		</Dialog.Content>
