@@ -26,6 +26,7 @@ export const archivedEmails = pgTable(
 		isIndexed: boolean('is_indexed').notNull().default(false),
 		hasAttachments: boolean('has_attachments').notNull().default(false),
 		isOnLegalHold: boolean('is_on_legal_hold').notNull().default(false),
+		isJournaled: boolean('is_journaled').default(false),
 		archivedAt: timestamp('archived_at', { withTimezone: true }).notNull().defaultNow(),
 		path: text('path'),
 		tags: jsonb('tags'),

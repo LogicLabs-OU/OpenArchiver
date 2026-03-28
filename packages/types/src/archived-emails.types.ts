@@ -43,6 +43,7 @@ export interface ArchivedEmail {
 	isIndexed: boolean;
 	hasAttachments: boolean;
 	isOnLegalHold: boolean;
+	isJournaled: boolean | null;
 	archivedAt: Date;
 	attachments?: Attachment[];
 	raw?: Buffer;
