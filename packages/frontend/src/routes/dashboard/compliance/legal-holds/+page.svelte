@@ -186,10 +186,7 @@
 										action="?/toggleActive"
 										use:enhance={() => {
 											return async ({ result, update }) => {
-												if (
-													result.type === 'success' &&
-													result.data?.success !== false
-												) {
+												if (result.type === 'success') {
 													const newState = result.data
 														?.isActive as boolean;
 													setAlert({
@@ -205,10 +202,7 @@
 														duration: 3000,
 														show: true,
 													});
-												} else if (
-													result.type === 'success' &&
-													result.data?.success === false
-												) {
+												} else if (result.type === 'failure') {
 													setAlert({
 														type: 'error',
 														title: $t('app.legal_holds.update_error'),
@@ -275,7 +269,7 @@
 				isFormLoading = true;
 				return async ({ result, update }) => {
 					isFormLoading = false;
-					if (result.type === 'success' && result.data?.success !== false) {
+					if (result.type === 'success') {
 						isCreateOpen = false;
 						setAlert({
 							type: 'success',
@@ -284,7 +278,7 @@
 							duration: 3000,
 							show: true,
 						});
-					} else if (result.type === 'success' && result.data?.success === false) {
+					} else if (result.type === 'failure') {
 						setAlert({
 							type: 'error',
 							title: $t('app.legal_holds.create_error'),
@@ -353,7 +347,7 @@
 					isFormLoading = true;
 					return async ({ result, update }) => {
 						isFormLoading = false;
-						if (result.type === 'success' && result.data?.success !== false) {
+						if (result.type === 'success') {
 							isEditOpen = false;
 							selectedHold = null;
 							setAlert({
@@ -363,7 +357,7 @@
 								duration: 3000,
 								show: true,
 							});
-						} else if (result.type === 'success' && result.data?.success === false) {
+						} else if (result.type === 'failure') {
 							setAlert({
 								type: 'error',
 								title: $t('app.legal_holds.update_error'),
@@ -425,7 +419,7 @@
 					isFormLoading = true;
 					return async ({ result, update }) => {
 						isFormLoading = false;
-						if (result.type === 'success' && result.data?.success !== false) {
+						if (result.type === 'success') {
 							isBulkApplyOpen = false;
 							const count = result.data?.emailsLinked as number;
 							setAlert({
@@ -435,7 +429,7 @@
 								duration: 5000,
 								show: true,
 							});
-						} else if (result.type === 'success' && result.data?.success === false) {
+						} else if (result.type === 'failure') {
 							setAlert({
 								type: 'error',
 								title: $t('app.legal_holds.bulk_apply_error'),
@@ -539,7 +533,7 @@
 						isFormLoading = true;
 						return async ({ result, update }) => {
 							isFormLoading = false;
-							if (result.type === 'success' && result.data?.success !== false) {
+							if (result.type === 'success') {
 								isReleaseAllOpen = false;
 								const count = result.data?.emailsReleased as number;
 								setAlert({
@@ -550,14 +544,11 @@
 									show: true,
 								});
 								selectedHold = null;
-							} else {
+							} else if (result.type === 'failure') {
 								setAlert({
 									type: 'error',
 									title: $t('app.legal_holds.release_all_error'),
-									message:
-										result.type === 'success'
-											? String(result.data?.message ?? '')
-											: '',
+									message: String(result.data?.message ?? ''),
 									duration: 5000,
 									show: true,
 								});
@@ -605,7 +596,7 @@
 						isFormLoading = true;
 						return async ({ result, update }) => {
 							isFormLoading = false;
-							if (result.type === 'success' && result.data?.success !== false) {
+							if (result.type === 'success') {
 								isDeleteOpen = false;
 								setAlert({
 									type: 'success',
@@ -615,14 +606,11 @@
 									show: true,
 								});
 								selectedHold = null;
-							} else {
+							} else if (result.type === 'failure') {
 								setAlert({
 									type: 'error',
 									title: $t('app.legal_holds.delete_error'),
-									message:
-										result.type === 'success'
-											? String(result.data?.message ?? '')
-											: '',
+									message: String(result.data?.message ?? ''),
 									duration: 5000,
 									show: true,
 								});

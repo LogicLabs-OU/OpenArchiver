@@ -171,7 +171,7 @@
 				isFormLoading = true;
 				return async ({ result, update }) => {
 					isFormLoading = false;
-					if (result.type === 'success' && result.data?.success !== false) {
+					if (result.type === 'success') {
 						isCreateOpen = false;
 						setAlert({
 							type: 'success',
@@ -180,7 +180,7 @@
 							duration: 3000,
 							show: true,
 						});
-					} else if (result.type === 'success' && result.data?.success === false) {
+					} else if (result.type === 'failure') {
 						setAlert({
 							type: 'error',
 							title: $t('app.retention_labels.create_error'),
@@ -261,7 +261,7 @@
 					isFormLoading = true;
 					return async ({ result, update }) => {
 						isFormLoading = false;
-						if (result.type === 'success' && result.data?.success !== false) {
+						if (result.type === 'success') {
 							isEditOpen = false;
 							selectedLabel = null;
 							setAlert({
@@ -271,7 +271,7 @@
 								duration: 3000,
 								show: true,
 							});
-						} else if (result.type === 'success' && result.data?.success === false) {
+						} else if (result.type === 'failure') {
 							setAlert({
 								type: 'error',
 								title: $t('app.retention_labels.update_error'),
@@ -376,7 +376,7 @@
 						isDeleting = true;
 						return async ({ result, update }) => {
 							isDeleting = false;
-							if (result.type === 'success' && result.data?.success !== false) {
+							if (result.type === 'success') {
 								isDeleteOpen = false;
 								const action = result.data?.action;
 								setAlert({
@@ -390,14 +390,11 @@
 									show: true,
 								});
 								selectedLabel = null;
-							} else {
+							} else if (result.type === 'failure') {
 								setAlert({
 									type: 'error',
 									title: $t('app.retention_labels.delete_error'),
-									message:
-										result.type === 'success'
-											? String(result.data?.message ?? '')
-											: '',
+									message: String(result.data?.message ?? ''),
 									duration: 5000,
 									show: true,
 								});

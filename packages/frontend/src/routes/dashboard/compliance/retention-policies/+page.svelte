@@ -46,7 +46,7 @@
 
 	// React to form results (errors and evaluation results)
 	$effect(() => {
-		if (form && form.success === false && form.message) {
+		if (form && 'success' in form && form.success === false && form.message) {
 			toast.error(form.message);
 		}
 		if (form && 'evaluationResult' in form) {
@@ -449,8 +449,13 @@
 								isDeleteOpen = false;
 								selectedPolicy = null;
 								toast.success($t('app.retention_policies.delete_success'));
-							} else {
-								toast.error($t('app.retention_policies.delete_error'));
+							} else if (result.type === 'failure') {
+								toast.error(
+									String(
+										result.data?.message ??
+											$t('app.retention_policies.delete_error')
+									)
+								);
 							}
 							await update();
 						};

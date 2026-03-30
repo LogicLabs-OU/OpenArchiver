@@ -249,10 +249,7 @@
 										action="?/toggleStatus"
 										use:enhance={() => {
 											return async ({ result, update }) => {
-												if (
-													result.type === 'success' &&
-													result.data?.success !== false
-												) {
+												if (result.type === 'success') {
 													setAlert({
 														type: 'success',
 														title: $t('app.journaling.update_success'),
@@ -260,10 +257,7 @@
 														duration: 3000,
 														show: true,
 													});
-												} else if (
-													result.type === 'success' &&
-													result.data?.success === false
-												) {
+												} else if (result.type === 'failure') {
 													setAlert({
 														type: 'error',
 														title: $t('app.journaling.update_error'),
@@ -330,7 +324,7 @@
 				isFormLoading = true;
 				return async ({ result, update }) => {
 					isFormLoading = false;
-					if (result.type === 'success' && result.data?.success !== false) {
+					if (result.type === 'success') {
 						isCreateOpen = false;
 						setAlert({
 							type: 'success',
@@ -339,7 +333,7 @@
 							duration: 3000,
 							show: true,
 						});
-					} else if (result.type === 'success' && result.data?.success === false) {
+					} else if (result.type === 'failure') {
 						setAlert({
 							type: 'error',
 							title: $t('app.journaling.create_error'),
@@ -444,7 +438,7 @@
 					isFormLoading = true;
 					return async ({ result, update }) => {
 						isFormLoading = false;
-						if (result.type === 'success' && result.data?.success !== false) {
+						if (result.type === 'success') {
 							isEditOpen = false;
 							selectedSource = null;
 							setAlert({
@@ -454,7 +448,7 @@
 								duration: 3000,
 								show: true,
 							});
-						} else if (result.type === 'success' && result.data?.success === false) {
+						} else if (result.type === 'failure') {
 							setAlert({
 								type: 'error',
 								title: $t('app.journaling.update_error'),
@@ -670,7 +664,7 @@
 						isFormLoading = true;
 						return async ({ result, update }) => {
 							isFormLoading = false;
-							if (result.type === 'success' && result.data?.success !== false) {
+							if (result.type === 'success') {
 								isDeleteOpen = false;
 								setAlert({
 									type: 'success',
@@ -680,14 +674,11 @@
 									show: true,
 								});
 								selectedSource = null;
-							} else {
+							} else if (result.type === 'failure') {
 								setAlert({
 									type: 'error',
 									title: $t('app.journaling.delete_error'),
-									message:
-										result.type === 'success'
-											? String(result.data?.message ?? '')
-											: '',
+									message: String(result.data?.message ?? ''),
 									duration: 5000,
 									show: true,
 								});

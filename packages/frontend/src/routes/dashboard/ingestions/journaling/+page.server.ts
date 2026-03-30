@@ -1,5 +1,5 @@
 import { api } from '$lib/server/api';
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { JournalingSource } from '@open-archiver/types';
 
@@ -59,10 +59,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return {
+			return fail(response.status, {
 				success: false,
 				message: res.message || 'Failed to create journaling source.',
-			};
+			});
 		}
 
 		return { success: true };
@@ -97,10 +97,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return {
+			return fail(response.status, {
 				success: false,
 				message: res.message || 'Failed to update journaling source.',
-			};
+			});
 		}
 
 		return { success: true };
@@ -119,7 +119,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to update status.' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to update status.',
+			});
 		}
 
 		return { success: true, status };
@@ -135,12 +138,12 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return {
+			return fail(response.status, {
 				success: false,
 				message:
 					(res as { message?: string }).message ||
 					'Failed to regenerate routing address.',
-			};
+			});
 		}
 
 		return { success: true };
@@ -156,11 +159,11 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return {
+			return fail(response.status, {
 				success: false,
 				message:
 					(res as { message?: string }).message || 'Failed to delete journaling source.',
-			};
+			});
 		}
 
 		return { success: true };

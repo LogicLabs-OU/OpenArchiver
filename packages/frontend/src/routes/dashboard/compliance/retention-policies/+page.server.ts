@@ -1,5 +1,5 @@
 import { api } from '$lib/server/api';
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type {
 	RetentionPolicy,
@@ -76,7 +76,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to create policy' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to create policy',
+			});
 		}
 
 		return { success: true };
@@ -118,7 +121,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to update policy' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to update policy',
+			});
 		}
 
 		return { success: true };
@@ -134,7 +140,10 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return { success: false, message: res.message || 'Failed to delete policy' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to delete policy',
+			});
 		}
 
 		return { success: true };
@@ -173,11 +182,11 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return {
+			return fail(response.status, {
 				success: false,
 				message: res.message || 'Failed to evaluate policies',
 				evaluationResult: null as PolicyEvaluationResult | null,
-			};
+			});
 		}
 
 		return {

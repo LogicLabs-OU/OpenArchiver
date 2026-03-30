@@ -1,5 +1,5 @@
 import { api } from '$lib/server/api';
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { LegalHold, SearchQuery } from '@open-archiver/types';
 
@@ -40,7 +40,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to create legal hold.' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to create legal hold.',
+			});
 		}
 
 		return { success: true };
@@ -63,7 +66,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to update legal hold.' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to update legal hold.',
+			});
 		}
 
 		return { success: true };
@@ -82,7 +88,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to update legal hold.' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to update legal hold.',
+			});
 		}
 
 		return { success: true, isActive };
@@ -98,10 +107,10 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return {
+			return fail(response.status, {
 				success: false,
 				message: (res as { message?: string }).message || 'Failed to delete legal hold.',
-			};
+			});
 		}
 
 		return { success: true };
@@ -116,7 +125,7 @@ export const actions: Actions = {
 		try {
 			searchQuery = JSON.parse(rawQuery) as SearchQuery;
 		} catch {
-			return { success: false, message: 'Invalid search query format.' };
+			return fail(400, { success: false, message: 'Invalid search query format.' });
 		}
 
 		const response = await api(`/enterprise/legal-holds/holds/${holdId}/bulk-apply`, event, {
@@ -127,10 +136,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return {
+			return fail(response.status, {
 				success: false,
 				message: (res as { message?: string }).message || 'Bulk apply failed.',
-			};
+			});
 		}
 
 		const result = res as { emailsLinked: number };
@@ -148,11 +157,11 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return {
+			return fail(response.status, {
 				success: false,
 				message:
 					(res as { message?: string }).message || 'Failed to release emails from hold.',
-			};
+			});
 		}
 
 		const result = res as { emailsReleased: number };

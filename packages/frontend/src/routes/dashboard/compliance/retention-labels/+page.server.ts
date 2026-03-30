@@ -1,5 +1,5 @@
 import { api } from '$lib/server/api';
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { RetentionLabel } from '@open-archiver/types';
 
@@ -41,7 +41,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to create label' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to create label',
+			});
 		}
 
 		return { success: true };
@@ -70,7 +73,10 @@ export const actions: Actions = {
 		const res = await response.json();
 
 		if (!response.ok) {
-			return { success: false, message: res.message || 'Failed to update label' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to update label',
+			});
 		}
 
 		return { success: true };
@@ -86,7 +92,10 @@ export const actions: Actions = {
 
 		if (!response.ok) {
 			const res = await response.json().catch(() => ({}));
-			return { success: false, message: res.message || 'Failed to delete label' };
+			return fail(response.status, {
+				success: false,
+				message: res.message || 'Failed to delete label',
+			});
 		}
 
 		const result = await response.json();
