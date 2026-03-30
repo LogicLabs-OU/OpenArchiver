@@ -360,7 +360,7 @@
 								</ul>
 							</div>
 						{/if}
-						{#if embeddedAttachments.length > 0}
+						{#if embeddedAttachments.length > 0 && (!email.attachments || email.attachments.length === 0)}
 							<div>
 								<h3 class="font-semibold">
 									{$t('app.archive.embedded_attachments')}

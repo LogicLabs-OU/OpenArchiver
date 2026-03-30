@@ -14,7 +14,8 @@
 		"demoMode": "Deze bewerking is niet toegestaan in de demomodus.",
 		"unauthorized": "Ongeautoriseerd",
 		"unknown": "Er is een onbekende fout opgetreden",
-		"noPermissionToAction": "U heeft geen toestemming om de huidige actie uit te voeren."
+		"noPermissionToAction": "U heeft geen toestemming om de huidige actie uit te voeren.",
+		"deletion_disabled": "Verwijderen is uitgeschakeld voor deze instantie."
 	},
 	"user": {
 		"notFound": "Gebruiker niet gevonden",
@@ -58,5 +59,19 @@
 		"invalidFilePath": "Ongeldig bestandspad",
 		"fileNotFound": "Bestand niet gevonden",
 		"downloadError": "Fout bij het downloaden van het bestand"
+	},
+	"apiKeys": {
+		"generateSuccess": "API-sleutel succesvol gegenereerd.",
+		"deleteSuccess": "API-sleutel succesvol verwijderd."
+	},
+	"api": {
+		"requestBodyInvalid": "Ongeldige inhoud van het verzoek."
+	},
+	"upload": {
+		"invalid_request": "Het uploadverzoek is ongeldig of onjuist geformatteerd.",
+		"stream_error": "Er is een fout opgetreden bij het ontvangen van het bestand. Probeer het opnieuw.",
+		"parse_error": "De gegevens van het geüploade bestand konden niet worden verwerkt.",
+		"storage_error": "Het geüploade bestand kon niet worden opgeslagen. Probeer het opnieuw.",
+		"connection_error": "De verbinding is verbroken tijdens het uploaden."
 	}
 }

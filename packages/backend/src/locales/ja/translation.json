@@ -14,7 +14,8 @@
 		"demoMode": "この操作はデモモードでは許可されていません。",
 		"unauthorized": "不正なアクセス",
 		"unknown": "不明なエラーが発生しました",
-		"noPermissionToAction": "現在の操作を実行する権限がありません。"
+		"noPermissionToAction": "現在の操作を実行する権限がありません。",
+		"deletion_disabled": "このインスタンスでは削除が無効になっています。"
 	},
 	"user": {
 		"notFound": "ユーザーが見つかりません",
@@ -58,5 +59,19 @@
 		"invalidFilePath": "無効なファイルパス",
 		"fileNotFound": "ファイルが見つかりません",
 		"downloadError": "ファイルのダウンロード中にエラーが発生しました"
+	},
+	"apiKeys": {
+		"generateSuccess": "APIキーが正常に生成されました。",
+		"deleteSuccess": "APIキーが正常に削除されました。"
+	},
+	"api": {
+		"requestBodyInvalid": "リクエストボディが無効です。"
+	},
+	"upload": {
+		"invalid_request": "アップロードリクエストが無効または不正な形式です。",
+		"stream_error": "ファイルの受信中にエラーが発生しました。もう一度お試しください。",
+		"parse_error": "アップロードされたファイルのデータを処理できませんでした。",
+		"storage_error": "アップロードされたファイルを保存できませんでした。もう一度お試しください。",
+		"connection_error": "アップロード中に接続が切断されました。"
 	}
 }

@@ -14,7 +14,8 @@
 		"demoMode": "See toiming pole demorežiimis lubatud.",
 		"unauthorized": "Volitamata",
 		"unknown": "Ilmnes tundmatu viga",
-		"noPermissionToAction": "Teil pole praeguse toimingu tegemiseks luba."
+		"noPermissionToAction": "Teil pole praeguse toimingu tegemiseks luba.",
+		"deletion_disabled": "Kustutamine on selle eksemplari jaoks keelatud."
 	},
 	"user": {
 		"notFound": "Kasutajat ei leitud",
@@ -58,5 +59,19 @@
 		"invalidFilePath": "Kehtetu faili tee",
 		"fileNotFound": "Faili ei leitud",
 		"downloadError": "Faili allalaadimisel ilmnes viga"
+	},
+	"apiKeys": {
+		"generateSuccess": "API-võti genereeriti edukalt.",
+		"deleteSuccess": "API-võti kustutati edukalt."
+	},
+	"api": {
+		"requestBodyInvalid": "Vigane päringu sisu."
+	},
+	"upload": {
+		"invalid_request": "Üleslaadimispäring on vigane või valesti vormindatud.",
+		"stream_error": "Faili vastuvõtmisel ilmnes viga. Palun proovige uuesti.",
+		"parse_error": "Üleslaaditud faili andmeid ei õnnestunud töödelda.",
+		"storage_error": "Üleslaaditud faili salvestamine ebaõnnestus. Palun proovige uuesti.",
+		"connection_error": "Ühendus katkes üleslaadimise ajal."
 	}
 }

@@ -291,5 +291,43 @@ export const createIngestionRouter = (
 		ingestionController.triggerForceSync
 	);
 
+	/**
+	 * @openapi
+	 * /v1/ingestion-sources/{id}/unmerge:
+	 *   post:
+	 *     summary: Unmerge a child ingestion source
+	 *     description: Detaches a child source from its merge group, making it a standalone root source. Requires `update:ingestion` permission.
+	 *     operationId: unmergeIngestionSource
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     parameters:
+	 *       - name: id
+	 *         in: path
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     responses:
+	 *       '200':
+	 *         description: Source unmerged. Returns the updated source.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SafeIngestionSource'
+	 *       '400':
+	 *         description: Source is not merged into another source.
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '404':
+	 *         $ref: '#/components/responses/NotFound'
+	 */
+	router.post(
+		'/:id/unmerge',
+		requirePermission('update', 'ingestion'),
+		ingestionController.unmerge
+	);
+
 	return router;
 };

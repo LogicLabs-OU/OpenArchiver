@@ -1,4 +1,4 @@
-import { count, desc, eq, asc, and } from 'drizzle-orm';
+import { count, desc, eq, asc, and, inArray } from 'drizzle-orm';
 import { db } from '../database';
 import {
 	archivedEmails,
@@ -16,6 +16,7 @@ import type {
 } from '@open-archiver/types';
 import { StorageService } from './StorageService';
 import { SearchService } from './SearchService';
+import { IngestionService } from './IngestionService';
 import type { Readable } from 'stream';
 import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
@@ -59,7 +60,14 @@ export class ArchivedEmailService {
 	): Promise<PaginatedArchivedEmails> {
 		const offset = (page - 1) * limit;
 		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
-		const where = and(eq(archivedEmails.ingestionSourceId, ingestionSourceId), drizzleFilter);
+
+		// Expand to the full merge group so emails from children appear when browsing a root source
+		const groupIds = await IngestionService.findGroupSourceIds(ingestionSourceId);
+		const sourceFilter =
+			groupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, groupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, groupIds);
+		const where = and(sourceFilter, drizzleFilter);
 
 		const countQuery = db
 			.select({
@@ -137,12 +145,15 @@ export class ArchivedEmailService {
 
 		let threadEmails: ThreadEmail[] = [];
 
+		// Expand thread query to the full merge group so threads can span across merged sources
 		if (email.threadId) {
+			const groupIds = await IngestionService.findGroupSourceIds(email.ingestionSourceId);
+			const sourceFilter =
+				groupIds.length === 1
+					? eq(archivedEmails.ingestionSourceId, groupIds[0])
+					: inArray(archivedEmails.ingestionSourceId, groupIds);
 			threadEmails = await db.query.archivedEmails.findMany({
-				where: and(
-					eq(archivedEmails.threadId, email.threadId),
-					eq(archivedEmails.ingestionSourceId, email.ingestionSourceId)
-				),
+				where: and(eq(archivedEmails.threadId, email.threadId), sourceFilter),
 				orderBy: [asc(archivedEmails.sentAt)],
 				columns: {
 					id: true,

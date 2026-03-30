@@ -3,42 +3,93 @@
 	import * as Table from '$lib/components/ui/table';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { MoreHorizontal, Trash, RefreshCw } from 'lucide-svelte';
+	import { MoreHorizontal, Trash, RefreshCw, ChevronRight } from 'lucide-svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import IngestionSourceForm from '$lib/components/custom/IngestionSourceForm.svelte';
 	import { api } from '$lib/api.client';
-	import type { IngestionSource, CreateIngestionSourceDto } from '@open-archiver/types';
+	import type { SafeIngestionSource, CreateIngestionSourceDto } from '@open-archiver/types';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import { t } from '$lib/translations';
 
 	let { data }: { data: PageData } = $props();
-	let ingestionSources = $state(data.ingestionSources);
+	let ingestionSources = $state(data.ingestionSources as SafeIngestionSource[]);
 	let isDialogOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
-	let selectedSource = $state<IngestionSource | null>(null);
-	let sourceToDelete = $state<IngestionSource | null>(null);
+	let selectedSource = $state<SafeIngestionSource | null>(null);
+	let sourceToDelete = $state<SafeIngestionSource | null>(null);
 	let isDeleting = $state(false);
 	let selectedIds = $state<string[]>([]);
 	let isBulkDeleteDialogOpen = $state(false);
+	let isUnmergeDialogOpen = $state(false);
+	let sourceToUnmerge = $state<SafeIngestionSource | null>(null);
+	let isUnmerging = $state(false);
+	/** Tracks which root source groups are expanded in the table */
+	let expandedGroups = $state<Set<string>>(new Set());
+
+	// Group sources: roots (mergedIntoId is null/undefined) and their children
+	const rootSources = $derived(ingestionSources.filter((s) => !s.mergedIntoId));
+
+	/** Returns children for a given root source ID */
+	function getChildren(rootId: string): SafeIngestionSource[] {
+		return ingestionSources.filter((s) => s.mergedIntoId === rootId);
+	}
+
+	/** Returns aggregated status for a group.
+	 *  If the root is paused but children are still active, show 'active'
+	 *  so the group does not appear fully paused when children are running. */
+	function getGroupStatus(
+		root: SafeIngestionSource,
+		children: SafeIngestionSource[]
+	): SafeIngestionSource['status'] {
+		const all = [root, ...children];
+		if (all.some((s) => s.status === 'error')) return 'error';
+		if (all.some((s) => s.status === 'syncing')) return 'syncing';
+		if (all.some((s) => s.status === 'importing')) return 'importing';
+		if (all.every((s) => s.status === 'paused')) return 'paused';
+		// Root paused but some children are active/imported — show active so the
+		// group badge reflects that ingestion is still ongoing via the children.
+		if (
+			root.status === 'paused' &&
+			children.some((s) => ['active', 'imported', 'syncing', 'importing'].includes(s.status))
+		)
+			return 'partially_active';
+		if (all.every((s) => ['imported', 'active'].includes(s.status))) return 'active';
+		return root.status;
+	}
+
+	const toggleGroup = (rootId: string) => {
+		const next = new Set(expandedGroups);
+		if (next.has(rootId)) {
+			next.delete(rootId);
+		} else {
+			next.add(rootId);
+		}
+		expandedGroups = next;
+	};
 
 	const openCreateDialog = () => {
 		selectedSource = null;
 		isDialogOpen = true;
 	};
 
-	const openEditDialog = (source: IngestionSource) => {
-		selectedSource = source;
+	const openEditDialog = (source: SafeIngestionSource) => {
+		selectedSource = source as SafeIngestionSource;
 		isDialogOpen = true;
 	};
 
-	const openDeleteDialog = (source: IngestionSource) => {
+	const openDeleteDialog = (source: SafeIngestionSource) => {
 		sourceToDelete = source;
 		isDeleteDialogOpen = true;
 	};
+
+	/** Count of children that will be deleted alongside a root source */
+	const deleteChildCount = $derived(
+		sourceToDelete && !sourceToDelete.mergedIntoId ? getChildren(sourceToDelete.id).length : 0
+	);
 
 	const confirmDelete = async () => {
 		if (!sourceToDelete) return;
@@ -56,7 +107,11 @@
 				});
 				return;
 			}
-			ingestionSources = ingestionSources.filter((s) => s.id !== sourceToDelete!.id);
+			// Remove the deleted source and any children from state
+			const deletedId = sourceToDelete.id;
+			ingestionSources = ingestionSources.filter(
+				(s) => s.id !== deletedId && s.mergedIntoId !== deletedId
+			);
 			isDeleteDialogOpen = false;
 			sourceToDelete = null;
 		} finally {
@@ -77,16 +132,15 @@
 			});
 			return;
 		}
-		const updatedSources = ingestionSources.map((s) => {
+		ingestionSources = ingestionSources.map((s) => {
 			if (s.id === id) {
 				return { ...s, status: 'syncing' as const };
 			}
 			return s;
 		});
-		ingestionSources = updatedSources;
 	};
 
-	const handleToggle = async (source: IngestionSource) => {
+	const handleToggle = async (source: SafeIngestionSource) => {
 		try {
 			const isPaused = source.status === 'paused';
 			const newStatus = isPaused ? 'active' : 'paused';
@@ -126,6 +180,46 @@
 		}
 	};
 
+	const openUnmergeDialog = (source: SafeIngestionSource) => {
+		sourceToUnmerge = source;
+		isUnmergeDialogOpen = true;
+	};
+
+	const confirmUnmerge = async () => {
+		if (!sourceToUnmerge) return;
+		isUnmerging = true;
+		try {
+			const res = await api(`/ingestion-sources/${sourceToUnmerge.id}/unmerge`, {
+				method: 'POST',
+			});
+			if (!res.ok) {
+				const errorBody = await res.json();
+				throw Error(errorBody.message || 'Unmerge failed');
+			}
+			const updated: SafeIngestionSource = await res.json();
+			ingestionSources = ingestionSources.map((s) => (s.id === updated.id ? updated : s));
+			isUnmergeDialogOpen = false;
+			sourceToUnmerge = null;
+			setAlert({
+				type: 'success',
+				title: $t('app.ingestions.unmerge_success'),
+				message: '',
+				duration: 3000,
+				show: true,
+			});
+		} catch (e) {
+			setAlert({
+				type: 'error',
+				title: 'Failed to unmerge',
+				message: e instanceof Error ? e.message : JSON.stringify(e),
+				duration: 5000,
+				show: true,
+			});
+		} finally {
+			isUnmerging = false;
+		}
+	};
+
 	const handleBulkDelete = async () => {
 		isDeleting = true;
 		try {
@@ -143,7 +237,11 @@
 					return;
 				}
 			}
-			ingestionSources = ingestionSources.filter((s) => !selectedIds.includes(s.id));
+			// Remove deleted roots and their children from local state
+			// (backend cascades child deletion, so we mirror that here)
+			ingestionSources = ingestionSources.filter(
+				(s) => !selectedIds.includes(s.id) && !selectedIds.includes(s.mergedIntoId ?? '')
+			);
 			selectedIds = [];
 			isBulkDeleteDialogOpen = false;
 		} finally {
@@ -166,13 +264,25 @@
 					});
 				}
 			}
-			const updatedSources = ingestionSources.map((s) => {
+			// Backend cascades force sync to non-file-based children,
+			// so optimistically mark root + eligible children as syncing
+			const fileBasedProviders = ['pst_import', 'eml_import', 'mbox_import'];
+			ingestionSources = ingestionSources.map((s) => {
+				// Mark selected roots as syncing
 				if (selectedIds.includes(s.id)) {
+					return { ...s, status: 'syncing' as const };
+				}
+				// Mark non-file-based children of selected roots as syncing
+				if (
+					s.mergedIntoId &&
+					selectedIds.includes(s.mergedIntoId) &&
+					!fileBasedProviders.includes(s.provider) &&
+					(s.status === 'active' || s.status === 'error')
+				) {
 					return { ...s, status: 'syncing' as const };
 				}
 				return s;
 			});
-			ingestionSources = updatedSources;
 			selectedIds = [];
 		} catch (e) {
 			setAlert({
@@ -230,9 +340,11 @@
 		}
 	};
 
-	function getStatusClasses(status: IngestionSource['status']): string {
+	function getStatusClasses(status: SafeIngestionSource['status']): string {
 		switch (status) {
 			case 'active':
+				return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+			case 'partially_active':
 				return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
 			case 'imported':
 				return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
@@ -299,13 +411,13 @@
 						<Checkbox
 							onCheckedChange={(checked) => {
 								if (checked) {
-									selectedIds = ingestionSources.map((s) => s.id);
+									selectedIds = rootSources.map((s) => s.id);
 								} else {
 									selectedIds = [];
 								}
 							}}
-							checked={ingestionSources.length > 0 &&
-							selectedIds.length === ingestionSources.length
+							checked={rootSources.length > 0 &&
+							selectedIds.length === rootSources.length
 								? true
 								: ((selectedIds.length > 0 ? 'indeterminate' : false) as any)}
 						/>
@@ -319,8 +431,16 @@
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
-				{#if ingestionSources.length > 0}
-					{#each ingestionSources as source (source.id)}
+				{#if rootSources.length > 0}
+					{#each rootSources as source (source.id)}
+						{@const children = getChildren(source.id)}
+						{@const hasChildren = children.length > 0}
+						{@const isExpanded = expandedGroups.has(source.id)}
+						{@const displayStatus = hasChildren
+							? getGroupStatus(source, children)
+							: source.status}
+
+						<!-- Root row -->
 						<Table.Row>
 							<Table.Cell>
 								<Checkbox
@@ -337,11 +457,34 @@
 								/>
 							</Table.Cell>
 							<Table.Cell>
-								<a
-									class="link"
-									href="/dashboard/archived-emails?ingestionSourceId={source.id}"
-									>{source.name}</a
-								>
+								<div class="flex items-center gap-1">
+									{#if hasChildren}
+										<button
+											class="cursor-pointer rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+											onclick={() => toggleGroup(source.id)}
+											aria-label={isExpanded
+												? $t('app.ingestions.collapse')
+												: $t('app.ingestions.expand')}
+										>
+											<ChevronRight
+												class="h-4 w-4 transition-transform {isExpanded
+													? 'rotate-90'
+													: ''}"
+											/>
+										</button>
+									{/if}
+									<a
+										class="link"
+										href="/dashboard/archived-emails?ingestionSourceId={source.id}"
+										>{source.name}</a
+									>
+									{#if hasChildren}
+										<span class="text-muted-foreground ml-1 text-xs"
+											>({children.length}
+											{$t('app.ingestions.merged_sources')})</span
+										>
+									{/if}
+								</div>
 							</Table.Cell>
 							<Table.Cell class="capitalize"
 								>{source.provider.split('_').join(' ')}</Table.Cell
@@ -351,13 +494,13 @@
 									<HoverCard.Trigger>
 										<Badge
 											class="{getStatusClasses(
-												source.status
+												displayStatus
 											)} cursor-pointer capitalize"
 										>
-											{source.status.split('_').join(' ')}
+											{displayStatus.split('_').join(' ')}
 										</Badge>
 									</HoverCard.Trigger>
-									<HoverCard.Content class="{getStatusClasses(source.status)} ">
+									<HoverCard.Content class="{getStatusClasses(displayStatus)} ">
 										<div class="flex flex-col space-y-4 text-sm">
 											<p class=" font-mono">
 												<b>{$t('app.ingestions.last_sync_message')}:</b>
@@ -374,8 +517,6 @@
 									class="cursor-pointer"
 									checked={source.status !== 'paused'}
 									onCheckedChange={() => handleToggle(source)}
-									disabled={source.status === 'importing' ||
-										source.status === 'syncing'}
 								/>
 							</Table.Cell>
 							<Table.Cell
@@ -413,6 +554,120 @@
 								</DropdownMenu.Root>
 							</Table.Cell>
 						</Table.Row>
+
+						<!-- Child rows (shown when group is expanded) -->
+						{#if hasChildren && isExpanded}
+							{#each children as child (child.id)}
+								<Table.Row class="bg-muted/30">
+									<Table.Cell>
+										<!-- No checkbox for children -->
+									</Table.Cell>
+									<Table.Cell>
+										<div class="flex items-center gap-1 pl-6">
+											<span class="text-muted-foreground mr-1">└</span>
+											<!-- Child emails are stored under the root source — link to root -->
+											<a
+												class="link"
+												href="/dashboard/archived-emails?ingestionSourceId={child.mergedIntoId}"
+												>{child.name}</a
+											>
+										</div>
+									</Table.Cell>
+									<Table.Cell class="capitalize"
+										>{child.provider.split('_').join(' ')}</Table.Cell
+									>
+									<Table.Cell class="min-w-24">
+										<HoverCard.Root>
+											<HoverCard.Trigger>
+												<Badge
+													class="{getStatusClasses(
+														child.status
+													)} cursor-pointer capitalize"
+												>
+													{child.status.split('_').join(' ')}
+												</Badge>
+											</HoverCard.Trigger>
+											<HoverCard.Content
+												class="{getStatusClasses(child.status)} "
+											>
+												<div class="flex flex-col space-y-4 text-sm">
+													<p class=" font-mono">
+														<b
+															>{$t(
+																'app.ingestions.last_sync_message'
+															)}:</b
+														>
+														{child.lastSyncStatusMessage ||
+															$t('app.ingestions.empty')}
+													</p>
+												</div>
+											</HoverCard.Content>
+										</HoverCard.Root>
+									</Table.Cell>
+									<Table.Cell>
+										<Switch
+											id={`active-switch-${child.id}`}
+											class="cursor-pointer"
+											checked={child.status !== 'paused'}
+											onCheckedChange={() => handleToggle(child)}
+										/>
+									</Table.Cell>
+									<Table.Cell
+										>{new Date(
+											child.createdAt
+										).toLocaleDateString()}</Table.Cell
+									>
+									<Table.Cell class="text-right">
+										<DropdownMenu.Root>
+											<DropdownMenu.Trigger>
+												{#snippet child({ props })}
+													<Button
+														{...props}
+														variant="ghost"
+														class="h-8 w-8 p-0"
+													>
+														<span class="sr-only"
+															>{$t('app.ingestions.open_menu')}</span
+														>
+														<MoreHorizontal class="h-4 w-4" />
+													</Button>
+												{/snippet}
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content>
+												<DropdownMenu.Label
+													>{$t(
+														'app.ingestions.actions'
+													)}</DropdownMenu.Label
+												>
+												<DropdownMenu.Item
+													onclick={() => openEditDialog(child)}
+													>{$t('app.ingestions.edit')}</DropdownMenu.Item
+												>
+												<DropdownMenu.Item
+													onclick={() => handleSync(child.id)}
+													>{$t(
+														'app.ingestions.force_sync'
+													)}</DropdownMenu.Item
+												>
+												<DropdownMenu.Item
+													onclick={() => openUnmergeDialog(child)}
+												>
+													{$t('app.ingestions.unmerge')}
+												</DropdownMenu.Item>
+												<DropdownMenu.Separator />
+												<DropdownMenu.Item
+													class="text-red-600"
+													onclick={() => openDeleteDialog(child)}
+													>{$t(
+														'app.ingestions.delete'
+													)}</DropdownMenu.Item
+												>
+											</DropdownMenu.Content>
+										</DropdownMenu.Root>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
 					{/each}
 				{:else}
 					<Table.Row>
@@ -451,7 +706,11 @@
 				>
 			</Dialog.Description>
 		</Dialog.Header>
-		<IngestionSourceForm source={selectedSource} onSubmit={handleFormSubmit} />
+		<IngestionSourceForm
+			source={selectedSource}
+			existingSources={ingestionSources}
+			onSubmit={handleFormSubmit}
+		/>
 	</Dialog.Content>
 </Dialog.Root>
 
@@ -461,6 +720,13 @@
 			<Dialog.Title>{$t('app.ingestions.delete_confirmation_title')}</Dialog.Title>
 			<Dialog.Description>
 				{$t('app.ingestions.delete_confirmation_description')}
+				{#if deleteChildCount > 0}
+					<p class="mt-2 font-semibold text-red-600">
+						{$t('app.ingestions.delete_root_warning', {
+							count: deleteChildCount,
+						} as any)}
+					</p>
+				{/if}
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="sm:justify-start">
@@ -506,6 +772,34 @@
 					{$t('app.ingestions.confirm')}
 				{/if}</Button
 			>
+			<Dialog.Close>
+				<Button type="button" variant="secondary">{$t('app.ingestions.cancel')}</Button>
+			</Dialog.Close>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Unmerge confirmation modal -->
+<Dialog.Root bind:open={isUnmergeDialogOpen}>
+	<Dialog.Content class="sm:max-w-lg">
+		<Dialog.Header>
+			<Dialog.Title>{$t('app.ingestions.unmerge_confirmation_title')}</Dialog.Title>
+			<Dialog.Description>
+				{$t('app.ingestions.unmerge_confirmation_description')}
+			</Dialog.Description>
+		</Dialog.Header>
+		<ul class="text-muted-foreground my-2 ml-4 list-disc space-y-1 text-sm">
+			<li>{$t('app.ingestions.unmerge_warning_emails')}</li>
+			<li>{$t('app.ingestions.unmerge_warning_future')}</li>
+		</ul>
+		<Dialog.Footer class="sm:justify-start">
+			<Button type="button" variant="default" onclick={confirmUnmerge} disabled={isUnmerging}>
+				{#if isUnmerging}
+					{$t('app.ingestions.unmerging')}...
+				{:else}
+					{$t('app.ingestions.unmerge_confirm')}
+				{/if}
+			</Button>
 			<Dialog.Close>
 				<Button type="button" variant="secondary">{$t('app.ingestions.cancel')}</Button>
 			</Dialog.Close>

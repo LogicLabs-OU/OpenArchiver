@@ -37,3 +37,7 @@ Manage ingestion sources — the configured connections to email providers (Goog
 ## Force Sync
 
 <OAOperation operationId="triggerForceSync" />
+
+## Unmerge an Ingestion Source
+
+<OAOperation operationId="unmergeIngestionSource" />

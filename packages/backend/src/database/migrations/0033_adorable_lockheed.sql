@@ -1,0 +1,1 @@
+ALTER TABLE "ingestion_sources" ADD CONSTRAINT "ingestion_sources_merged_into_id_ingestion_sources_id_fk" FOREIGN KEY ("merged_into_id") REFERENCES "public"."ingestion_sources"("id") ON DELETE set null ON UPDATE no action;

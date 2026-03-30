@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { IngestionSource, CreateIngestionSourceDto } from '@open-archiver/types';
+	import type { SafeIngestionSource, CreateIngestionSourceDto } from '@open-archiver/types';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Checkbox } from '$lib/components/ui/checkbox';
@@ -11,15 +11,18 @@
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { api } from '$lib/api.client';
-	import { Loader2, Info } from 'lucide-svelte';
+	import { Loader2, Info, ChevronDown } from 'lucide-svelte';
 	import tippy from 'tippy.js';
 	import 'tippy.js/dist/tippy.css';
 	import { t } from '$lib/translations';
 	let {
 		source = null,
+		existingSources = [],
 		onSubmit,
 	}: {
-		source?: IngestionSource | null;
+		source?: SafeIngestionSource | null;
+		/** Existing root ingestion sources for the merge dropdown (create mode only) */
+		existingSources?: SafeIngestionSource[];
 		onSubmit: (data: CreateIngestionSourceDto) => Promise<void>;
 	} = $props();
 
@@ -50,10 +53,13 @@
 		},
 	];
 
+	/** Only show root sources (not children) in the merge dropdown */
+	const mergeableRootSources = $derived(existingSources.filter((s) => !s.mergedIntoId));
+
 	let formData: CreateIngestionSourceDto = $state({
 		name: source?.name ?? '',
 		provider: source?.provider ?? 'generic_imap',
-		providerConfig: source?.credentials ?? {
+		providerConfig: {
 			type: source?.provider ?? 'generic_imap',
 			secure: true,
 			allowInsecureCert: false,
@@ -71,16 +77,18 @@
 	);
 
 	let isSubmitting = $state(false);
-
 	let fileUploading = $state(false);
+	let showAdvanced = $state(false);
+	let mergeEnabled = $state(false);
 
-	let importMethod = $state<'upload' | 'local'>(
-		source?.credentials &&
-			'localFilePath' in source.credentials &&
-			source.credentials.localFilePath
-			? 'local'
-			: 'upload'
-	);
+	/** When merge is toggled off, clear the mergedIntoId */
+	$effect(() => {
+		if (!mergeEnabled) {
+			delete formData.mergedIntoId;
+		}
+	});
+
+	let importMethod = $state<'upload' | 'local'>('upload');
 
 	$effect(() => {
 		if (importMethod === 'upload') {
@@ -157,6 +165,13 @@
 			fileUploading = false;
 		}
 	};
+
+	const mergeTriggerContent = $derived(
+		formData.mergedIntoId
+			? (mergeableRootSources.find((s) => s.id === formData.mergedIntoId)?.name ??
+					$t('app.components.ingestion_source_form.merge_into_select'))
+			: $t('app.components.ingestion_source_form.merge_into_select')
+	);
 </script>
 
 <form onsubmit={handleSubmit} class="grid gap-4 py-4">
@@ -443,26 +458,98 @@
 		</Alert.Root>
 	{/if}
 
-	<div class="grid grid-cols-4 items-center gap-4">
-		<div class="flex items-center gap-1 text-left">
-			<Label for="preserveOriginalFile"
-				>{$t('app.components.ingestion_source_form.preserve_original_file')}</Label
-			>
-			<span
-				use:tippy={{
-					allowHTML: true,
-					content: $t(
-						'app.components.ingestion_source_form.preserve_original_file_tooltip'
-					),
-					interactive: true,
-					delay: 500,
-				}}
-				class="text-muted-foreground cursor-help"
-			>
-				<Info class="h-4 w-4" />
-			</span>
-		</div>
-		<Checkbox id="preserveOriginalFile" bind:checked={formData.preserveOriginalFile} />
+	<!-- Advanced Options (collapsible) -->
+	<div class="border-t pt-2">
+		<button
+			type="button"
+			class="text-muted-foreground flex w-full cursor-pointer items-center gap-1 text-sm font-medium"
+			onclick={() => (showAdvanced = !showAdvanced)}
+		>
+			<ChevronDown class="h-4 w-4 transition-transform {showAdvanced ? 'rotate-180' : ''}" />
+			{$t('app.components.ingestion_source_form.advanced_options')}
+		</button>
+
+		{#if showAdvanced}
+			<div class="mt-3 grid gap-4">
+				<div class="grid grid-cols-4 items-center gap-4">
+					<div class="flex items-center gap-1 text-left">
+						<Label for="preserveOriginalFile"
+							>{$t(
+								'app.components.ingestion_source_form.preserve_original_file'
+							)}</Label
+						>
+						<span
+							use:tippy={{
+								allowHTML: true,
+								content: $t(
+									'app.components.ingestion_source_form.preserve_original_file_tooltip'
+								),
+								interactive: true,
+								delay: 500,
+							}}
+							class="text-muted-foreground cursor-help"
+						>
+							<Info class="h-4 w-4" />
+						</span>
+					</div>
+					<Checkbox
+						id="preserveOriginalFile"
+						bind:checked={formData.preserveOriginalFile}
+					/>
+				</div>
+
+				<!-- Merge into existing ingestion (create mode only, when existing sources exist) -->
+				{#if !source && mergeableRootSources.length > 0}
+					<div class="grid grid-cols-4 items-center gap-4">
+						<div class="flex items-center gap-1 text-left">
+							<Label for="mergeEnabled"
+								>{$t('app.components.ingestion_source_form.merge_into')}</Label
+							>
+							<span
+								use:tippy={{
+									allowHTML: true,
+									content: $t(
+										'app.components.ingestion_source_form.merge_into_tooltip'
+									),
+									interactive: true,
+									delay: 500,
+								}}
+								class="text-muted-foreground cursor-help"
+							>
+								<Info class="h-4 w-4" />
+							</span>
+						</div>
+						<Checkbox id="mergeEnabled" bind:checked={mergeEnabled} />
+					</div>
+
+					{#if mergeEnabled}
+						<div class="grid grid-cols-4 items-center gap-4">
+							<div class="col-span-1"></div>
+							<div class="col-span-3">
+								<Select.Root
+									name="mergedIntoId"
+									bind:value={formData.mergedIntoId}
+									type="single"
+								>
+									<Select.Trigger class="w-full">
+										{mergeTriggerContent}
+									</Select.Trigger>
+									<Select.Content>
+										{#each mergeableRootSources as rootSource}
+											<Select.Item value={rootSource.id}>
+												{rootSource.name} ({rootSource.provider
+													.split('_')
+													.join(' ')})
+											</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</div>
+						</div>
+					{/if}
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<Dialog.Footer>

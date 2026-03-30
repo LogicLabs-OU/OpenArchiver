@@ -57,7 +57,7 @@ export default async (job: Job<ISyncCycleFinishedJob>) => {
 		// syncState was already merged incrementally by each process-mailbox job via
 		// SyncSessionService.recordMailboxResult() — no deepmerge needed here.
 		await IngestionService.update(ingestionSourceId, {
-			status,
+			status: source.status === 'paused' ? 'paused' : status, // Don't override paused status
 			lastSyncFinishedAt: new Date(),
 			lastSyncStatusMessage: message,
 		});

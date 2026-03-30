@@ -87,7 +87,19 @@
 			"confirm": "Confirm",
 			"cancel": "Cancel",
 			"bulk_delete_confirmation_title": "Are you sure you want to delete {{count}} selected ingestions?",
-			"bulk_delete_confirmation_description": "This will delete all archived emails, attachments, indexing, and files associated with these ingestions. If you only want to stop syncing new emails, you can pause the ingestions instead."
+			"bulk_delete_confirmation_description": "This will delete all archived emails, attachments, indexing, and files associated with these ingestions. If you only want to stop syncing new emails, you can pause the ingestions instead.",
+			"merged_sources": "merged sources",
+			"unmerge": "Unmerge",
+			"unmerge_success": "Source has been detached from its group.",
+			"unmerge_confirmation_title": "Unmerge this source?",
+			"unmerge_confirmation_description": "This will detach the child source from the group and make it a standalone ingestion. Be aware of the following:",
+			"unmerge_warning_emails": "Emails already ingested by this source are stored under the root source. They will remain with the root and will not be moved.",
+			"unmerge_warning_future": "Only new emails ingested after unmerging will be stored under this source.",
+			"unmerge_confirm": "Unmerge",
+			"unmerging": "Unmerging",
+			"delete_root_warning": "This ingestion has {{count}} merged source(s). Deleting it will also delete all merged sources and their data.",
+			"expand": "Expand",
+			"collapse": "Collapse"
 		},
 		"search": {
 			"title": "Search",
@@ -238,6 +250,11 @@
 				"org_wide_warning": "Please note that this is an organization-wide operation. This kind of ingestions will import and index <b>all</b> email inboxes in your organization. If you want to import only specific email inboxes, use the IMAP connector.",
 				"upload_failed": "Upload Failed, please try again",
 				"upload_network_error": "The server could not process the upload. The file may exceed the configured upload size limit (BODY_SIZE_LIMIT). For very large files, use the Local Path option instead.",
+				"merge_into": "Merge into existing ingestion",
+				"merge_into_description": "Emails from this source will be grouped with the selected ingestion. Both sources sync independently but emails appear together.",
+				"merge_into_tooltip": "When merging, this new source becomes a child of the selected root ingestion. All emails fetched by this source will be physically stored under the root ingestion — not this one.<br><br>The root ingestion's <b>Preserve Original File</b> (GoBD compliance) setting governs the entire group. The setting on this form is ignored if merging is enabled.<br><br>Both sources sync independently on their own schedule.",
+				"merge_into_select": "Select ingestion to merge into",
+				"advanced_options": "Advanced Options",
 				"preserve_original_file": "Preserve Original File",
 				"preserve_original_file_tooltip": "When checked: Stores the exact, unmodified email file as received from the server. No attachments are stripped. Required for GoBD (Germany) and SEC 17a-4 compliance.<br><br>When unchecked: Strips non-inline attachments and stores them separately with deduplication, saving storage space."
 			},
@@ -704,7 +721,9 @@
 			"could_not_load_message": "An unexpected error occurred.",
 			"revalidate": "Revalidate License",
 			"revalidating": "Revalidating...",
-			"revalidate_success": "License revalidated successfully."
+			"revalidate_success": "License revalidated successfully.",
+			"revoked_grace_period": "on {{date}}",
+			"revoked_immediately": "immediately"
 		}
 	}
 }

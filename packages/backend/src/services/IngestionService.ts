@@ -8,7 +8,7 @@ import type {
 	IngestionProvider,
 	PendingEmail,
 } from '@open-archiver/types';
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
 import { ingestionQueue } from '../jobs/queues';
@@ -61,14 +61,22 @@ export class IngestionService {
 		actor: User,
 		actorIp: string
 	): Promise<IngestionSource> {
-		const { providerConfig, ...rest } = dto;
+		const { providerConfig, mergedIntoId, ...rest } = dto;
 		const encryptedCredentials = CryptoService.encryptObject(providerConfig);
+
+		// Resolve merge target: if mergedIntoId points to a child, follow to the root.
+		let resolvedMergedIntoId: string | undefined;
+		if (mergedIntoId) {
+			const target = await this.findById(mergedIntoId);
+			resolvedMergedIntoId = target.mergedIntoId ?? target.id;
+		}
 
 		const valuesToInsert = {
 			userId,
 			...rest,
 			status: 'pending_auth' as const,
 			credentials: encryptedCredentials,
+			mergedIntoId: resolvedMergedIntoId ?? null,
 		};
 
 		const [newSource] = await db.insert(ingestionSources).values(valuesToInsert).returning();
@@ -207,6 +215,60 @@ export class IngestionService {
 		return decryptedSource;
 	}
 
+	/**
+	 * Returns all ingestionSourceId values in a merge group given any member's ID.
+	 * If the source is standalone (no parent, no children), returns just its own ID.
+	 */
+	public static async findGroupSourceIds(sourceId: string): Promise<string[]> {
+		const source = await this.findById(sourceId);
+		const rootId = source.mergedIntoId ?? source.id;
+
+		const children = await db
+			.select({ id: ingestionSources.id })
+			.from(ingestionSources)
+			.where(eq(ingestionSources.mergedIntoId, rootId));
+
+		return [rootId, ...children.map((c) => c.id)];
+	}
+
+	/**
+	 * Detaches a child source from its merge group, making it standalone.
+	 */
+	public static async unmerge(
+		id: string,
+		actor: User,
+		actorIp: string
+	): Promise<IngestionSource> {
+		const source = await this.findById(id);
+		if (!source.mergedIntoId) {
+			throw new Error('Source is not merged into another source.');
+		}
+
+		const [updated] = await db
+			.update(ingestionSources)
+			.set({ mergedIntoId: null })
+			.where(eq(ingestionSources.id, id))
+			.returning();
+
+		await this.auditService.createAuditLog({
+			actorIdentifier: actor.id,
+			actionType: 'UPDATE',
+			targetType: 'IngestionSource',
+			targetId: id,
+			actorIp,
+			details: {
+				action: 'unmerge',
+				previousParentId: source.mergedIntoId,
+			},
+		});
+
+		const decrypted = this.decryptSource(updated);
+		if (!decrypted) {
+			throw new Error('Failed to decrypt unmerged source.');
+		}
+		return decrypted;
+	}
+
 	public static async delete(
 		id: string,
 		actor: User,
@@ -219,6 +281,18 @@ export class IngestionService {
 		const source = await this.findById(id);
 		if (!source) {
 			throw new Error('Ingestion source not found');
+		}
+
+		// If this is a root source with children, delete all children first
+		if (!source.mergedIntoId) {
+			const children = await db
+				.select({ id: ingestionSources.id })
+				.from(ingestionSources)
+				.where(eq(ingestionSources.mergedIntoId, id));
+
+			for (const child of children) {
+				await this.delete(child.id, actor, actorIp, force);
+			}
 		}
 
 		// Delete all emails and attachments from storage
@@ -327,6 +401,32 @@ export class IngestionService {
 		});
 
 		await ingestionQueue.add('continuous-sync', { ingestionSourceId: source.id });
+
+		// If this is a root source, also trigger sync for all non-file-based active/error children
+		if (!source.mergedIntoId) {
+			const fileBasedProviders = this.returnFileBasedIngestions();
+			const children = await db
+				.select({
+					id: ingestionSources.id,
+					provider: ingestionSources.provider,
+					status: ingestionSources.status,
+				})
+				.from(ingestionSources)
+				.where(eq(ingestionSources.mergedIntoId, id));
+
+			for (const child of children) {
+				if (
+					!fileBasedProviders.includes(child.provider) &&
+					(child.status === 'active' || child.status === 'error')
+				) {
+					logger.info(
+						{ childId: child.id, parentId: id },
+						'Cascading force sync to child source.'
+					);
+					await ingestionQueue.add('continuous-sync', { ingestionSourceId: child.id });
+				}
+			}
+		}
 	}
 
 	public static async performBulkImport(
@@ -396,14 +496,23 @@ export class IngestionService {
 	 * Pre-fetch duplicate check to avoid unnecessary API calls during ingestion.
 	 * Checks both providerMessageId (for Google/Microsoft API IDs) and
 	 * messageIdHeader (for IMAP/PST/EML/Mbox RFC Message-IDs and pre-migration rows).
+	 *
+	 * The check is scoped to the full merge group so that emails already archived
+	 * by a sibling source are not re-downloaded and stored again.
 	 */
 	public static async doesEmailExist(
 		messageId: string,
 		ingestionSourceId: string
 	): Promise<boolean> {
+		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
+		const sourceFilter =
+			groupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, groupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, groupIds);
+
 		const existingEmail = await db.query.archivedEmails.findFirst({
 			where: and(
-				eq(archivedEmails.ingestionSourceId, ingestionSourceId),
+				sourceFilter,
 				or(
 					eq(archivedEmails.providerMessageId, messageId),
 					eq(archivedEmails.messageIdHeader, messageId)
@@ -424,6 +533,13 @@ export class IngestionService {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
 
+			// If this source is a child in a merge group, redirect all storage and DB
+			// ownership to the root source. Child sources are "assistants" — they fetch
+			// emails on behalf of the root but never own any stored content.
+			const effectiveSource = source.mergedIntoId
+				? await IngestionService.findById(source.mergedIntoId)
+				: source;
+
 			// Generate a unique message ID for the email. If the email already has a message-id header, use that.
 			// Otherwise, generate a new one based on the email's hash, source ID, and email ID.
 			const messageIdHeader = email.headers.get('message-id');
@@ -438,12 +554,17 @@ export class IngestionService {
 					.update(rawEmlBuffer)
 					.digest('hex')}-${source.id}-${email.id}`;
 			}
-			// Check if an email with the same message ID has already been imported for the current ingestion source. This is to prevent duplicate imports when an email is present in multiple mailboxes (e.g., "Inbox" and "All Mail").
+			// Check if an email with the same message ID has already been imported
+			// within the merge group. This prevents duplicate imports when the same
+			// email exists in multiple mailboxes or across merged ingestion sources.
+			const groupIds = await IngestionService.findGroupSourceIds(source.id);
+			const groupSourceFilter =
+				groupIds.length === 1
+					? eq(archivedEmails.ingestionSourceId, groupIds[0])
+					: inArray(archivedEmails.ingestionSourceId, groupIds);
+
 			const existingEmail = await db.query.archivedEmails.findFirst({
-				where: and(
-					eq(archivedEmails.messageIdHeader, messageId),
-					eq(archivedEmails.ingestionSourceId, source.id)
-				),
+				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
 			});
 
 			if (existingEmail) {
@@ -455,26 +576,29 @@ export class IngestionService {
 			}
 
 			const sanitizedPath = email.path ? email.path : '';
-			const emailPath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/emails/${sanitizedPath}${email.id}.eml`;
+			// Use effectiveSource (root) for storage path and DB ownership.
+			// Child sources are assistants; all content physically belongs to the root.
+			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.name.replaceAll(' ', '-')}-${effectiveSource.id}/emails/${sanitizedPath}${email.id}.eml`;
 
 			// GoBD / Preserve Original File mode: store the unmodified raw EML as-is.
 			// No attachment stripping, no attachment table records — the full MIME body
 			// including attachments is preserved in the single .eml file.
-			if (source.preserveOriginalFile) {
+			// Use the root (effectiveSource) compliance mode as authoritative.
+			if (effectiveSource.preserveOriginalFile) {
 				const emailHash = createHash('sha256').update(rawEmlBuffer).digest('hex');
 
-				// Message-level deduplication by file hash
+				// Message-level deduplication by file hash, scoped to the effective (root) source
 				const hashDuplicate = await db.query.archivedEmails.findFirst({
 					where: and(
 						eq(archivedEmails.storageHashSha256, emailHash),
-						eq(archivedEmails.ingestionSourceId, source.id)
+						eq(archivedEmails.ingestionSourceId, effectiveSource.id)
 					),
 					columns: { id: true },
 				});
 
 				if (hashDuplicate) {
 					logger.info(
-						{ emailHash, ingestionSourceId: source.id },
+						{ emailHash, ingestionSourceId: effectiveSource.id },
 						'Skipping duplicate email (hash-level dedup, preserve original mode)'
 					);
 					return null;
@@ -486,7 +610,8 @@ export class IngestionService {
 				const [archivedEmail] = await db
 					.insert(archivedEmails)
 					.values({
-						ingestionSourceId: source.id,
+						// Always assign to root (effectiveSource)
+						ingestionSourceId: effectiveSource.id,
 						userEmail,
 						threadId: email.threadId,
 						messageIdHeader: messageId,
@@ -523,7 +648,8 @@ export class IngestionService {
 			const [archivedEmail] = await db
 				.insert(archivedEmails)
 				.values({
-					ingestionSourceId: source.id,
+					// Always assign to root (effectiveSource)
+					ingestionSourceId: effectiveSource.id,
 					userEmail,
 					threadId: email.threadId,
 					messageIdHeader: messageId,
@@ -553,54 +679,45 @@ export class IngestionService {
 						.update(attachmentBuffer)
 						.digest('hex');
 
-					// Check if an attachment with the same hash already exists for this source
+					// Check if an attachment with the same hash already exists for the root source
 					const existingAttachment = await db.query.attachments.findFirst({
 						where: and(
 							eq(attachmentsSchema.contentHashSha256, attachmentHash),
-							eq(attachmentsSchema.ingestionSourceId, source.id)
+							eq(attachmentsSchema.ingestionSourceId, effectiveSource.id)
 						),
 					});
 
-					let storagePath: string;
+					let attachmentId: string;
 
 					if (existingAttachment) {
-						// If it exists, reuse the storage path and don't save the file again
-						storagePath = existingAttachment.storagePath;
+						attachmentId = existingAttachment.id;
 						logger.info(
 							{
 								attachmentHash,
-								ingestionSourceId: source.id,
-								reusedPath: storagePath,
+								ingestionSourceId: effectiveSource.id,
+								reusedPath: existingAttachment.storagePath,
 							},
 							'Reusing existing attachment file for deduplication.'
 						);
 					} else {
-						// If it's a new attachment, create a unique path and save it
+						// New attachment: store under the root source's folder
 						const uniqueId = randomUUID().slice(0, 7);
-						storagePath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/attachments/${uniqueId}-${attachment.filename}`;
-						await storage.put(storagePath, attachmentBuffer);
-					}
-
-					let attachmentRecord = existingAttachment;
-
-					if (!attachmentRecord) {
-						// If it's a new attachment, create a unique path and save it
-						const uniqueId = randomUUID().slice(0, 5);
-						const storagePath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/attachments/${uniqueId}-${attachment.filename}`;
+						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.name.replaceAll(' ', '-')}-${effectiveSource.id}/attachments/${uniqueId}-${attachment.filename}`;
 						await storage.put(storagePath, attachmentBuffer);
 
-						// Insert a new attachment record
-						[attachmentRecord] = await db
+						const [newRecord] = await db
 							.insert(attachmentsSchema)
 							.values({
 								filename: attachment.filename,
 								mimeType: attachment.contentType,
 								sizeBytes: attachment.size,
 								contentHashSha256: attachmentHash,
-								storagePath: storagePath,
-								ingestionSourceId: source.id,
+								storagePath,
+								// Always assign attachment ownership to root (effectiveSource)
+								ingestionSourceId: effectiveSource.id,
 							})
 							.returning();
+						attachmentId = newRecord.id;
 					}
 
 					// Link the attachment record (either new or existing) to the email
@@ -608,7 +725,7 @@ export class IngestionService {
 						.insert(emailAttachments)
 						.values({
 							emailId: archivedEmail.id,
-							attachmentId: attachmentRecord.id,
+							attachmentId,
 						})
 						.onConflictDoNothing();
 				}

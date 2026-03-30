@@ -14,7 +14,8 @@
 		"demoMode": "Esta operación no está permitida en modo de demostración.",
 		"unauthorized": "No autorizado",
 		"unknown": "Ocurrió un error desconocido",
-		"noPermissionToAction": "No tienes permiso para realizar la acción actual."
+		"noPermissionToAction": "No tienes permiso para realizar la acción actual.",
+		"deletion_disabled": "La eliminación está deshabilitada para esta instancia."
 	},
 	"user": {
 		"notFound": "Usuario no encontrado",
@@ -58,5 +59,19 @@
 		"invalidFilePath": "Ruta de archivo no válida",
 		"fileNotFound": "Archivo no encontrado",
 		"downloadError": "Error al descargar el archivo"
+	},
+	"apiKeys": {
+		"generateSuccess": "Clave de API generada correctamente.",
+		"deleteSuccess": "Clave de API eliminada correctamente."
+	},
+	"api": {
+		"requestBodyInvalid": "El cuerpo de la solicitud no es válido."
+	},
+	"upload": {
+		"invalid_request": "La solicitud de carga no es válida o está malformada.",
+		"stream_error": "Se produjo un error al recibir el archivo. Por favor, inténtalo de nuevo.",
+		"parse_error": "No se pudieron procesar los datos del archivo cargado.",
+		"storage_error": "No se pudo guardar el archivo cargado. Por favor, inténtalo de nuevo.",
+		"connection_error": "La conexión se perdió durante la carga."
 	}
 }

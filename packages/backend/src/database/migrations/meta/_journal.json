@@ -225,6 +225,20 @@
       "when": 1774623960683,
       "tag": "0031_bouncy_boomerang",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1774709286830,
+      "tag": "0032_exotic_the_twelve",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1774719684064,
+      "tag": "0033_adorable_lockheed",
+      "breakpoints": true
     }
   ]
 }

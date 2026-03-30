@@ -35,7 +35,8 @@ export type IngestionStatus =
 	| 'syncing'
 	| 'importing'
 	| 'auth_success'
-	| 'imported';
+	| 'imported'
+	| 'partially_active'; // For sources with merged children where some are active and others are not
 
 export interface BaseIngestionCredentials {
 	type: IngestionProvider;
@@ -123,6 +124,9 @@ export interface IngestionSource {
 	/** When true, the raw EML file is stored without any modification (no attachment
 	 * stripping). Required for GoBD / SEC 17a-4 compliance. Defaults to false. */
 	preserveOriginalFile: boolean;
+	/** The ID of the root ingestion source this child is merged into.
+	 *  Null or undefined when this source is a standalone root. */
+	mergedIntoId?: string | null;
 }
 
 /**
@@ -138,6 +142,8 @@ export interface CreateIngestionSourceDto {
 	providerConfig: Record<string, any>;
 	/** Store the unmodified raw EML for GoBD compliance. Defaults to false. */
 	preserveOriginalFile?: boolean;
+	/** Merge this new source into an existing root source's group. */
+	mergedIntoId?: string;
 }
 
 export interface UpdateIngestionSourceDto {
@@ -149,6 +155,8 @@ export interface UpdateIngestionSourceDto {
 	lastSyncFinishedAt?: Date;
 	lastSyncStatusMessage?: string;
 	syncState?: SyncState;
+	/** Set or clear the merge parent. Use null to unmerge. */
+	mergedIntoId?: string | null;
 }
 
 export interface IContinuousSyncJob {

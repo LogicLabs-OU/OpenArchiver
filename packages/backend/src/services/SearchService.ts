@@ -9,6 +9,7 @@ import type {
 } from '@open-archiver/types';
 import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
+import { IngestionService } from './IngestionService';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -75,13 +76,24 @@ export class SearchService {
 		};
 
 		if (filters) {
-			const filterStrings = Object.entries(filters).map(([key, value]) => {
-				if (typeof value === 'string') {
-					return `${key} = '${value}'`;
+			const filterParts: string[] = [];
+			for (const [key, value] of Object.entries(filters)) {
+				// Expand ingestionSourceId to the full merge group
+				if (key === 'ingestionSourceId' && typeof value === 'string') {
+					const groupIds = await IngestionService.findGroupSourceIds(value);
+					if (groupIds.length === 1) {
+						filterParts.push(`ingestionSourceId = '${groupIds[0]}'`);
+					} else {
+						const inList = groupIds.map((id) => `'${id}'`).join(', ');
+						filterParts.push(`ingestionSourceId IN [${inList}]`);
+					}
+				} else if (typeof value === 'string') {
+					filterParts.push(`${key} = '${value}'`);
+				} else {
+					filterParts.push(`${key} = ${value}`);
 				}
-				return `${key} = ${value}`;
-			});
-			searchParams.filter = filterStrings.join(' AND ');
+			}
+			searchParams.filter = filterParts.join(' AND ');
 		}
 
 		// Create a filter based on the user's permissions.

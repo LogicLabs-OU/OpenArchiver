@@ -177,6 +177,31 @@ export class IngestionController {
 		}
 	};
 
+	public unmerge = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const { id } = req.params;
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			const actor = await this.userService.findById(userId);
+			if (!actor) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			const updatedSource = await IngestionService.unmerge(id, actor, req.ip || 'unknown');
+			const safeSource = this.toSafeIngestionSource(updatedSource);
+			return res.status(200).json(safeSource);
+		} catch (error) {
+			logger.error({ err: error }, `Unmerge ingestion source ${req.params.id} error`);
+			if (error instanceof Error && error.message === 'Ingestion source not found') {
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
+			} else if (error instanceof Error) {
+				return res.status(400).json({ message: error.message });
+			}
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+
 	public triggerForceSync = async (req: Request, res: Response): Promise<Response> => {
 		try {
 			const { id } = req.params;
