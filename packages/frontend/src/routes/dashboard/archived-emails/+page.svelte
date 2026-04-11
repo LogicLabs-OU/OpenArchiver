@@ -29,7 +29,7 @@
 <div class="mb-4 flex items-center justify-between">
 	<h1 class="text-2xl font-bold">{$t('app.archived_emails_page.header')}</h1>
 	{#if ingestionSources.length > 0}
-		<div class="w-[250px]">
+		<div class="w-fit min-w-48">
 			<Select.Root
 				type="single"
 				onValueChange={handleSourceChange}

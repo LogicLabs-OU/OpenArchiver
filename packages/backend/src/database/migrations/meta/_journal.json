@@ -246,6 +246,13 @@
 			"when": 1774900882674,
 			"tag": "0034_stiff_toad",
 			"breakpoints": true
+		},
+		{
+			"idx": 35,
+			"version": "7",
+			"when": 1775338259694,
+			"tag": "0035_careless_the_fallen",
+			"breakpoints": true
 		}
 	]
 }

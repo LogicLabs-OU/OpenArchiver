@@ -18,6 +18,12 @@ export const journalingSources = pgTable('journaling_sources', {
 	name: text('name').notNull(),
 	/** CIDR blocks or IP addresses allowed to send journal reports */
 	allowedIps: jsonb('allowed_ips').notNull().$type<string[]>(),
+	/** Organization domain groups. Each object maps a primary domain to its alias domains.
+	 *  E.g. [{ main: "abc.com", aliases: ["xyz.com"] }]. Stored as JSONB. */
+	organizationDomains: jsonb('organization_domains')
+		.notNull()
+		.$type<{ main: string; aliases: string[] }[]>()
+		.default([]),
 	/** Whether to reject non-TLS connections (GDPR compliance) */
 	requireTls: boolean('require_tls').notNull().default(true),
 	/** Optional SMTP AUTH username */

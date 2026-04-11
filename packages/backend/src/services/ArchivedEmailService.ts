@@ -1,4 +1,4 @@
-import { count, desc, eq, asc, and, inArray } from 'drizzle-orm';
+import { count, desc, eq, asc, and, inArray, ne } from 'drizzle-orm';
 import { db } from '../database';
 import {
 	archivedEmails,
@@ -286,8 +286,22 @@ export class ArchivedEmailService {
 			}
 		}
 
-		// Delete the email file from storage
-		await storage.delete(email.storagePath);
+		// Only delete the physical EML file if no other archived_emails row shares
+		// the same storagePath. Multiple rows can point to the same file when
+		// per-mailbox archiving creates shared-file reference rows.
+		const [emlRefCount] = await db
+			.select({ count: count() })
+			.from(archivedEmails)
+			.where(
+				and(
+					eq(archivedEmails.storagePath, email.storagePath),
+					ne(archivedEmails.id, emailId)
+				)
+			);
+
+		if (emlRefCount.count === 0) {
+			await storage.delete(email.storagePath);
+		}
 
 		const searchService = new SearchService();
 		await searchService.deleteDocuments('emails', [emailId]);

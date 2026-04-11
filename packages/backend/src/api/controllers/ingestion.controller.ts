@@ -93,6 +93,12 @@ export class IngestionController {
 			if (!actor) {
 				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
+			const sourceToCheck = await IngestionService.findById(id);
+			if (sourceToCheck.provider === 'smtp_journaling') {
+				return res
+					.status(400)
+					.json({ message: req.t('ingestion.journalingSourceManagedByJournaling') });
+			}
 			const updatedSource = await IngestionService.update(
 				id,
 				dto,
@@ -121,6 +127,12 @@ export class IngestionController {
 			const actor = await this.userService.findById(userId);
 			if (!actor) {
 				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			const sourceToCheck = await IngestionService.findById(id);
+			if (sourceToCheck.provider === 'smtp_journaling') {
+				return res
+					.status(400)
+					.json({ message: req.t('ingestion.journalingSourceManagedByJournaling') });
 			}
 			await IngestionService.delete(id, actor, req.ip || 'unknown');
 			return res.status(204).send();
@@ -160,6 +172,12 @@ export class IngestionController {
 			if (!actor) {
 				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
+			const sourceToCheck = await IngestionService.findById(id);
+			if (sourceToCheck.provider === 'smtp_journaling') {
+				return res
+					.status(400)
+					.json({ message: req.t('ingestion.journalingSourceManagedByJournaling') });
+			}
 			const updatedSource = await IngestionService.update(
 				id,
 				{ status: 'paused' },
@@ -188,6 +206,12 @@ export class IngestionController {
 			if (!actor) {
 				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
+			const sourceToCheck = await IngestionService.findById(id);
+			if (sourceToCheck.provider === 'smtp_journaling') {
+				return res
+					.status(400)
+					.json({ message: req.t('ingestion.journalingSourceManagedByJournaling') });
+			}
 			const updatedSource = await IngestionService.unmerge(id, actor, req.ip || 'unknown');
 			const safeSource = this.toSafeIngestionSource(updatedSource);
 			return res.status(200).json(safeSource);
@@ -212,6 +236,12 @@ export class IngestionController {
 			const actor = await this.userService.findById(userId);
 			if (!actor) {
 				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			const sourceToCheck = await IngestionService.findById(id);
+			if (sourceToCheck.provider === 'smtp_journaling') {
+				return res
+					.status(400)
+					.json({ message: req.t('ingestion.journalingSourceManagedByJournaling') });
 			}
 			await IngestionService.triggerForceSync(id, actor, req.ip || 'unknown');
 			return res.status(202).json({ message: req.t('ingestion.forceSyncTriggered') });

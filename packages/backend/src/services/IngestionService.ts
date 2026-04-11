@@ -295,9 +295,11 @@ export class IngestionService {
 			}
 		}
 
-		// Delete all emails and attachments from storage
+		// Delete all emails and attachments from storage.
+		// Path is keyed on the source ID only — the name is intentionally excluded
+		// to ensure correctness even when the source was renamed after creation.
 		const storage = new StorageService();
-		const emailPath = `${config.storage.openArchiverFolderName}/${source.name.replaceAll(' ', '-')}-${source.id}/`;
+		const emailPath = `${config.storage.openArchiverFolderName}/${source.id}/`;
 		await storage.delete(emailPath);
 
 		if (
@@ -497,12 +499,15 @@ export class IngestionService {
 	 * Checks both providerMessageId (for Google/Microsoft API IDs) and
 	 * messageIdHeader (for IMAP/PST/EML/Mbox RFC Message-IDs and pre-migration rows).
 	 *
-	 * The check is scoped to the full merge group so that emails already archived
-	 * by a sibling source are not re-downloaded and stored again.
+	 * The check is scoped to a specific mailbox (userEmail) within the merge group.
+	 * This allows different mailbox owners to each get their own archived_emails row
+	 * for the same physical email — only skipping the download when this particular
+	 * mailbox already has the email.
 	 */
 	public static async doesEmailExist(
 		messageId: string,
-		ingestionSourceId: string
+		ingestionSourceId: string,
+		userEmail: string
 	): Promise<boolean> {
 		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
 		const sourceFilter =
@@ -513,6 +518,7 @@ export class IngestionService {
 		const existingEmail = await db.query.archivedEmails.findFirst({
 			where: and(
 				sourceFilter,
+				eq(archivedEmails.userEmail, userEmail),
 				or(
 					eq(archivedEmails.providerMessageId, messageId),
 					eq(archivedEmails.messageIdHeader, messageId)
@@ -523,11 +529,18 @@ export class IngestionService {
 		return !!existingEmail;
 	}
 
+	/**
+	 * @param skipTempFileCleanup When true, the caller is responsible for deleting
+	 *   email.tempFilePath. Used by the journaling fan-out loop which calls
+	 *   processEmail() multiple times with the same EmailObject — only the last
+	 *   caller should clean up the temp file.
+	 */
 	public async processEmail(
 		email: EmailObject,
 		source: IngestionSource,
 		storage: StorageService,
-		userEmail: string
+		userEmail: string,
+		skipTempFileCleanup: boolean = false
 	): Promise<PendingEmail | null> {
 		try {
 			// Read the raw bytes from the temp file written by the connector
@@ -554,63 +567,53 @@ export class IngestionService {
 					.update(rawEmlBuffer)
 					.digest('hex')}-${source.id}-${email.id}`;
 			}
-			// Check if an email with the same message ID has already been imported
-			// within the merge group. This prevents duplicate imports when the same
-			// email exists in multiple mailboxes or across merged ingestion sources.
+			// ── Three-gate deduplication ──────────────────────────────────────
+			// Gate 1: Per-mailbox idempotency — has THIS mailbox already archived
+			//         this email? If so, skip entirely (handles re-sync / retry).
+			// Gate 2: Shared-file reference — does the email exist in ANOTHER
+			//         mailbox within the merge group? If so, skip file write and
+			//         create a reference row pointing to the existing storagePath.
+			// Gate 3: Full new ingestion — first time this email is seen anywhere
+			//         in the group. Write file + create row.
+			// ─────────────────────────────────────────────────────────────────
+
 			const groupIds = await IngestionService.findGroupSourceIds(source.id);
 			const groupSourceFilter =
 				groupIds.length === 1
 					? eq(archivedEmails.ingestionSourceId, groupIds[0])
 					: inArray(archivedEmails.ingestionSourceId, groupIds);
 
-			const existingEmail = await db.query.archivedEmails.findFirst({
-				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
+			// Gate 1: Per-mailbox duplicate check (idempotency guard for re-sync)
+			const perMailboxDuplicate = await db.query.archivedEmails.findFirst({
+				where: and(
+					eq(archivedEmails.messageIdHeader, messageId),
+					eq(archivedEmails.userEmail, userEmail),
+					groupSourceFilter
+				),
+				columns: { id: true },
 			});
 
-			if (existingEmail) {
+			if (perMailboxDuplicate) {
 				logger.info(
-					{ messageId, ingestionSourceId: source.id },
-					'Skipping duplicate email'
+					{ messageId, userEmail, ingestionSourceId: source.id },
+					'Skipping duplicate email (same mailbox already has this email)'
 				);
 				return null;
 			}
 
-			const sanitizedPath = email.path ? email.path : '';
-			// Use effectiveSource (root) for storage path and DB ownership.
-			// Child sources are assistants; all content physically belongs to the root.
-			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.name.replaceAll(' ', '-')}-${effectiveSource.id}/emails/${sanitizedPath}${email.id}.eml`;
+			// Gate 2: Check if any OTHER mailbox in the group already has this email.
+			// If so, we skip the file write and create a reference row that shares
+			// the existing storagePath and storageHashSha256.
+			const existingGroupEmail = await db.query.archivedEmails.findFirst({
+				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
+			});
 
-			// GoBD / Preserve Original File mode: store the unmodified raw EML as-is.
-			// No attachment stripping, no attachment table records — the full MIME body
-			// including attachments is preserved in the single .eml file.
-			// Use the root (effectiveSource) compliance mode as authoritative.
-			if (effectiveSource.preserveOriginalFile) {
-				const emailHash = createHash('sha256').update(rawEmlBuffer).digest('hex');
-
-				// Message-level deduplication by file hash, scoped to the effective (root) source
-				const hashDuplicate = await db.query.archivedEmails.findFirst({
-					where: and(
-						eq(archivedEmails.storageHashSha256, emailHash),
-						eq(archivedEmails.ingestionSourceId, effectiveSource.id)
-					),
-					columns: { id: true },
-				});
-
-				if (hashDuplicate) {
-					logger.info(
-						{ emailHash, ingestionSourceId: effectiveSource.id },
-						'Skipping duplicate email (hash-level dedup, preserve original mode)'
-					);
-					return null;
-				}
-
-				// Store the unmodified raw buffer — no modifications
-				await storage.put(emailPath, rawEmlBuffer);
-
-				const [archivedEmail] = await db
+			if (existingGroupEmail) {
+				// Shared-file reference path: no file write, just a new DB row
+				// pointing to the same physical storagePath.
+				const [referenceRow] = await db
 					.insert(archivedEmails)
 					.values({
-						// Always assign to root (effectiveSource)
 						ingestionSourceId: effectiveSource.id,
 						userEmail,
 						threadId: email.threadId,
@@ -623,12 +626,127 @@ export class IngestionService {
 						recipients: {
 							to: email.to,
 							cc: email.cc,
-							bcc: email.bcc,
+							bcc: email.bcc ?? [],
 						},
-						storagePath: emailPath,
+						// Re-use existing physical file and hash
+						storagePath: existingGroupEmail.storagePath,
+						storageHashSha256: existingGroupEmail.storageHashSha256,
+						sizeBytes: existingGroupEmail.sizeBytes,
+						hasAttachments: existingGroupEmail.hasAttachments,
+						isJournaled: effectiveSource.provider === 'smtp_journaling',
+						path: email.path,
+						tags: email.tags,
+					})
+					.returning();
+
+				// Copy attachment links from the existing email to this reference row
+				// so that per-mailbox attachment queries return correct results.
+				if (existingGroupEmail.hasAttachments) {
+					const existingLinks = await db
+						.select({ attachmentId: emailAttachments.attachmentId })
+						.from(emailAttachments)
+						.where(eq(emailAttachments.emailId, existingGroupEmail.id));
+
+					for (const link of existingLinks) {
+						await db
+							.insert(emailAttachments)
+							.values({
+								emailId: referenceRow.id,
+								attachmentId: link.attachmentId,
+							})
+							.onConflictDoNothing();
+					}
+				}
+
+				logger.info(
+					{
+						messageId,
+						userEmail,
+						existingEmailId: existingGroupEmail.id,
+						referenceEmailId: referenceRow.id,
+					},
+					'Created shared-file reference row for another mailbox owner'
+				);
+
+				return {
+					archivedEmailId: referenceRow.id,
+				};
+			}
+
+			// Gate 3: Full new ingestion — first time this email is seen in the group.
+			const sanitizedPath = email.path ? email.path : '';
+			// Use effectiveSource (root) for storage path and DB ownership.
+			// Child sources are assistants; all content physically belongs to the root.
+			// Path uses the source ID only — not the name — so that renaming a source
+			// never causes a path mismatch between old and newly stored files.
+			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/emails/${sanitizedPath}${email.id}.eml`;
+
+			// GoBD / Preserve Original File mode: store the unmodified raw EML as-is.
+			// No attachment stripping, no attachment table records — the full MIME body
+			// including attachments is preserved in the single .eml file.
+			// Use the root (effectiveSource) compliance mode as authoritative.
+			if (effectiveSource.preserveOriginalFile) {
+				const emailHash = createHash('sha256').update(rawEmlBuffer).digest('hex');
+
+				// Hash-level deduplication within the root source — catches emails
+				// with different or missing Message-IDs that are byte-identical.
+				const hashDuplicate = await db.query.archivedEmails.findFirst({
+					where: and(
+						eq(archivedEmails.storageHashSha256, emailHash),
+						eq(archivedEmails.userEmail, userEmail),
+						eq(archivedEmails.ingestionSourceId, effectiveSource.id)
+					),
+					columns: { id: true },
+				});
+
+				if (hashDuplicate) {
+					logger.info(
+						{ emailHash, userEmail, ingestionSourceId: effectiveSource.id },
+						'Skipping duplicate email (hash-level dedup, preserve original mode)'
+					);
+					return null;
+				}
+
+				// Check if the same hash exists for a DIFFERENT mailbox — share the file
+				const hashExistingOther = await db.query.archivedEmails.findFirst({
+					where: and(
+						eq(archivedEmails.storageHashSha256, emailHash),
+						eq(archivedEmails.ingestionSourceId, effectiveSource.id)
+					),
+				});
+
+				let storagePath: string;
+				if (hashExistingOther) {
+					// File already on disk — create a reference row
+					storagePath = hashExistingOther.storagePath;
+				} else {
+					// First occurrence — store the unmodified raw buffer
+					storagePath = emailPath;
+					await storage.put(emailPath, rawEmlBuffer);
+				}
+
+				const [archivedEmail] = await db
+					.insert(archivedEmails)
+					.values({
+						ingestionSourceId: effectiveSource.id,
+						userEmail,
+						threadId: email.threadId,
+						messageIdHeader: messageId,
+						providerMessageId: email.id,
+						sentAt: email.receivedAt,
+						subject: email.subject,
+						senderName: email.from[0]?.name,
+						senderEmail: email.from[0]?.address,
+						recipients: {
+							to: email.to,
+							cc: email.cc,
+							bcc: email.bcc ?? [],
+						},
+						storagePath,
 						storageHashSha256: emailHash,
 						sizeBytes: rawEmlBuffer.length,
 						hasAttachments: email.attachments.length > 0,
+						isJournaled: effectiveSource.provider === 'smtp_journaling',
 						path: email.path,
 						tags: email.tags,
 					})
@@ -648,7 +766,6 @@ export class IngestionService {
 			const [archivedEmail] = await db
 				.insert(archivedEmails)
 				.values({
-					// Always assign to root (effectiveSource)
 					ingestionSourceId: effectiveSource.id,
 					userEmail,
 					threadId: email.threadId,
@@ -661,12 +778,13 @@ export class IngestionService {
 					recipients: {
 						to: email.to,
 						cc: email.cc,
-						bcc: email.bcc,
+						bcc: email.bcc ?? [],
 					},
 					storagePath: emailPath,
 					storageHashSha256: emailHash,
 					sizeBytes: emlBuffer.length,
 					hasAttachments: email.attachments.length > 0,
+					isJournaled: effectiveSource.provider === 'smtp_journaling',
 					path: email.path,
 					tags: email.tags,
 				})
@@ -700,9 +818,11 @@ export class IngestionService {
 							'Reusing existing attachment file for deduplication.'
 						);
 					} else {
-						// New attachment: store under the root source's folder
+						// New attachment: store under the root source's folder.
+						// Path uses the source ID only — not the name — so that renaming
+						// a source never causes a path mismatch.
 						const uniqueId = randomUUID().slice(0, 7);
-						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.name.replaceAll(' ', '-')}-${effectiveSource.id}/attachments/${uniqueId}-${attachment.filename}`;
+						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/attachments/${uniqueId}-${attachment.filename}`;
 						await storage.put(storagePath, attachmentBuffer);
 
 						const [newRecord] = await db
@@ -743,13 +863,17 @@ export class IngestionService {
 			});
 			return null;
 		} finally {
-			// Always clean up the temp file, regardless of success or failure
-			await unlink(email.tempFilePath).catch((err) =>
-				logger.warn(
-					{ err, tempFilePath: email.tempFilePath },
-					'Failed to delete temp email file'
-				)
-			);
+			// Clean up the temp file unless the caller opted out (e.g. journaling
+			// fan-out loop that calls processEmail() multiple times with the same
+			// EmailObject — temp file must survive until the last call finishes).
+			if (!skipTempFileCleanup) {
+				await unlink(email.tempFilePath).catch((err) =>
+					logger.warn(
+						{ err, tempFilePath: email.tempFilePath },
+						'Failed to delete temp email file'
+					)
+				);
+			}
 		}
 	}
 }

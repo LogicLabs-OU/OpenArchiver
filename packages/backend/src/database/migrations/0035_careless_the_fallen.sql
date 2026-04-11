@@ -1,0 +1,1 @@
+ALTER TABLE "journaling_sources" ADD COLUMN "organization_domains" jsonb DEFAULT '[]'::jsonb NOT NULL;
