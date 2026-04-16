@@ -253,6 +253,13 @@
 			"when": 1775338259694,
 			"tag": "0035_careless_the_fallen",
 			"breakpoints": true
+		},
+		{
+			"idx": 36,
+			"version": "7",
+			"when": 1775938681095,
+			"tag": "0036_lazy_nitro",
+			"breakpoints": true
 		}
 	]
 }

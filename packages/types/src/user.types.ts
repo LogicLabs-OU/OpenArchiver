@@ -11,6 +11,8 @@ export interface User {
 	email: string;
 	role: Role | null;
 	createdAt: Date;
+	/** Whether TOTP two-factor authentication is currently enabled for this user. */
+	totpEnabled: boolean;
 }
 
 /**

@@ -3,12 +3,13 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { authStore } from '$lib/stores/auth.store';
-	import { Menu } from 'lucide-svelte';
+	import { Menu, ShieldAlert } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import ThemeSwitcher from '$lib/components/custom/ThemeSwitcher.svelte';
 	import { t } from '$lib/translations';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
+	import { format } from 'date-fns';
 	let { data, children } = $props();
 
 	interface NavItem {
@@ -106,7 +107,10 @@
 		},
 		{
 			label: $t('app.layout.admin'),
-			subMenu: [{ href: '/dashboard/admin/license', label: 'License status' }],
+			subMenu: [
+				{ href: '/dashboard/admin/security', label: $t('app.layout.security_policy') },
+				{ href: '/dashboard/admin/license', label: $t('app.layout.license_status') },
+			],
 			position: 4,
 		},
 	];
@@ -248,5 +252,37 @@
 </header>
 
 <main class="container mx-auto my-10 px-4 md:px-0">
+	<!-- Global 2FA grace period warning banner (enterprise only, shown when unenrolled + enforcement active) -->
+	{#if data.mfaGraceDeadline}
+		{@const deadline = new Date(data.mfaGraceDeadline)}
+		{@const isOverdue = deadline < new Date()}
+		<div
+			class={[
+				'my-4 rounded-md px-4 py-3',
+				isOverdue
+					? 'border-destructive/50 bg-destructive/10 text-destructive'
+					: 'border-yellow-400 bg-yellow-50 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200',
+			].join(' ')}
+		>
+			<div class="container mx-auto flex items-center gap-2 text-sm">
+				<ShieldAlert class="h-4 w-4 shrink-0" />
+				<span>
+					{#if isOverdue}
+						{$t('app.security.grace_expired_warning')}
+					{:else}
+						{$t('app.security.grace_deadline_warning', {
+							date: format(deadline, 'PPP'),
+						} as never)}
+					{/if}
+				</span>
+				<a
+					href="/dashboard/settings/account"
+					class="ml-auto shrink-0 font-medium underline"
+				>
+					{$t('app.security.setup_2fa')} →
+				</a>
+			</div>
+		</div>
+	{/if}
 	{@render children()}
 </main>

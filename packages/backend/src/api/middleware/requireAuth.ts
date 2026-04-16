@@ -46,6 +46,12 @@ export const requireAuth = (authService: AuthService) => {
 			if (!payload) {
 				return res.status(401).json({ message: 'Unauthorized: Invalid token' });
 			}
+
+			// Reject MFA pending tokens — they cannot be used to access protected routes
+			if (payload.mfaPending) {
+				return res.status(401).json({ message: 'Unauthorized: MFA verification required' });
+			}
+
 			req.user = payload;
 			next();
 		} catch (error) {

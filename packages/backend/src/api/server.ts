@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { AuthController } from './controllers/auth.controller';
@@ -137,6 +138,7 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	});
 	app.use(express.json());
 	app.use(express.urlencoded({ extended: true }));
+	app.use(cookieParser());
 
 	// i18n middleware
 	app.use(i18nextMiddleware.handle(i18next));
