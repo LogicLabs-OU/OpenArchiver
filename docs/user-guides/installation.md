@@ -75,12 +75,12 @@ If you want to use S3-compatible object storage, change the `STORAGE_TYPE` to `s
 
 ### Using External Services
 
-For convenience, the `docker-compose.yml` file includes services for PostgreSQL, Valkey (Redis), and Meilisearch. However, you can use your own external or managed instances for these services.
+For convenience, the `compose.yaml` file includes services for PostgreSQL, Valkey (Redis), and Meilisearch. However, you can use your own external or managed instances for these services.
 
 To do so:
 
 1.  **Update your `.env` file**: Change the host, port, and credential variables to point to your external service instances. For example, you would update `DATABASE_URL`, `REDIS_HOST`, and `MEILI_HOST`.
-2.  **Modify `docker-compose.yml`**: Remove or comment out the service definitions for `postgres`, `valkey`, and `meilisearch` from your `docker-compose.yml` file.
+2.  **Modify `compose.yaml`**: Remove or comment out the service definitions for `postgres`, `valkey`, and `meilisearch` from your `compose.yaml` file.
 
 This will configure the Open Archiver application to connect to your services instead of starting the default ones.
 
@@ -102,7 +102,7 @@ Here is a complete list of environment variables available for configuration:
 
 #### Docker Compose Service Configuration
 
-These variables are used by `docker-compose.yml` to configure the services.
+These variables are used by `compose.yaml` to configure the services.
 
 | Variable               | Description                                          | Default Value                                            |
 | ---------------------- | ---------------------------------------------------- | -------------------------------------------------------- |
@@ -207,11 +207,11 @@ docker compose up -d
 
 If you are deploying Open Archiver on [Coolify](https://coolify.io/), it is recommended to let Coolify manage the Docker networks for you. This can help avoid potential routing conflicts and simplify your setup.
 
-To do this, you will need to make a small modification to your `docker-compose.yml` file.
+To do this, you will need to make a small modification to your `compose.yaml` file.
 
-### Modify `docker-compose.yml` for Coolify
+### Modify `compose.yaml` for Coolify
 
-1.  **Open your `docker-compose.yml` file** in a text editor.
+1.  **Open your `compose.yaml` file** in a text editor.
 
 2.  **Remove all `networks` sections** from the file. This includes the network configuration for each service and the top-level network definition.
 
@@ -238,7 +238,7 @@ To do this, you will need to make a small modification to your `docker-compose.y
     -     driver: bridge
     ```
 
-3.  **Save the modified `docker-compose.yml` file.**
+3.  **Save the modified `compose.yaml` file.**
 
 By removing these sections, you allow Coolify to automatically create and manage the necessary networks, ensuring that all services can communicate with each other and are correctly exposed through Coolify's reverse proxy.
 
@@ -246,7 +246,7 @@ After making these changes, you can proceed with deploying your application on C
 
 ## Where is my data stored (When using local storage and Docker)?
 
-If you are using local storage to store your emails, based on your `docker-compose.yml` file, your data is being stored in what's called a "named volume" (`archiver-data`). That's why you're not seeing the files in the `./data/open-archiver` directory you created.
+If you are using local storage to store your emails, based on your `compose.yaml` file, your data is being stored in what's called a "named volume" (`archiver-data`). That's why you're not seeing the files in the `./data/open-archiver` directory you created.
 
 1.  **List all Docker volumes**:
 
@@ -291,13 +291,13 @@ In this example, the data is located at `/var/lib/docker/volumes/us8wwos0o4ok4go
 
 ### To save data to a specific folder
 
-To save the data to a specific folder on your machine, you'll need to make a change to your `docker-compose.yml`. You need to switch from a named volume to a "bind mount".
+To save the data to a specific folder on your machine, you'll need to make a change to your `compose.yaml`. You need to switch from a named volume to a "bind mount".
 
 Here’s how you can do it:
 
-1.  **Edit `docker-compose.yml`**:
+1.  **Edit `compose.yaml`**:
 
-Open the `docker-compose.yml` file and find the `open-archiver` service. You're going to change the `volumes` section.
+Open the `compose.yaml` file and find the `open-archiver` service. You're going to change the `volumes` section.
 
 **Change this:**
 
@@ -335,7 +335,7 @@ volumes:
 After you've saved the changes, run the following command in your terminal to apply them. The `--force-recreate` flag will ensure the container is recreated with the new volume settings.
 
 ```bash
-docker-compose up -d --force-recreate
+docker compose up -d --force-recreate
 ```
 
 After this, any new data will be saved directly into the `./data/open-archiver` folder in your project directory.
