@@ -9,3 +9,9 @@ export const app = {
 	allInclusiveArchive: process.env.ALL_INCLUSIVE_ARCHIVE === 'true',
 	isDemo: process.env.IS_DEMO === 'true',
 };
+
+export const googleOAuth = {
+	clientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
+	clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+	redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI,
+};

@@ -4,6 +4,7 @@ import { createHmac, randomBytes } from 'crypto';
 import { IngestionService } from '../../services/IngestionService';
 import { UserService } from '../../services/UserService';
 import { logger } from '../../config/logger';
+import { googleOAuth } from '../../config/app';
 
 const SCOPES = [
 	'https://www.googleapis.com/auth/gmail.readonly',
@@ -12,9 +13,9 @@ const SCOPES = [
 
 function getOAuth2Client() {
 	return new google.auth.OAuth2(
-		process.env.GOOGLE_OAUTH_CLIENT_ID,
-		process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-		process.env.GOOGLE_OAUTH_REDIRECT_URI
+		googleOAuth.clientId,
+		googleOAuth.clientSecret,
+		googleOAuth.redirectUri
 	);
 }
 
@@ -60,9 +61,9 @@ export class OAuthController {
 		}
 
 		if (
-			!process.env.GOOGLE_OAUTH_CLIENT_ID ||
-			!process.env.GOOGLE_OAUTH_CLIENT_SECRET ||
-			!process.env.GOOGLE_OAUTH_REDIRECT_URI
+			!googleOAuth.clientId ||
+			!googleOAuth.clientSecret ||
+			!googleOAuth.redirectUri
 		) {
 			res.status(500).json({ message: 'Google OAuth is not configured on this server.' });
 			return;

@@ -26,7 +26,7 @@
 
 ### 2.3 Environment Config (10 min)
 - [x] Add `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` to `.env.example`
-- [ ] Read and validate vars in backend config/env loader
+- [x] Read and validate vars in backend config/env loader
 
 ---
 

@@ -9,6 +9,7 @@ import type {
 } from '@open-archiver/types';
 import type { IEmailConnector } from '../EmailProviderFactory';
 import { logger } from '../../config/logger';
+import { googleOAuth } from '../../config/app';
 import { simpleParser, type ParsedMail, type Attachment, type AddressObject } from 'mailparser';
 import { getThreadId } from './helpers/utils';
 
@@ -27,9 +28,9 @@ export class GoogleOAuthConnector implements IEmailConnector {
 		this.credentials = credentials;
 
 		this.oauth2Client = new google.auth.OAuth2(
-			process.env.GOOGLE_OAUTH_CLIENT_ID,
-			process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-			process.env.GOOGLE_OAUTH_REDIRECT_URI
+			googleOAuth.clientId,
+			googleOAuth.clientSecret,
+			googleOAuth.redirectUri
 		);
 
 		this.oauth2Client.setCredentials({
