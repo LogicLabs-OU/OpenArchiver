@@ -6,7 +6,7 @@ services:
         container_name: open-archiver
         restart: unless-stopped
         ports:
-            - '3000:3000' # Frontend
+            - '3001:3000' # Frontend
         env_file:
             - .env
         volumes:
