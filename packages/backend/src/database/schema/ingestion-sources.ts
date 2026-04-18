@@ -4,6 +4,7 @@ import { relations } from 'drizzle-orm';
 
 export const ingestionProviderEnum = pgEnum('ingestion_provider', [
 	'google_workspace',
+	'google_oauth',
 	'microsoft_365',
 	'generic_imap',
 	'pst_import',
