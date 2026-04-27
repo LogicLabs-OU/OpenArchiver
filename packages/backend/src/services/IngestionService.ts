@@ -523,11 +523,40 @@ export class IngestionService {
 		return !!existingEmail;
 	}
 
+	public static async preloadExistingMessageIds(sourceId: string): Promise<{
+		knownMessageIds: Set<string>;
+		groupSourceIds: string[];
+	}> {
+		const groupIds = await this.findGroupSourceIds(sourceId);
+		const sourceFilter =
+			groupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, groupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, groupIds);
+
+		const rows = await db
+			.select({
+				messageIdHeader: archivedEmails.messageIdHeader,
+				providerMessageId: archivedEmails.providerMessageId,
+			})
+			.from(archivedEmails)
+			.where(sourceFilter);
+
+		const knownMessageIds = new Set<string>();
+		for (const row of rows) {
+			if (row.messageIdHeader) knownMessageIds.add(row.messageIdHeader);
+			if (row.providerMessageId) knownMessageIds.add(row.providerMessageId);
+		}
+
+		return { knownMessageIds, groupSourceIds: groupIds };
+	}
+
 	public async processEmail(
 		email: EmailObject,
 		source: IngestionSource,
 		storage: StorageService,
-		userEmail: string
+		userEmail: string,
+		groupSourceIds?: string[],
+		knownMessageIds?: Set<string>
 	): Promise<PendingEmail | null> {
 		try {
 			// Read the raw bytes from the temp file written by the connector
@@ -557,12 +586,19 @@ export class IngestionService {
 			// Check if an email with the same message ID has already been imported
 			// within the merge group. This prevents duplicate imports when the same
 			// email exists in multiple mailboxes or across merged ingestion sources.
-			const groupIds = await IngestionService.findGroupSourceIds(source.id);
+			const groupIds = groupSourceIds ?? await IngestionService.findGroupSourceIds(source.id);
 			const groupSourceFilter =
 				groupIds.length === 1
 					? eq(archivedEmails.ingestionSourceId, groupIds[0])
 					: inArray(archivedEmails.ingestionSourceId, groupIds);
 
+			if (knownMessageIds?.has(messageId)) {
+				logger.info(
+					{ messageId, ingestionSourceId: source.id },
+					'Skipping duplicate email (cached)'
+				);
+				return null;
+			}
 			const existingEmail = await db.query.archivedEmails.findFirst({
 				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
 			});
@@ -634,6 +670,7 @@ export class IngestionService {
 					})
 					.returning();
 
+				knownMessageIds?.add(messageId);
 				return {
 					archivedEmailId: archivedEmail.id,
 				};
@@ -671,6 +708,8 @@ export class IngestionService {
 					tags: email.tags,
 				})
 				.returning();
+
+			knownMessageIds?.add(messageId);
 
 			if (email.attachments.length > 0) {
 				for (const attachment of email.attachments) {

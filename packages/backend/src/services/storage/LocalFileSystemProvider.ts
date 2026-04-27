@@ -6,6 +6,7 @@ import { pipeline } from 'stream/promises';
 
 export class LocalFileSystemProvider implements IStorageProvider {
 	private readonly rootPath: string;
+	private readonly knownDirs = new Set<string>();
 
 	constructor(config: LocalStorageConfig) {
 		this.rootPath = config.rootPath;
@@ -14,7 +15,10 @@ export class LocalFileSystemProvider implements IStorageProvider {
 	async put(filePath: string, content: Buffer | NodeJS.ReadableStream): Promise<void> {
 		const fullPath = path.join(this.rootPath, filePath);
 		const dir = path.dirname(fullPath);
-		await fs.mkdir(dir, { recursive: true });
+		if (!this.knownDirs.has(dir)) {
+			await fs.mkdir(dir, { recursive: true });
+			this.knownDirs.add(dir);
+		}
 
 		if (Buffer.isBuffer(content)) {
 			await fs.writeFile(fullPath, content);

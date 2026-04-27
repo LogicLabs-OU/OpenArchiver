@@ -34,9 +34,15 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		const connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
-		// Pre-check for duplicates without fetching full email content
+		const { knownMessageIds, groupSourceIds } =
+			await IngestionService.preloadExistingMessageIds(ingestionSourceId);
+		logger.info(
+			{ ingestionSourceId, preloadedCount: knownMessageIds.size },
+			'Pre-loaded existing message IDs for duplicate checking'
+		);
+
 		const checkDuplicate = async (messageId: string) => {
-			return await IngestionService.doesEmailExist(messageId, ingestionSourceId);
+			return knownMessageIds.has(messageId);
 		};
 
 		for await (const email of connector.fetchEmails(
@@ -49,7 +55,9 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 					email,
 					source,
 					storageService,
-					userEmail
+					userEmail,
+					groupSourceIds,
+					knownMessageIds
 				);
 				if (processedEmail) {
 					emailBatch.push(processedEmail);
