@@ -187,7 +187,9 @@ describe('IngestionService.processEmail — cached params (Changes 2 & 3)', () =
 		mockFindFirst.mockResolvedValue(null);
 		mockInsert.mockReturnValue({
 			values: vi.fn().mockReturnValue({
-				returning: vi.fn().mockResolvedValue([{ id: 'email-uuid-1' }]),
+				onConflictDoNothing: vi.fn().mockReturnValue({
+					returning: vi.fn().mockResolvedValue([{ id: 'email-uuid-1' }]),
+				}),
 			}),
 		});
 	});
@@ -333,5 +335,29 @@ describe('IngestionService.processEmail — cached params (Changes 2 & 3)', () =
 		);
 
 		expect(mockUnlink).toHaveBeenCalledWith('/tmp/test-email.eml');
+	});
+
+	it('returns null when onConflictDoNothing suppresses insert (DB constraint)', async () => {
+		mockInsert.mockReturnValue({
+			values: vi.fn().mockReturnValue({
+				onConflictDoNothing: vi.fn().mockReturnValue({
+					returning: vi.fn().mockResolvedValue([undefined]),
+				}),
+			}),
+		});
+
+		const knownMessageIds = new Set<string>();
+
+		const result = await service.processEmail(
+			makeEmail(),
+			makeSource(),
+			storage,
+			'user@mail.com',
+			['source-1'],
+			knownMessageIds
+		);
+
+		expect(result).toBeNull();
+		expect(knownMessageIds.has('<test@mail.com>')).toBe(false);
 	});
 });

@@ -668,7 +668,21 @@ export class IngestionService {
 						path: email.path,
 						tags: email.tags,
 					})
+					.onConflictDoNothing({
+						target: [
+							archivedEmails.messageIdHeader,
+							archivedEmails.ingestionSourceId,
+						],
+					})
 					.returning();
+
+				if (!archivedEmail) {
+					logger.info(
+						{ messageId, ingestionSourceId: effectiveSource.id },
+						'Skipping duplicate email (DB constraint, preserve original mode)'
+					);
+					return null;
+				}
 
 				knownMessageIds?.add(messageId);
 				return {
@@ -707,7 +721,21 @@ export class IngestionService {
 					path: email.path,
 					tags: email.tags,
 				})
+				.onConflictDoNothing({
+					target: [
+						archivedEmails.messageIdHeader,
+						archivedEmails.ingestionSourceId,
+					],
+				})
 				.returning();
+
+			if (!archivedEmail) {
+				logger.info(
+					{ messageId, ingestionSourceId: effectiveSource.id },
+					'Skipping duplicate email (DB constraint)'
+				);
+				return null;
+			}
 
 			knownMessageIds?.add(messageId);
 
