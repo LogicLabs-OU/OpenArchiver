@@ -668,12 +668,7 @@ export class IngestionService {
 						path: email.path,
 						tags: email.tags,
 					})
-					.onConflictDoNothing({
-						target: [
-							archivedEmails.messageIdHeader,
-							archivedEmails.ingestionSourceId,
-						],
-					})
+					.onConflictDoNothing()
 					.returning();
 
 				if (!archivedEmail) {
@@ -721,12 +716,7 @@ export class IngestionService {
 					path: email.path,
 					tags: email.tags,
 				})
-				.onConflictDoNothing({
-					target: [
-						archivedEmails.messageIdHeader,
-						archivedEmails.ingestionSourceId,
-					],
-				})
+				.onConflictDoNothing()
 				.returning();
 
 			if (!archivedEmail) {
