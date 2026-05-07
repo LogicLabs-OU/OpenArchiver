@@ -575,7 +575,7 @@ export class IngestionService {
 				return null;
 			}
 
-			const sanitizedPath = email.path ? email.path : '';
+			const sanitizedPath = email.path ? email.path.replace(/\/?$/, '/') : '';
 			// Use effectiveSource (root) for storage path and DB ownership.
 			// Child sources are assistants; all content physically belongs to the root.
 			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.name.replaceAll(' ', '-')}-${effectiveSource.id}/emails/${sanitizedPath}${email.id}.eml`;
