@@ -335,7 +335,14 @@
 			"view": "View",
 			"no_emails_found": "No archived emails found.",
 			"prev": "Prev",
-			"next": "Next"
+			"next": "Next",
+			"delete_error_title": "Failed to delete email",
+			"delete_selected": "Delete Selected",
+			"bulk_delete_confirmation_title": "Are you sure you want to delete {{count}} selected emails?",
+			"bulk_delete_confirmation_description": "This action cannot be undone and will permanently remove the selected emails and their attachments.",
+			"deleting": "Deleting",
+			"confirm": "Confirm",
+			"cancel": "Cancel"
 		},
 		"dashboard_page": {
 			"title": "Dashboard",

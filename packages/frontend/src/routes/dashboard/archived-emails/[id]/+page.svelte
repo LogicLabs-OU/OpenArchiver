@@ -259,12 +259,12 @@
 				});
 				return;
 			}
+			isDeleteDialogOpen = false;
 			await goto('/dashboard/archived-emails', { invalidateAll: true });
 		} catch (error) {
 			console.error('Delete failed:', error);
 		} finally {
 			isDeleting = false;
-			isDeleteDialogOpen = false;
 		}
 	}
 </script>

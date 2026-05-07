@@ -254,7 +254,14 @@
 			"view": "表示",
 			"no_emails_found": "アーカイブされたメールは見つかりませんでした。",
 			"prev": "前へ",
-			"next": "次へ"
+			"next": "次へ",
+			"delete_error_title": "メールの削除に失敗しました",
+			"delete_selected": "選択したものを削除",
+			"bulk_delete_confirmation_title": "選択した{{count}}件のメールを削除してもよろしいですか？",
+			"bulk_delete_confirmation_description": "この操作は取り消せません。選択したメールと添付ファイルは完全に削除されます。",
+			"deleting": "削除中",
+			"confirm": "確認",
+			"cancel": "キャンセル"
 		}
 	}
 }
