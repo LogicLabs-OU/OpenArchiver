@@ -20,7 +20,7 @@ To perform a dumpless upgrade, you need to configure your Meilisearch instance w
 
 **Option 1: Using an Environment Variable**
 
-Add the `MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE` environment variable to your `docker-compose.yml` file for the Meilisearch service.
+Add the `MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE` environment variable to your `compose.yaml` file for the Meilisearch service.
 
 ```yaml
 services:
@@ -33,7 +33,7 @@ services:
 
 **Option 2: Using a CLI Option**
 
-Alternatively, you can pass the `--experimental-dumpless-upgrade` flag in the command section of your `docker-compose.yml`.
+Alternatively, you can pass the `--experimental-dumpless-upgrade` flag in the command section of your `compose.yaml`.
 
 ```yaml
 services:
@@ -103,8 +103,8 @@ Once the dump is successfully created, you can proceed with the standard Open Ar
 
 Now, you need to restart the services while telling Meilisearch to import from your dump file.
 
-1.  **Modify `docker-compose.yml`**:
-    You need to temporarily add the `--import-dump` flag to the Meilisearch service command. Find the `meilisearch` service in your `docker-compose.yml` and modify the `command` section.
+1.  **Modify `compose.yaml`**:
+    You need to temporarily add the `--import-dump` flag to the Meilisearch service command. Find the `meilisearch` service in your `compose.yaml` and modify the `command` section.
 
     You will need the name of your dump file. It will be a `.dump` file located in the directory mapped to `/meili_data` inside the container.
 
@@ -128,9 +128,9 @@ Now, you need to restart the services while telling Meilisearch to import from y
 
 ### Step 4: Clean Up
 
-Once the import is complete and you have verified that your search is working correctly, you should remove the `--import-dump` flag from your `docker-compose.yml` to prevent it from running on every startup.
+Once the import is complete and you have verified that your search is working correctly, you should remove the `--import-dump` flag from your `compose.yaml` to prevent it from running on every startup.
 
-1.  **Remove the `--import-dump` line** from the `command` section of the `meilisearch` service in `docker-compose.yml`.
+1.  **Remove the `--import-dump` line** from the `command` section of the `meilisearch` service in `compose.yaml`.
 2.  **Restart the services** one last time:
     ```bash
     docker compose up -d
