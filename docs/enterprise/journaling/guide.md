@@ -18,13 +18,13 @@ Add the following to your `.env` file:
 
 | Variable                               | Default     | Description                                                                                                                                                    |
 | -------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SMTP_JOURNALING_PORT`                 | `2525`      | The port the SMTP listener binds to inside the container. The `docker-compose.yml` maps this to the host.                                                      |
+| `SMTP_JOURNALING_PORT`                 | `2525`      | The port the SMTP listener binds to inside the container. The `compose.yaml` maps this to the host.                                                            |
 | `SMTP_JOURNALING_DOMAIN`               | `localhost` | The domain used to generate routing addresses (e.g., `journal-abc12345@journal.yourdomain.com`). Set this to the domain whose MX record points to this server. |
 | `JOURNAL_QUEUE_BACKPRESSURE_THRESHOLD` | `10000`     | Maximum waiting jobs before the listener returns 4xx temporary failures.                                                                                       |
 
 ## Docker Deployment
 
-The `docker-compose.yml` exposes the SMTP port on the host:
+The `compose.yaml` exposes the SMTP port on the host:
 
 ```yaml
 ports:
