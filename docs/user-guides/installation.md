@@ -6,15 +6,17 @@ This guide will walk you through setting up Open Archiver using Docker Compose. 
 
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed on your server or local machine.
 - A server or local machine with at least 4GB of RAM (2GB of RAM if you use external Postgres, Redis (Valkey) and Meilisearch instances).
-- [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) installed on your server or local machine.
 
-## 1. Clone the Repository
+## 1. Download the Deployment Files
 
-First, clone the Open Archiver repository to your machine:
+The Open Archiver image is self-contained, so you do not need to clone the source repository to run the application. You only need two files: the Compose file and the example environment file.
+
+Create a directory for your deployment and download both files:
 
 ```bash
-git clone https://github.com/LogicLabs-OU/OpenArchiver.git
-cd OpenArchiver
+mkdir open-archiver && cd open-archiver
+curl -O https://raw.githubusercontent.com/LogicLabs-OU/OpenArchiver/main/compose.yaml
+curl -L -o .env https://raw.githubusercontent.com/LogicLabs-OU/OpenArchiver/main/.env.example
 ```
 
 ## 2. Create a Directory for Local Storage (Important)
@@ -34,15 +36,9 @@ This ensures the directory is owned by your current user, which is necessary for
 
 ## 3. Configure Your Environment
 
-The application is configured using environment variables. You'll need to create a `.env` file to store your configuration.
+The application is configured using environment variables. The `.env` file you downloaded in step 1 contains the example configuration.
 
-Copy the example environment file for Docker:
-
-```bash
-cp .env.example.docker .env
-```
-
-Now, open the `.env` file in a text editor and customize the settings.
+Open the `.env` file in a text editor and customize the settings.
 
 ### Key Configuration Steps
 
@@ -190,18 +186,23 @@ After successfully deploying and logging into Open Archiver, the next step is to
 
 ## Updating Your Installation
 
-To update your Open Archiver instance to the latest version, run the following commands:
+To update your Open Archiver instance to the latest version, pull the new images and restart the services from your deployment directory:
 
 ```bash
-# Pull the latest changes from the repository
-git pull
-
 # Pull the latest Docker images
 docker compose pull
 
 # Restart the services with the new images
 docker compose up -d
 ```
+
+If a release announces changes to `compose.yaml` itself (for example a new service or a renamed volume), re-download it before restarting:
+
+```bash
+curl -O https://raw.githubusercontent.com/LogicLabs-OU/OpenArchiver/main/compose.yaml
+```
+
+The release notes will call this out explicitly when it is needed.
 
 ## Deploying on Coolify
 

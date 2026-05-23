@@ -87,10 +87,9 @@ Before upgrading, you must create a dump of your existing Meilisearch data. You 
 
 Once the dump is successfully created, you can proceed with the standard Open Archiver upgrade process.
 
-1.  **Pull the latest changes and Docker images**:
+1.  **Pull the latest Docker images**:
 
     ```bash
-    git pull
     docker compose pull
     ```
 
