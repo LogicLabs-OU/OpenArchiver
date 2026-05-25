@@ -3,9 +3,13 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
+	import { toast } from 'svelte-sonner';
 	import type { MatchingStrategy } from '@open-archiver/types';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { t } from '$lib/translations';
 	import * as Pagination from '$lib/components/ui/pagination/index.js';
@@ -18,6 +22,7 @@
 	import { encodeSearchParams, emptyDraft } from './url-state';
 	import type { SearchQueryDraft } from './url-state';
 	import type { SortClause } from '@open-archiver/types';
+	import { readPrefs, writePrefs, clearPref } from './preferences';
 
 	let { data }: { data: PageData } = $props();
 
@@ -42,6 +47,59 @@
 	$effect(() => {
 		draft = structuredClone($state.snapshot(applied)) as unknown as SearchQueryDraft;
 	});
+
+	// Tracks the saved matching-strategy preference from localStorage. Updated
+	// after writePrefs/clearPref so the "Set as default" / "Clear default"
+	// affordances toggle correctly without a full page reload.
+	let savedDefault = $state<MatchingStrategy | undefined>(undefined);
+
+	$effect(() => {
+		if (!browser) return;
+		savedDefault = readPrefs().matchingStrategy;
+	});
+
+	// Client-side precedence redirect on first mount. The server cannot read
+	// localStorage, so when the URL omits `?m=...` and the user has saved a
+	// non-default strategy, replace the URL so the SSR'd load runs with the
+	// saved preference. `replaceState` keeps history clean.
+	$effect(() => {
+		if (!browser) return;
+		const url = new URL(window.location.href);
+		if (url.searchParams.has('m')) return; // URL wins.
+		const saved = readPrefs().matchingStrategy;
+		if (!saved || saved === 'last') return; // App default — no redirect needed.
+		url.searchParams.set('m', saved);
+		goto(url.pathname + url.search, {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true,
+		});
+	});
+
+	// Visibility rules per sub-plan §11:
+	//  - "Set as default" appears when no default is saved, OR the draft
+	//    strategy differs from the saved one.
+	//  - "Clear default" appears when a default IS saved AND the URL strategy
+	//    (i.e. the applied one) matches it.
+	// Mutually exclusive.
+	let showSetDefault = $derived(
+		savedDefault === undefined || draft.matchingStrategy !== savedDefault
+	);
+	let showClearDefault = $derived(
+		savedDefault !== undefined && applied.matchingStrategy === savedDefault && !showSetDefault
+	);
+
+	function handleSetDefault() {
+		writePrefs({ matchingStrategy: draft.matchingStrategy });
+		savedDefault = draft.matchingStrategy;
+		toast.success($t('app.search.preferences.default_saved'));
+	}
+
+	function handleClearDefault() {
+		clearPref('matchingStrategy');
+		savedDefault = undefined;
+		toast.success($t('app.search.preferences.default_cleared'));
+	}
 
 	const sourceOptions = $derived(
 		ingestionSources.map((s) => ({
@@ -156,6 +214,38 @@
 					{/each}
 				</Select.Content>
 			</Select.Root>
+
+			{#if showSetDefault}
+				<button
+					type="button"
+					onclick={handleSetDefault}
+					class="text-muted-foreground hover:text-foreground cursor-pointer text-xs hover:underline"
+				>
+					{$t('app.search.preferences.set_as_default')}
+				</button>
+			{:else if showClearDefault}
+				<button
+					type="button"
+					onclick={handleClearDefault}
+					class="text-muted-foreground hover:text-foreground cursor-pointer text-xs hover:underline"
+				>
+					{$t('app.search.preferences.clear_default')}
+				</button>
+			{/if}
+			<Tooltip.Provider>
+				<Tooltip.Root>
+					<Tooltip.Trigger
+						type="button"
+						class="text-muted-foreground hover:text-foreground cursor-help"
+						aria-label={$t('app.search.preferences.info')}
+					>
+						<CircleHelpIcon class="size-3.5" />
+					</Tooltip.Trigger>
+					<Tooltip.Content side="top">
+						{$t('app.search.preferences.info')}
+					</Tooltip.Content>
+				</Tooltip.Root>
+			</Tooltip.Provider>
 		</div>
 	</form>
 
