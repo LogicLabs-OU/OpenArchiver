@@ -11,7 +11,9 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@iconify/svelte": "^5.0.1",
@@ -42,6 +44,7 @@
 		"@types/semver": "^7.7.1",
 		"bits-ui": "^2.12.0",
 		"dotenv": "^17.2.0",
+		"jsdom": "^29.1.1",
 		"layerchart": "2.0.0-next.27",
 		"mode-watcher": "^1.1.0",
 		"svelte": "^5.0.0",
@@ -50,6 +53,7 @@
 		"tailwindcss": "^4.0.0",
 		"tw-animate-css": "^1.3.5",
 		"typescript": "^5.0.0",
-		"vite": "^6.2.6"
+		"vite": "^6.2.6",
+		"vitest": "^2.1.0"
 	}
 }

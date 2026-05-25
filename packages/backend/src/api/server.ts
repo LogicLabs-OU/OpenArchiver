@@ -20,6 +20,8 @@ import { createSettingsRouter } from './routes/settings.routes';
 import { apiKeyRoutes } from './routes/api-key.routes';
 import { integrityRoutes } from './routes/integrity.routes';
 import { createJobsRouter } from './routes/jobs.routes';
+import { createReindexRouter } from './routes/reindex.routes';
+import { createDateBackfillRouter } from './routes/date-backfill.routes';
 import { AuthService } from '../services/AuthService';
 import { AuditService } from '../services/AuditService';
 import { UserService } from '../services/UserService';
@@ -123,6 +125,8 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	const apiKeyRouter = apiKeyRoutes(authService);
 	const integrityRouter = integrityRoutes(authService);
 	const jobsRouter = createJobsRouter(authService);
+	const reindexRouter = createReindexRouter(authService);
+	const dateBackfillRouter = createDateBackfillRouter(authService);
 
 	// Middleware for all other routes
 	app.use((req, res, next) => {
@@ -154,6 +158,8 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	app.use(`/${config.api.version}/api-keys`, apiKeyRouter);
 	app.use(`/${config.api.version}/integrity`, integrityRouter);
 	app.use(`/${config.api.version}/jobs`, jobsRouter);
+	app.use(`/${config.api.version}/admin/reindex`, reindexRouter);
+	app.use(`/${config.api.version}/admin/jobs/date-backfill`, dateBackfillRouter);
 
 	// Load all provided extension modules
 	for (const module of modules) {

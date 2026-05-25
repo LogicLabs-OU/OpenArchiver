@@ -45,6 +45,7 @@
 	/** Scheduled deletion date from the matching retention policy: sentAt + appliedRetentionDays */
 	let scheduledDeletionDate = $derived.by(() => {
 		if (!email || !retentionPolicy || retentionPolicy.appliedRetentionDays === 0) return null;
+		if (!email.sentAt) return null;
 		const sentDate = new Date(email.sentAt);
 		const deletionDate = new Date(sentDate);
 		deletionDate.setDate(deletionDate.getDate() + retentionPolicy.appliedRetentionDays);
@@ -57,6 +58,7 @@
 	 */
 	let scheduledDeletionDateByLabel = $derived.by(() => {
 		if (!email || !emailRetentionLabel || emailRetentionLabel.isLabelDisabled) return null;
+		if (!email.sentAt) return null;
 		const sentDate = new Date(email.sentAt);
 		const deletionDate = new Date(sentDate);
 		deletionDate.setDate(deletionDate.getDate() + emailRetentionLabel.retentionPeriodDays);
@@ -282,7 +284,24 @@
 					<Card.Description>
 						{$t('app.archive.from')}: {email.senderEmail || email.senderName} | {$t(
 							'app.archive.sent'
-						)}: {new Date(email.sentAt).toLocaleString()}
+						)}:
+						{#if email.sentAt}
+							{new Date(email.sentAt).toLocaleString()}
+						{:else}
+							<HoverCard.Root>
+								<HoverCard.Trigger
+									class="text-muted-foreground inline-flex cursor-help items-center gap-1 align-middle"
+								>
+									<AlertTriangle class="h-3.5 w-3.5" />
+									<span class="italic"
+										>{$t('app.archive.original_date_unknown')}</span
+									>
+								</HoverCard.Trigger>
+								<HoverCard.Content class="w-80 text-xs">
+									<p>{$t('app.archive.original_date_unknown_help')}</p>
+								</HoverCard.Content>
+							</HoverCard.Root>
+						{/if}
 					</Card.Description>
 				</Card.Header>
 				<Card.Content>
@@ -320,6 +339,12 @@
 									<span>{$t('app.archive.size')}:</span>
 									<span class="bg-muted truncate rounded p-1.5 text-xs"
 										>{formatBytes(email.sizeBytes)}</span
+									>
+								</div>
+								<div class="flex flex-wrap items-center gap-2">
+									<span>{$t('app.archive.archived_on')}:</span>
+									<span class="bg-muted truncate rounded p-1.5 text-xs"
+										>{new Date(email.archivedAt).toLocaleString()}</span
 									>
 								</div>
 							</div>
@@ -741,6 +766,17 @@
 											{scheduledDeletionDate.toLocaleDateString()}
 										</Badge>
 									</div>
+								{:else if !email.sentAt}
+									<div
+										class="flex items-start gap-2 rounded-md border border-dashed p-2"
+									>
+										<AlertTriangle
+											class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0"
+										/>
+										<p class="text-muted-foreground text-xs">
+											{$t('app.archive.scheduled_deletion_unknown_date')}
+										</p>
+									</div>
 								{/if}
 								<div class="flex items-center gap-2">
 									<Trash2 class="text-muted-foreground h-4 w-4 flex-shrink-0" />
@@ -885,6 +921,17 @@
 											>
 												{scheduledDeletionDateByLabel.toLocaleDateString()}
 											</Badge>
+										</div>
+									{:else if !email.sentAt}
+										<div
+											class="flex items-start gap-2 rounded-md border border-dashed p-2"
+										>
+											<AlertTriangle
+												class="text-muted-foreground mt-0.5 h-4 w-4 flex-shrink-0"
+											/>
+											<p class="text-muted-foreground text-xs">
+												{$t('app.archive.scheduled_deletion_unknown_date')}
+											</p>
 										</div>
 									{/if}
 									<p class="text-muted-foreground text-xs">

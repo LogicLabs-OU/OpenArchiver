@@ -52,7 +52,8 @@
 		"notFound": "Το αρχειοθετημένο email δεν βρέθηκε"
 	},
 	"search": {
-		"keywordsRequired": "Οι λέξεις-κλειδιά είναι υποχρεωτικές"
+		"keywordsRequired": "Οι λέξεις-κλειδιά είναι υποχρεωτικές",
+		"filterInvalid": "Μη έγκυρο φίλτρο: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "Η διαδρομή του αρχείου είναι υποχρεωτική",

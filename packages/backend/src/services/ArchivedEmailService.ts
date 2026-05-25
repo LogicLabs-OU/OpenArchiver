@@ -1,4 +1,4 @@
-import { count, desc, eq, asc, and, inArray } from 'drizzle-orm';
+import { count, eq, asc, and, inArray, sql } from 'drizzle-orm';
 import { db } from '../database';
 import {
 	archivedEmails,
@@ -86,7 +86,7 @@ export class ArchivedEmailService {
 			.select()
 			.from(archivedEmails)
 			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id))
-			.orderBy(desc(archivedEmails.sentAt))
+			.orderBy(sql`${archivedEmails.sentAt} DESC NULLS LAST`)
 			.limit(limit)
 			.offset(offset);
 

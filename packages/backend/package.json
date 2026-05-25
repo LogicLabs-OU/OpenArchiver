@@ -15,14 +15,21 @@
 		"copy-assets": "cp -r src/locales dist/locales",
 		"start:ingestion-worker": "node dist/workers/ingestion.worker.js",
 		"start:indexing-worker": "node dist/workers/indexing.worker.js",
+		"start:reindex-worker": "node dist/workers/reindex.worker.js",
+		"start:date-backfill-worker": "node dist/workers/date-backfill.worker.js",
 		"start:sync-scheduler": "node dist/jobs/schedulers/sync-scheduler.js",
 		"start:ingestion-worker:dev": "ts-node-dev --respawn --transpile-only src/workers/ingestion.worker.ts",
 		"start:indexing-worker:dev": "ts-node-dev --respawn --transpile-only src/workers/indexing.worker.ts",
+		"start:reindex-worker:dev": "ts-node-dev --respawn --transpile-only src/workers/reindex.worker.ts",
+		"start:date-backfill-worker:dev": "ts-node-dev --respawn --transpile-only src/workers/date-backfill.worker.ts",
+		"backfill:dates": "ts-node-dev --transpile-only scripts/run-date-backfill.ts",
 		"start:sync-scheduler:dev": "ts-node-dev --respawn --transpile-only src/jobs/schedulers/sync-scheduler.ts",
 		"db:generate": "drizzle-kit generate --config=drizzle.config.ts",
 		"db:push": "drizzle-kit push --config=drizzle.config.ts",
 		"db:migrate": "node dist/database/migrate.js",
-		"db:migrate:dev": "ts-node-dev src/database/migrate.ts"
+		"db:migrate:dev": "ts-node-dev src/database/migrate.ts",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.844.0",
@@ -84,6 +91,7 @@
 		"swagger-jsdoc": "^6.2.8",
 		"ts-node-dev": "^2.0.0",
 		"tsconfig-paths": "^4.2.0",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"vitest": "^2.1.0"
 	}
 }

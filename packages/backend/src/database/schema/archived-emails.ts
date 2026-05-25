@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
 import { boolean, jsonb, pgTable, text, timestamp, uuid, bigint, index } from 'drizzle-orm/pg-core';
+import type { OriginalDateSource } from '@open-archiver/types';
 import { ingestionSources } from './ingestion-sources';
 
 export const archivedEmails = pgTable(
@@ -15,7 +16,7 @@ export const archivedEmails = pgTable(
 		/** The provider-specific message ID (e.g., Gmail API ID, Graph API ID).
 		 * Used by the pre-fetch duplicate check to avoid unnecessary API calls during retries. */
 		providerMessageId: text('provider_message_id'),
-		sentAt: timestamp('sent_at', { withTimezone: true }).notNull(),
+		sentAt: timestamp('sent_at', { withTimezone: true }),
 		subject: text('subject'),
 		senderName: text('sender_name'),
 		senderEmail: text('sender_email').notNull(),
@@ -28,6 +29,11 @@ export const archivedEmails = pgTable(
 		isOnLegalHold: boolean('is_on_legal_hold').notNull().default(false),
 		isJournaled: boolean('is_journaled').default(false),
 		archivedAt: timestamp('archived_at', { withTimezone: true }).notNull().defaultNow(),
+		originalDateSource: text('original_date_source')
+			.$type<OriginalDateSource>()
+			.notNull()
+			.default('header'),
+		dateBackfilledAt: timestamp('date_backfilled_at', { withTimezone: true }),
 		path: text('path'),
 		tags: jsonb('tags'),
 	},

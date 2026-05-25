@@ -1,4 +1,12 @@
 /**
+ * Indicates the source used to determine the original date of an email.
+ * - 'header': parsed from the RFC 5322 `Date:` header (preferred, sender's clock).
+ * - 'received': fallback derived from the first `Received:` header (server timestamp).
+ * - 'unknown': no usable date could be determined; the consuming code must handle null.
+ */
+export type OriginalDateSource = 'header' | 'received' | 'unknown';
+
+/**
  * Represents a single email address, including an optional name and the email address itself.
  */
 export interface EmailAddress {
@@ -43,8 +51,10 @@ export interface EmailObject {
 	headers: Map<string, any>;
 	/** An array of `EmailAttachment` objects found in the email. */
 	attachments: EmailAttachment[];
-	/** The date and time when the email was received. */
-	receivedAt: Date;
+	/** The date and time when the email was received. Null if the original Date header was missing or unparseable. */
+	receivedAt: Date | null;
+	/** Indicates where `receivedAt` was sourced from (Date header, Received header, or unknown). */
+	receivedAtSource?: OriginalDateSource;
 	/** Path to a temporary file on disk containing the raw EML bytes.
 	 * Connectors write the raw email to tmpdir() and pass only the path,
 	 * keeping large buffers off the JS heap between yield and processEmail(). */
@@ -82,8 +92,30 @@ export interface EmailDocument {
 	attachments: {
 		filename: string;
 		content: string; // Extracted text from the attachment
+		/** SHA-256 hex digest of the attachment bytes. Optional because
+		 * pre-P3 documents in existing indexes do not carry it; reindex via
+		 * the orchestrator backfills it. */
+		sha256?: string;
 	}[];
-	timestamp: number;
+	/** Unix epoch (ms) of the email's original date. Omitted when the date is unknown. */
+	timestamp?: number;
 	ingestionSourceId: string;
+	// --- P3 additions ---
+	// Required-on-new-docs scalars stay required so freshly indexed documents
+	// always carry them; the orchestrator backfills existing rows.
+	// Strings/arrays that are genuinely nullable in the DB stay optional and
+	// are omitted (not null) when unknown.
+	/** Folder / mailbox path in the source system (e.g. 'INBOX/Projects'). */
+	path?: string;
+	/** Free-form labels carried over from the source (Gmail labels, IMAP keywords, etc.). */
+	tags?: string[];
+	/** True iff the archived row has linked attachments. */
+	hasAttachments: boolean;
+	/** Size of the stored .eml in bytes. */
+	sizeBytes: number;
+	/** True iff the archived row is on legal hold. */
+	isOnLegalHold: boolean;
+	/** Provider thread identifier when available. */
+	threadId?: string;
 	// other metadata
 }

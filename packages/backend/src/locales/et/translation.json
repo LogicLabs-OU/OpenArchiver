@@ -52,7 +52,8 @@
 		"notFound": "Arhiveeritud e-kirja ei leitud"
 	},
 	"search": {
-		"keywordsRequired": "Märksõnad on kohustuslikud"
+		"keywordsRequired": "Märksõnad on kohustuslikud",
+		"filterInvalid": "Vigane filter: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "Faili tee on kohustuslik",

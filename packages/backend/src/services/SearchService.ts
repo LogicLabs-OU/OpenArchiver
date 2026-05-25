@@ -9,7 +9,7 @@ import type {
 } from '@open-archiver/types';
 import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
-import { IngestionService } from './IngestionService';
+import { translateFilters } from './search/filterTranslator';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -63,54 +63,43 @@ export class SearchService {
 		userId: string,
 		actorIp: string
 	): Promise<SearchResult> {
-		const { query, filters, page = 1, limit = 10, matchingStrategy = 'last' } = dto;
+		const { query, filters, sort, page = 1, limit = 10, matchingStrategy = 'last' } = dto;
 		const index = await this.getIndex<EmailDocument>('emails');
+
+		const sortParam = sort && sort.length > 0
+			? sort.map((s) => `${s.field}:${s.dir}`)
+			: ['timestamp:desc'];
 
 		const searchParams: SearchParams = {
 			limit,
 			offset: (page - 1) * limit,
 			attributesToHighlight: ['*'],
 			showMatchesPosition: true,
-			sort: ['timestamp:desc'],
+			sort: sortParam,
 			matchingStrategy,
 		};
 
-		if (filters) {
-			const filterParts: string[] = [];
-			for (const [key, value] of Object.entries(filters)) {
-				// Expand ingestionSourceId to the full merge group
-				if (key === 'ingestionSourceId' && typeof value === 'string') {
-					const groupIds = await IngestionService.findGroupSourceIds(value);
-					if (groupIds.length === 1) {
-						filterParts.push(`ingestionSourceId = '${groupIds[0]}'`);
-					} else {
-						const inList = groupIds.map((id) => `'${id}'`).join(', ');
-						filterParts.push(`ingestionSourceId IN [${inList}]`);
-					}
-				} else if (typeof value === 'string') {
-					filterParts.push(`${key} = '${value}'`);
-				} else {
-					filterParts.push(`${key} = ${value}`);
-				}
-			}
-			searchParams.filter = filterParts.join(' AND ');
+		// Typed filter translation. Throws FilterValidationError on unknown
+		// field / disallowed op / bad shape — the controller maps that to a 400.
+		const userFilter = await translateFilters(filters);
+		if (userFilter) {
+			searchParams.filter = userFilter;
 		}
 
-		// Create a filter based on the user's permissions.
-		// This ensures that the user can only search for emails they are allowed to see.
+		// Append CASL access-control filter. Note: the CASL translator
+		// (`mongoToMeli`) emits double-quoted string literals while our
+		// `translateFilters` emits single-quoted ones — Meilisearch accepts
+		// both, so the AND-join below is safe.
 		const { searchFilter } = await FilterBuilder.create(userId, 'archive', 'read');
 		if (searchFilter) {
-			// Convert the MongoDB-style filter from CASL to a MeiliSearch filter string.
 			if (searchParams.filter) {
-				// If there are existing filters, append the access control filter.
 				searchParams.filter = `${searchParams.filter} AND ${searchFilter}`;
 			} else {
-				// Otherwise, just use the access control filter.
 				searchParams.filter = searchFilter;
 			}
 		}
-		// console.log('searchParams', searchParams);
-		const searchResults = await index.search(query, searchParams);
+
+		const searchResults = await index.search(query ?? '', searchParams);
 
 		await this.auditService.createAuditLog({
 			actorIdentifier: userId,
@@ -121,6 +110,8 @@ export class SearchService {
 			details: {
 				query,
 				filters,
+				sort: sortParam,
+				appliedFilter: searchParams.filter ?? null,
 				page,
 				limit,
 				matchingStrategy,
@@ -172,6 +163,8 @@ export class SearchService {
 				'attachments.filename',
 				'attachments.content',
 				'userEmail',
+				'path',
+				'tags',
 			],
 			filterableAttributes: [
 				'from',
@@ -181,8 +174,21 @@ export class SearchService {
 				'timestamp',
 				'ingestionSourceId',
 				'userEmail',
+				'subject',
+				'path',
+				'tags',
+				'hasAttachments',
+				'sizeBytes',
+				'isOnLegalHold',
+				'threadId',
+				'attachments.sha256',
 			],
-			sortableAttributes: ['timestamp'],
+			sortableAttributes: ['timestamp', 'subject', 'sizeBytes', 'from'],
+			// Folded in from PR #363: raise the per-facet cap so Top Senders and
+			// other facet-driven UIs don't truncate at the Meili default of 100.
+			faceting: {
+				maxValuesPerFacet: 10000,
+			},
 		});
 	}
 }
