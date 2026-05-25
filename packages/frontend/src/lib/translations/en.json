@@ -56,7 +56,11 @@
 			"embedded_attachments": "Embedded Attachments",
 			"embedded": "Embedded",
 			"embedded_attachment_title": "Embedded Attachment",
-			"embedded_attachment_description": "This attachment is embedded in the original email file and cannot be downloaded separately. To get this attachment, download the complete email (.eml) file."
+			"embedded_attachment_description": "This attachment is embedded in the original email file and cannot be downloaded separately. To get this attachment, download the complete email (.eml) file.",
+			"original_date_unknown": "Original date unknown",
+			"original_date_unknown_help": "The original Date header was missing or unparseable when this email was archived.",
+			"archived_on": "Archived on",
+			"scheduled_deletion_unknown_date": "Cannot compute scheduled deletion: original date unknown"
 		},
 		"ingestions": {
 			"title": "Ingestion Sources",
@@ -120,7 +124,8 @@
 			"in_email_body": "In email body",
 			"in_attachment": "In attachment: {{filename}}",
 			"prev": "Prev",
-			"next": "Next"
+			"next": "Next",
+			"unknown_date": "Date unknown"
 		},
 		"roles": {
 			"title": "Role Management",
