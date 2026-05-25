@@ -163,6 +163,8 @@ export class SearchService {
 				'attachments.filename',
 				'attachments.content',
 				'userEmail',
+				'path',
+				'tags',
 			],
 			filterableAttributes: [
 				'from',
@@ -172,8 +174,21 @@ export class SearchService {
 				'timestamp',
 				'ingestionSourceId',
 				'userEmail',
+				'subject',
+				'path',
+				'tags',
+				'hasAttachments',
+				'sizeBytes',
+				'isOnLegalHold',
+				'threadId',
+				'attachments.sha256',
 			],
-			sortableAttributes: ['timestamp'],
+			sortableAttributes: ['timestamp', 'subject', 'sizeBytes', 'from'],
+			// Folded in from PR #363: raise the per-facet cap so Top Senders and
+			// other facet-driven UIs don't truncate at the Meili default of 100.
+			faceting: {
+				maxValuesPerFacet: 10000,
+			},
 		});
 	}
 }
