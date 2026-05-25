@@ -78,15 +78,9 @@
 	}
 
 	function handleClearAll() {
-		const e = emptyDraft();
-		// Preserve the matching-strategy preference (per sub-plan: "Clear all"
-		// resets filters, not user prefs). Keep query as well; clearing the search
-		// bar is a separate action.
-		navigateWith({
-			...e,
-			matchingStrategy: draft.matchingStrategy,
-			query: draft.query,
-		});
+		// Per sub-plan §6.5 rollout: "Clear all → URL empties; results refresh."
+		// We reset to a pristine draft.
+		navigateWith(emptyDraft());
 	}
 
 	function handleRemoveBadge(key: string) {
