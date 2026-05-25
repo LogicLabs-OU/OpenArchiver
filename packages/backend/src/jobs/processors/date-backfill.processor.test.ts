@@ -40,8 +40,11 @@ vi.mock('../queues', () => ({
 }));
 
 // Mock DB + Storage modules so importing the processor doesn't pull pg/etc.
-const updateMock = vi.fn();
-const selectMock = vi.fn();
+const { updateMock, selectMock, storageGetMock } = vi.hoisted(() => ({
+	updateMock: vi.fn(),
+	selectMock: vi.fn(),
+	storageGetMock: vi.fn(),
+}));
 vi.mock('../../services/DatabaseService', () => ({
 	DatabaseService: class {
 		db = {
@@ -51,7 +54,6 @@ vi.mock('../../services/DatabaseService', () => ({
 	},
 }));
 
-const storageGetMock = vi.fn();
 vi.mock('../../services/StorageService', () => ({
 	StorageService: class {
 		get = storageGetMock;
