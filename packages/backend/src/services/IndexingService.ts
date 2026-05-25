@@ -13,6 +13,7 @@ import { archivedEmails, attachments, emailAttachments } from '../database/schem
 import { eq } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
 import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
+import { createHash } from 'crypto';
 import { logger } from '../config/logger';
 
 interface DbRecipients {
@@ -335,6 +336,15 @@ export class IndexingService {
 		};
 	} */
 
+	/**
+	 * Build an `EmailDocument` directly from a raw `EmailObject` (used by the
+	 * legacy single-doc indexing path). The P3 fields populated here are
+	 * best-effort — this code path does not have access to the persisted
+	 * `archived_emails` row, so `sizeBytes` is `0`, `isOnLegalHold` is `false`,
+	 * and `hasAttachments` is derived from the buffer count. The reindex
+	 * orchestrator runs `createEmailDocument` against the DB row to upgrade
+	 * these values for any document later updated through the normal flow.
+	 */
 	private async createEmailDocumentFromRaw(
 		email: EmailObject,
 		attachments: AttachmentsType,
@@ -342,13 +352,17 @@ export class IndexingService {
 		archivedEmailId: string,
 		userEmail: string //the owner of the email inbox
 	): Promise<EmailDocument> {
-		const extractedAttachments = [];
+		const extractedAttachments: { filename: string; content: string; sha256?: string }[] = [];
 		for (const attachment of attachments) {
 			try {
 				const textContent = await extractText(attachment.buffer, attachment.mimeType || '');
+				// Best-effort sha256 from the buffer; matches the digest the
+				// storage-backed path reads from the `attachments` row.
+				const sha256 = createHash('sha256').update(attachment.buffer).digest('hex');
 				extractedAttachments.push({
 					filename: attachment.filename,
 					content: textContent,
+					sha256,
 				});
 			} catch (error) {
 				logger.error(
@@ -375,6 +389,15 @@ export class IndexingService {
 			attachments: extractedAttachments,
 			...(timestamp !== undefined ? { timestamp } : {}),
 			ingestionSourceId: ingestionSourceId,
+			// --- P3 best-effort defaults (raw path lacks the archived row). ---
+			path: email.path ?? undefined,
+			tags: Array.isArray(email.tags)
+				? email.tags.filter((t): t is string => typeof t === 'string')
+				: undefined,
+			hasAttachments: (email.attachments?.length ?? 0) > 0,
+			sizeBytes: 0,
+			isOnLegalHold: false,
+			threadId: email.threadId ?? undefined,
 		};
 	}
 
@@ -395,7 +418,7 @@ export class IndexingService {
 		// If there are linked attachment records, extract text from storage (default mode).
 		// Otherwise, if the email has attachments but no records (preserve original file mode),
 		// extract attachment text directly from the parsed EML body.
-		let attachmentContents: { filename: string; content: string }[];
+		let attachmentContents: { filename: string; content: string; sha256?: string }[];
 		if (attachments.length > 0) {
 			attachmentContents = await this.extractAttachmentContents(attachments);
 		} else if (email.hasAttachments && parsedEmail.attachments.length > 0) {
@@ -421,6 +444,17 @@ export class IndexingService {
 			attachments: attachmentContents,
 			...(timestamp !== undefined ? { timestamp } : {}),
 			ingestionSourceId: email.ingestionSourceId,
+			// --- P3 fields (read straight off the archived_emails row). ---
+			path: email.path ?? undefined,
+			tags: Array.isArray(email.tags)
+				? (email.tags as unknown[]).filter(
+						(t): t is string => typeof t === 'string'
+				  )
+				: undefined,
+			hasAttachments: email.hasAttachments,
+			sizeBytes: email.sizeBytes,
+			isOnLegalHold: email.isOnLegalHold,
+			threadId: email.threadId ?? undefined,
 		};
 	}
 
@@ -432,17 +466,22 @@ export class IndexingService {
 	 */
 	private async extractInlineAttachmentContents(
 		parsedAttachments: ParsedAttachment[]
-	): Promise<{ filename: string; content: string }[]> {
-		const extracted: { filename: string; content: string }[] = [];
+	): Promise<{ filename: string; content: string; sha256?: string }[]> {
+		const extracted: { filename: string; content: string; sha256?: string }[] = [];
 		for (const attachment of parsedAttachments) {
 			try {
 				const textContent = await extractText(
 					attachment.content,
 					attachment.contentType || ''
 				);
+				// Compute sha256 on-the-fly here; the storage-backed path below
+				// reads the same digest from the `attachments` row. Both paths
+				// produce the same hex digest for the same buffer.
+				const sha256 = createHash('sha256').update(attachment.content).digest('hex');
 				extracted.push({
 					filename: attachment.filename || 'untitled',
 					content: textContent,
+					sha256,
 				});
 			} catch (error) {
 				logger.warn(
@@ -460,8 +499,12 @@ export class IndexingService {
 
 	private async extractAttachmentContents(
 		attachments: Attachment[]
-	): Promise<{ filename: string; content: string }[]> {
-		const extractedAttachments = [];
+	): Promise<{ filename: string; content: string; sha256?: string }[]> {
+		const extractedAttachments: {
+			filename: string;
+			content: string;
+			sha256?: string;
+		}[] = [];
 		for (const attachment of attachments) {
 			try {
 				const fileStream = await this.storageService.get(attachment.storagePath);
@@ -470,6 +513,7 @@ export class IndexingService {
 				extractedAttachments.push({
 					filename: attachment.filename,
 					content: textContent,
+					sha256: attachment.contentHashSha256,
 				});
 			} catch (error) {
 				console.error(
@@ -545,6 +589,13 @@ export class IndexingService {
 			attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
 			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : undefined,
 			ingestionSourceId: doc.ingestionSourceId || 'unknown',
+			// --- P3 defaults (defensive; createEmailDocument populates them). ---
+			path: typeof doc.path === 'string' ? doc.path : undefined,
+			tags: Array.isArray(doc.tags) ? doc.tags : undefined,
+			hasAttachments: typeof doc.hasAttachments === 'boolean' ? doc.hasAttachments : false,
+			sizeBytes: typeof doc.sizeBytes === 'number' ? doc.sizeBytes : 0,
+			isOnLegalHold: typeof doc.isOnLegalHold === 'boolean' ? doc.isOnLegalHold : false,
+			threadId: typeof doc.threadId === 'string' ? doc.threadId : undefined,
 		};
 	}
 
