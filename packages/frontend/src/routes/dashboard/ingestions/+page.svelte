@@ -59,7 +59,7 @@
 
 	function formatDateOrNever(d: Date | string | null | undefined): string {
 		if (!d) return $t('app.ingestions.never');
-		return new Date(d).toLocaleDateString();
+		return $formatDateStore(d);
 	}
 
 	function formatCount(n: number): string {
