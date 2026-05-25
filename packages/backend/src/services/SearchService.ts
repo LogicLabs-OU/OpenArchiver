@@ -10,6 +10,7 @@ import type {
 import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { translateFilters } from './search/filterTranslator';
+import { logger } from '../config/logger';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -151,6 +152,19 @@ export class SearchService {
 	}
 
 	public async configureEmailIndex() {
+		// The `subject` and `from` filters use the `CONTAINS` operator, which
+		// Meilisearch (as of v1.15+) gates behind the `containsFilter`
+		// experimental feature. Enable it once on startup; failure is logged
+		// but non-fatal so the rest of the index config still applies.
+		try {
+			await this.client.updateExperimentalFeatures({ containsFilter: true });
+		} catch (err) {
+			logger.warn(
+				{ err },
+				'Failed to enable Meilisearch containsFilter; subject/from CONTAINS filters will return 4xx until enabled'
+			);
+		}
+
 		const index = await this.getIndex('emails');
 		await index.updateSettings({
 			searchableAttributes: [

@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const updateSettings = vi.fn(async () => ({ taskUid: 1 }));
+const updateExperimentalFeatures = vi.fn(async () => ({ containsFilter: true }));
 const indexStub = {
 	updateSettings,
 	search: vi.fn(),
@@ -19,6 +20,7 @@ const indexStub = {
 vi.mock('meilisearch', () => ({
 	MeiliSearch: vi.fn().mockImplementation(() => ({
 		index: vi.fn(() => indexStub),
+		updateExperimentalFeatures,
 	})),
 }));
 
@@ -27,6 +29,13 @@ import { SearchService } from './SearchService';
 describe('SearchService.configureEmailIndex', () => {
 	beforeEach(() => {
 		updateSettings.mockClear();
+		updateExperimentalFeatures.mockClear();
+	});
+
+	it('enables the containsFilter experimental feature', async () => {
+		const svc = new SearchService();
+		await svc.configureEmailIndex();
+		expect(updateExperimentalFeatures).toHaveBeenCalledWith({ containsFilter: true });
 	});
 
 	it('declares the expected P3 filterable/sortable/searchable surface', async () => {
