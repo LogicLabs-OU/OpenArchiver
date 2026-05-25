@@ -2,6 +2,7 @@
 	import type { PageData } from './$types';
 	import * as Table from '$lib/components/ui/table';
 	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
 	import * as Select from '$lib/components/ui/select';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/translations';
@@ -68,7 +69,15 @@
 			{#if archivedEmails.items.length > 0}
 				{#each archivedEmails.items as email (email.id)}
 					<Table.Row>
-						<Table.Cell>{new Date(email.sentAt).toLocaleString()}</Table.Cell>
+						<Table.Cell>
+							{#if email.sentAt}
+								{new Date(email.sentAt).toLocaleString()}
+							{:else}
+								<Badge variant="secondary"
+									>{$t('app.archive.original_date_unknown')}</Badge
+								>
+							{/if}
+						</Table.Cell>
 
 						<Table.Cell>
 							<div class="max-w-100 truncate">
