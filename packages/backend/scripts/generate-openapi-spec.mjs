@@ -622,6 +622,62 @@ const options = {
 					},
 					required: ['jobId', 'state', 'data'],
 				},
+				// --- Date Backfill (#372) ---
+				BackfillStatus: {
+					type: 'object',
+					description:
+						'Status snapshot for a date-backfill planner job. Counters reflect the live state of all batch jobs spawned by the planner (read from a Redis hash keyed by planner job id).',
+					properties: {
+						state: {
+							type: 'string',
+							enum: ['pending', 'running', 'paused', 'completed', 'failed'],
+							description:
+								'Collapsed BullMQ state. Reported as `running` whenever scanned < total, even if the planner itself is `completed`.',
+						},
+						jobId: { type: 'string', example: '42' },
+						total: {
+							type: 'integer',
+							example: 12500,
+							description: 'Total rows the planner identified for scanning.',
+						},
+						scanned: {
+							type: 'integer',
+							example: 4321,
+							description: 'Rows processed (updated + unchanged + failed).',
+						},
+						updated: {
+							type: 'integer',
+							example: 1280,
+							description: 'Rows whose sent_at or original_date_source changed.',
+						},
+						failed: {
+							type: 'integer',
+							example: 7,
+							description:
+								'Rows that errored mid-process. They are still marked scanned to skip on resume.',
+						},
+						startedAt: {
+							type: 'string',
+							format: 'date-time',
+							nullable: true,
+						},
+						finishedAt: {
+							type: 'string',
+							format: 'date-time',
+							nullable: true,
+						},
+					},
+					required: [
+						'state',
+						'jobId',
+						'total',
+						'scanned',
+						'updated',
+						'failed',
+						'startedAt',
+						'finishedAt',
+					],
+				},
 				// --- Integrity ---
 				IntegrityCheckResult: {
 					type: 'object',
