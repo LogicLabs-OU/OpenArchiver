@@ -4,11 +4,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const addMock = vi.fn();
-const getJobMock = vi.fn();
-const pauseMock = vi.fn();
-const resumeMock = vi.fn();
-const hgetallMock = vi.fn();
+const { addMock, getJobMock, pauseMock, resumeMock, hgetallMock } = vi.hoisted(() => ({
+	addMock: vi.fn(),
+	getJobMock: vi.fn(),
+	pauseMock: vi.fn(),
+	resumeMock: vi.fn(),
+	hgetallMock: vi.fn(),
+}));
 
 vi.mock('../jobs/queues', () => ({
 	dateBackfillQueue: {
