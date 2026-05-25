@@ -69,6 +69,53 @@ export const createArchivedEmailRouter = (
 
 	/**
 	 * @openapi
+	 * /v1/archived-emails:
+	 *   get:
+	 *     summary: List archived emails across all accessible ingestion sources
+	 *     description: Returns a paginated list of archived emails from every ingestion source the caller has access to (scoped by RBAC). Requires `read:archive` permission.
+	 *     operationId: getAllArchivedEmails
+	 *     tags:
+	 *       - Archived Emails
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     parameters:
+	 *       - name: page
+	 *         in: query
+	 *         required: false
+	 *         description: Page number for pagination.
+	 *         schema:
+	 *           type: integer
+	 *           default: 1
+	 *           example: 1
+	 *       - name: limit
+	 *         in: query
+	 *         required: false
+	 *         description: Number of items per page.
+	 *         schema:
+	 *           type: integer
+	 *           default: 10
+	 *           example: 10
+	 *     responses:
+	 *       '200':
+	 *         description: Paginated list of archived emails across all accessible sources.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/PaginatedArchivedEmails'
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '500':
+	 *         $ref: '#/components/responses/InternalServerError'
+	 */
+	router.get(
+		'/',
+		requirePermission('read', 'archive'),
+		archivedEmailController.getAllArchivedEmails
+	);
+
+	/**
+	 * @openapi
 	 * /v1/archived-emails/{id}:
 	 *   get:
 	 *     summary: Get a single archived email
