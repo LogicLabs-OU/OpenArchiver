@@ -43,6 +43,16 @@ const FIELD_KINDS: Record<string, FieldKind> = {
 	timestamp: 'timestamp',
 	ingestionSourceId: 'string',
 	userEmail: 'string',
+	// --- P3 surface (Meilisearch filterableAttributes extended in
+	// SearchService.configureEmailIndex). ---
+	subject: 'string',
+	path: 'string',
+	tags: 'stringArray',
+	hasAttachments: 'boolean',
+	sizeBytes: 'number',
+	isOnLegalHold: 'boolean',
+	threadId: 'string',
+	'attachments.sha256': 'string',
 };
 
 /** Operators allowed per field kind. */
