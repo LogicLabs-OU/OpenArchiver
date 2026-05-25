@@ -44,6 +44,7 @@
 		"@types/semver": "^7.7.1",
 		"bits-ui": "^2.12.0",
 		"dotenv": "^17.2.0",
+		"jsdom": "^29.1.1",
 		"layerchart": "2.0.0-next.27",
 		"mode-watcher": "^1.1.0",
 		"svelte": "^5.0.0",
