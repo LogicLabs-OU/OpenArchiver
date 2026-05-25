@@ -12,34 +12,99 @@
 	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
 	import SearchResults from './components/SearchResults.svelte';
+	import AdvancedFilters from './components/AdvancedFilters.svelte';
+	import ActiveFilterBadges from './components/ActiveFilterBadges.svelte';
+	import { encodeSearchParams, emptyDraft } from './url-state';
+	import type { SearchQueryDraft } from './url-state';
 
 	let { data }: { data: PageData } = $props();
-	let searchResult = $derived(data.searchResult);
-	let keywords = $state(data.keywords || '');
-	let page = $derived(data.page);
-	let error = $derived(data.error);
-	let matchingStrategy: MatchingStrategy = $state(
-		(data.matchingStrategy as MatchingStrategy) || 'last'
+
+	// `applied` is the last-applied state as decoded from the URL. `draft` is the
+	// in-panel editor state. Per sub-plan §3a, panel edits do not auto-apply;
+	// the user must press "Apply" or hit Enter in the search box (or remove a
+	// chip in `ActiveFilterBadges`, which applies immediately).
+	let applied = $derived(data.draft);
+	// structuredClone($state.snapshot(...)) widens tuple value types (e.g. the
+	// timestamp 'between' `[string, string]`) to plain arrays — re-cast through
+	// `unknown` to keep the SearchQueryDraft shape.
+	let draft = $state<SearchQueryDraft>(
+		structuredClone($state.snapshot(data.draft)) as unknown as SearchQueryDraft
 	);
 
-	const strategies = [
+	let searchResult = $derived(data.searchResult);
+	let error = $derived(data.error);
+	let ingestionSources = $derived(data.ingestionSources);
+
+	// Whenever the URL changes (back/forward, external link), reset the local
+	// draft to match.
+	$effect(() => {
+		draft = structuredClone($state.snapshot(applied)) as unknown as SearchQueryDraft;
+	});
+
+	const sourceOptions = $derived(
+		ingestionSources.map((s) => ({
+			id: s.id,
+			name: s.name,
+			providerType: s.provider,
+		}))
+	);
+
+	const strategies = $derived([
 		{ value: 'last', label: $t('app.search.strategy_fuzzy') },
 		{ value: 'all', label: $t('app.search.strategy_verbatim') },
 		{ value: 'frequency', label: $t('app.search.strategy_frequency') },
-	];
+	]);
 
 	const triggerContent = $derived(
-		strategies.find((s) => s.value === matchingStrategy)?.label ??
+		strategies.find((s) => s.value === draft.matchingStrategy)?.label ??
 			$t('app.search.select_strategy')
 	);
 
-	function handleSearch(e: SubmitEvent) {
+	function navigateWith(next: SearchQueryDraft) {
+		const params = encodeSearchParams(next);
+		const qs = params.toString();
+		goto(`/dashboard/search${qs ? `?${qs}` : ''}`, { keepFocus: true });
+	}
+
+	function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
-		const params = new URLSearchParams();
-		params.set('keywords', keywords);
-		params.set('page', '1');
-		params.set('matchingStrategy', matchingStrategy);
-		goto(`/dashboard/search?${params.toString()}`, { keepFocus: true });
+		// Enter in the search box applies the current draft (with page reset to 1).
+		navigateWith({ ...draft, page: 1 });
+	}
+
+	function handleApply(next: SearchQueryDraft) {
+		// Apply from the AdvancedFilters footer — reset to page 1.
+		navigateWith({ ...next, page: 1 });
+	}
+
+	function handleClearAll() {
+		const e = emptyDraft();
+		// Preserve the matching-strategy preference (per sub-plan: "Clear all"
+		// resets filters, not user prefs). Keep query as well; clearing the search
+		// bar is a separate action.
+		navigateWith({
+			...e,
+			matchingStrategy: draft.matchingStrategy,
+			query: draft.query,
+		});
+	}
+
+	function handleRemoveBadge(key: string) {
+		const filters = { ...(draft.filters ?? {}) };
+		let nextDraft: SearchQueryDraft = { ...draft, filters };
+		if (key === 'timestamp') {
+			delete filters.timestamp;
+			nextDraft = { ...nextDraft, datePreset: undefined };
+		} else if (key in filters) {
+			delete (filters as Record<string, unknown>)[key];
+		}
+		navigateWith({ ...nextDraft, page: 1 });
+	}
+
+	function pageHref(p: number): string {
+		const params = encodeSearchParams({ ...draft, page: p });
+		const qs = params.toString();
+		return `/dashboard/search${qs ? `?${qs}` : ''}`;
 	}
 </script>
 
@@ -51,25 +116,30 @@
 <div class="container mx-auto p-4 md:p-8">
 	<h1 class="mb-4 text-2xl font-bold">{$t('app.search.email_search')}</h1>
 
-	<form onsubmit={(e) => handleSearch(e)} class="mb-8 flex flex-col space-y-2">
+	<form onsubmit={(e) => handleSubmit(e)} class="mb-4 flex flex-col space-y-2">
 		<div class="flex items-center gap-2">
 			<Input
 				type="search"
 				name="keywords"
 				placeholder={$t('app.search.placeholder')}
-				class=" h-12 flex-grow"
-				bind:value={keywords}
+				class="h-12 flex-grow"
+				bind:value={draft.query}
 			/>
-			<Button type="submit" class="h-12 cursor-pointer"
-				>{$t('app.search.search_button')}</Button
-			>
+			<Button type="submit" class="h-12 cursor-pointer">
+				{$t('app.search.search_button')}
+			</Button>
 		</div>
 		<div class="mt-1 text-xs font-medium">{$t('app.search.search_options')}</div>
 		<div class="flex items-center gap-2">
-			<Select.Root type="single" name="matchingStrategy" bind:value={matchingStrategy}>
-				<Select.Trigger class=" w-[180px] cursor-pointer">
-					{triggerContent}
-				</Select.Trigger>
+			<Select.Root
+				type="single"
+				name="matchingStrategy"
+				value={draft.matchingStrategy}
+				onValueChange={(v: string) => {
+					draft = { ...draft, matchingStrategy: v as MatchingStrategy };
+				}}
+			>
+				<Select.Trigger class="w-[180px] cursor-pointer">{triggerContent}</Select.Trigger>
 				<Select.Content>
 					{#each strategies as strategy (strategy.value)}
 						<Select.Item
@@ -84,6 +154,22 @@
 			</Select.Root>
 		</div>
 	</form>
+
+	<div class="mb-4">
+		<AdvancedFilters
+			bind:draft
+			{applied}
+			sources={sourceOptions}
+			onApply={handleApply}
+			onClearAll={handleClearAll}
+		/>
+	</div>
+
+	<ActiveFilterBadges
+		draft={applied}
+		sources={sourceOptions}
+		onRemove={handleRemoveBadge}
+	/>
 
 	{#if error}
 		<Alert.Root variant="destructive">
@@ -109,15 +195,15 @@
 
 		{#if searchResult.total > searchResult.limit}
 			<div class="mt-8">
-				<Pagination.Root count={searchResult.total} perPage={searchResult.limit} {page}>
+				<Pagination.Root
+					count={searchResult.total}
+					perPage={searchResult.limit}
+					page={applied.page}
+				>
 					{#snippet children({ pages, currentPage })}
 						<Pagination.Content>
 							<Pagination.Item>
-								<a
-									href={`/dashboard/search?keywords=${keywords}&page=${
-										currentPage - 1
-									}&matchingStrategy=${matchingStrategy}`}
-								>
+								<a href={pageHref(currentPage - 1)}>
 									<Pagination.PrevButton>
 										<ChevronLeft class="h-4 w-4" />
 										<span class="hidden sm:block">{$t('app.search.prev')}</span>
@@ -131,9 +217,7 @@
 									</Pagination.Item>
 								{:else}
 									<Pagination.Item>
-										<a
-											href={`/dashboard/search?keywords=${keywords}&page=${page.value}&matchingStrategy=${matchingStrategy}`}
-										>
+										<a href={pageHref(page.value)}>
 											<Pagination.Link
 												{page}
 												isActive={currentPage === page.value}
@@ -145,11 +229,7 @@
 								{/if}
 							{/each}
 							<Pagination.Item>
-								<a
-									href={`/dashboard/search?keywords=${keywords}&page=${
-										currentPage + 1
-									}&matchingStrategy=${matchingStrategy}`}
-								>
+								<a href={pageHref(currentPage + 1)}>
 									<Pagination.NextButton>
 										<span class="hidden sm:block">{$t('app.search.next')}</span>
 										<ChevronRight class="h-4 w-4" />
