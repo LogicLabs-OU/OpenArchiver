@@ -377,14 +377,14 @@ const options = {
 							example: 'clx1y2z3a0000b4d2',
 						},
 						subject: { type: 'string', nullable: true, example: 'Re: Q4 Invoice' },
-						sentAt: { type: 'string', format: 'date-time' },
+						sentAt: { type: 'string', format: 'date-time', nullable: true },
 						senderEmail: {
 							type: 'string',
 							format: 'email',
 							example: 'finance@vendor.com',
 						},
 					},
-					required: ['id', 'sentAt', 'senderEmail'],
+					required: ['id', 'senderEmail'],
 				},
 				ArchivedEmail: {
 					type: 'object',
@@ -397,7 +397,7 @@ const options = {
 							example: 'user@company.com',
 						},
 						messageIdHeader: { type: 'string', nullable: true },
-						sentAt: { type: 'string', format: 'date-time' },
+						sentAt: { type: 'string', format: 'date-time', nullable: true },
 						subject: { type: 'string', nullable: true, example: 'Q4 Invoice' },
 						senderName: { type: 'string', nullable: true, example: 'Finance Dept' },
 						senderEmail: {
@@ -441,7 +441,6 @@ const options = {
 						'id',
 						'ingestionSourceId',
 						'userEmail',
-						'sentAt',
 						'senderEmail',
 						'recipients',
 						'storagePath',
