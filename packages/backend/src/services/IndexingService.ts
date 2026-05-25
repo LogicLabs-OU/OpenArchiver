@@ -362,6 +362,7 @@ export class IndexingService {
 			}
 		}
 		// console.log('email.userEmail', userEmail);
+		const timestamp = email.receivedAt ? new Date(email.receivedAt).getTime() : undefined;
 		return {
 			id: archivedEmailId,
 			userEmail: userEmail,
@@ -372,7 +373,7 @@ export class IndexingService {
 			subject: email.subject || '',
 			body: email.body || email.html || '',
 			attachments: extractedAttachments,
-			timestamp: new Date(email.receivedAt).getTime(),
+			...(timestamp !== undefined ? { timestamp } : {}),
 			ingestionSourceId: ingestionSourceId,
 		};
 	}
@@ -407,6 +408,7 @@ export class IndexingService {
 
 		const recipients = email.recipients as DbRecipients;
 		// console.log('email.userEmail', email.userEmail);
+		const timestamp = email.sentAt ? new Date(email.sentAt).getTime() : undefined;
 		return {
 			id: email.id,
 			userEmail: userEmail,
@@ -417,7 +419,7 @@ export class IndexingService {
 			subject: email.subject || '',
 			body: emailBodyText,
 			attachments: attachmentContents,
-			timestamp: new Date(email.sentAt).getTime(),
+			...(timestamp !== undefined ? { timestamp } : {}),
 			ingestionSourceId: email.ingestionSourceId,
 		};
 	}
@@ -541,7 +543,7 @@ export class IndexingService {
 			subject: doc.subject || '',
 			body: doc.body || '',
 			attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
-			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
+			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : undefined,
 			ingestionSourceId: doc.ingestionSourceId || 'unknown',
 		};
 	}
