@@ -9,6 +9,7 @@
 	import * as Pagination from '$lib/components/ui/pagination/index.js';
 	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 
@@ -89,7 +90,7 @@
 					<Table.Row>
 						<Table.Cell>
 							{#if email.sentAt}
-								{new Date(email.sentAt).toLocaleString()}
+								{$formatDateTimeStore(email.sentAt)}
 							{:else}
 								<Badge variant="secondary"
 									>{$t('app.archive.original_date_unknown')}</Badge

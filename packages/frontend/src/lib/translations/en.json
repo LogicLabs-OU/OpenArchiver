@@ -266,7 +266,15 @@
 			"new_password": "New Password",
 			"confirm_new_password": "Confirm New Password",
 			"operation_successful": "Operation successful",
-			"passwords_do_not_match": "Passwords do not match"
+			"passwords_do_not_match": "Passwords do not match",
+			"preferences": "Preferences",
+			"preferences_desc": "Customize how information is displayed for you.",
+			"date_format": "Date format",
+			"date_format_desc": "Choose how dates and times are shown across the app.",
+			"date_format_locale": "Browser locale (default)",
+			"date_format_iso": "ISO 8601 (YYYY-MM-DD)",
+			"date_format_eu": "European (DD/MM/YYYY)",
+			"date_format_us": "US (MM/DD/YYYY)"
 		},
 		"system_settings": {
 			"title": "System Settings",

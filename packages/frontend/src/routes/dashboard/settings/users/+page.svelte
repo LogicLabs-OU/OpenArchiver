@@ -10,6 +10,7 @@
 	import { api } from '$lib/api.client';
 	import type { User } from '@open-archiver/types';
 	import { t } from '$lib/translations';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 	let users = $state(data.users);
@@ -131,7 +132,7 @@
 							<Table.Cell>{user.first_name} {user.last_name}</Table.Cell>
 							<Table.Cell>{user.email}</Table.Cell>
 							<Table.Cell>{user.role?.name || 'N/A'}</Table.Cell>
-							<Table.Cell>{new Date(user.createdAt).toLocaleDateString()}</Table.Cell>
+							<Table.Cell>{$formatDateStore(user.createdAt)}</Table.Cell>
 							<Table.Cell class="text-right">
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>

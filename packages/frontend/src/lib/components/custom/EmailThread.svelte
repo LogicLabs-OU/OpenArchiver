@@ -3,6 +3,7 @@
 	import type { ArchivedEmail } from '@open-archiver/types';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import { t } from '$lib/translations';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let {
 		thread,
@@ -59,7 +60,7 @@
 						>
 							<span>{$t('app.archive.from')}: {item.senderEmail}</span>
 							{#if item.sentAt}
-								<time>{new Date(item.sentAt).toLocaleString()}</time>
+								<time>{$formatDateTimeStore(item.sentAt)}</time>
 							{:else}
 								<time class="italic text-muted-foreground"
 									>{$t('app.archive.original_date_unknown')}</time

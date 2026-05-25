@@ -13,6 +13,7 @@
 	import { MoreHorizontal, Plus, Radio, Mail, Copy, Check, RefreshCw } from 'lucide-svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import type { JournalingSource } from '@open-archiver/types';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData; form: ActionData } = $props();
 
@@ -217,7 +218,7 @@
 						</Table.Cell>
 						<Table.Cell>
 							{#if source.lastReceivedAt}
-								{new Date(source.lastReceivedAt).toLocaleString()}
+								{$formatDateTimeStore(source.lastReceivedAt)}
 							{:else}
 								<span class="text-muted-foreground text-xs italic">
 									{$t('app.journaling.never')}

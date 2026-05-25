@@ -11,6 +11,7 @@
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 	let queue = $derived(data.queue);
@@ -111,15 +112,15 @@
 									{job.state}
 								{/if}
 							</Table.Cell>
-							<Table.Cell>{new Date(job.timestamp).toLocaleString()}</Table.Cell>
+							<Table.Cell>{$formatDateTimeStore(job.timestamp)}</Table.Cell>
 							<Table.Cell
 								>{job.processedOn
-									? new Date(job.processedOn).toLocaleString()
+									? $formatDateTimeStore(job.processedOn)
 									: 'N/A'}</Table.Cell
 							>
 							<Table.Cell
 								>{job.finishedOn
-									? new Date(job.finishedOn).toLocaleString()
+									? $formatDateTimeStore(job.finishedOn)
 									: 'N/A'}</Table.Cell
 							>
 							<Table.Cell>

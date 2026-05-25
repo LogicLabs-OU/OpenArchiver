@@ -13,6 +13,7 @@
 	import PaperclipIcon from '@lucide/svelte/icons/paperclip';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import { t } from '$lib/translations';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 	import { formatBytes } from '$lib/utils';
 	import { onMount } from 'svelte';
 
@@ -158,7 +159,7 @@
 								></span>
 							{:else if hit.timestamp}
 								<span class="inline-block">
-									{new Date(hit.timestamp).toLocaleString()}
+									{$formatDateTimeStore(hit.timestamp)}
 								</span>
 							{:else}
 								<span class="text-muted-foreground inline-block italic">

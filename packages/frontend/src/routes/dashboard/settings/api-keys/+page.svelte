@@ -12,6 +12,7 @@
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { api } from '$lib/api.client';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 
 	// Temporary type definition based on the backend schema
 	type ApiKey = {
@@ -197,10 +198,10 @@
 							<Table.Cell>{apiKey.name}</Table.Cell>
 							<Table.Cell>{apiKey.key.substring(0, 8)}</Table.Cell>
 							<Table.Cell
-								>{new Date(apiKey.expiresAt).toLocaleDateString()}</Table.Cell
+								>{$formatDateStore(apiKey.expiresAt)}</Table.Cell
 							>
 							<Table.Cell
-								>{new Date(apiKey.createdAt).toLocaleDateString()}</Table.Cell
+								>{$formatDateStore(apiKey.createdAt)}</Table.Cell
 							>
 							<Table.Cell class="text-right">
 								<DropdownMenu.Root>
