@@ -92,9 +92,30 @@ export interface EmailDocument {
 	attachments: {
 		filename: string;
 		content: string; // Extracted text from the attachment
+		/** SHA-256 hex digest of the attachment bytes. Optional because
+		 * pre-P3 documents in existing indexes do not carry it; reindex via
+		 * the orchestrator backfills it. */
+		sha256?: string;
 	}[];
 	/** Unix epoch (ms) of the email's original date. Omitted when the date is unknown. */
 	timestamp?: number;
 	ingestionSourceId: string;
+	// --- P3 additions ---
+	// Required-on-new-docs scalars stay required so freshly indexed documents
+	// always carry them; the orchestrator backfills existing rows.
+	// Strings/arrays that are genuinely nullable in the DB stay optional and
+	// are omitted (not null) when unknown.
+	/** Folder / mailbox path in the source system (e.g. 'INBOX/Projects'). */
+	path?: string;
+	/** Free-form labels carried over from the source (Gmail labels, IMAP keywords, etc.). */
+	tags?: string[];
+	/** True iff the archived row has linked attachments. */
+	hasAttachments: boolean;
+	/** Size of the stored .eml in bytes. */
+	sizeBytes: number;
+	/** True iff the archived row is on legal hold. */
+	isOnLegalHold: boolean;
+	/** Provider thread identifier when available. */
+	threadId?: string;
 	// other metadata
 }
