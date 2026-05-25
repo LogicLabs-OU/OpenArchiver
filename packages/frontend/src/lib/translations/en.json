@@ -212,6 +212,13 @@
 				"size_desc": "Largest first",
 				"size_asc": "Smallest first",
 				"custom": "Custom"
+			},
+			"preferences": {
+				"set_as_default": "Set as default",
+				"clear_default": "Clear default",
+				"default_saved": "Default search option saved",
+				"default_cleared": "Default search option cleared",
+				"info": "Save your preferred matching strategy so future searches use it automatically"
 			}
 		},
 		"roles": {
