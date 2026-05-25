@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
 import { boolean, jsonb, pgTable, text, timestamp, uuid, bigint, index } from 'drizzle-orm/pg-core';
+import type { OriginalDateSource } from '@open-archiver/types';
 import { ingestionSources } from './ingestion-sources';
 
 export const archivedEmails = pgTable(
@@ -28,7 +29,10 @@ export const archivedEmails = pgTable(
 		isOnLegalHold: boolean('is_on_legal_hold').notNull().default(false),
 		isJournaled: boolean('is_journaled').default(false),
 		archivedAt: timestamp('archived_at', { withTimezone: true }).notNull().defaultNow(),
-		originalDateSource: text('original_date_source').notNull().default('header'),
+		originalDateSource: text('original_date_source')
+			.$type<OriginalDateSource>()
+			.notNull()
+			.default('header'),
 		dateBackfilledAt: timestamp('date_backfilled_at', { withTimezone: true }),
 		path: text('path'),
 		tags: jsonb('tags'),
