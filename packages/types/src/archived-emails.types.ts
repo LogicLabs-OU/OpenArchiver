@@ -15,6 +15,9 @@ export interface Attachment {
 	mimeType: string | null;
 	sizeBytes: number;
 	storagePath: string;
+	/** SHA-256 hex digest of the attachment bytes. Optional in the public
+	 * surface for backwards compatibility; the DB column is NOT NULL. */
+	contentHashSha256?: string;
 }
 
 export interface ThreadEmail {
