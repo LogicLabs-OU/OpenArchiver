@@ -52,7 +52,8 @@
 		"notFound": "Archivierte E-Mail nicht gefunden"
 	},
 	"search": {
-		"keywordsRequired": "Schlüsselwörter sind erforderlich"
+		"keywordsRequired": "Schlüsselwörter sind erforderlich",
+		"filterInvalid": "Ungültiger Filter: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "Dateipfad ist erforderlich",
