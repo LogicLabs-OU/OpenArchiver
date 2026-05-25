@@ -1,5 +1,5 @@
 import { Job } from 'bullmq';
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, sql, type SQL } from 'drizzle-orm';
 import { simpleParser } from 'mailparser';
 import type { OriginalDateSource } from '@open-archiver/types';
 import { dateBackfillQueue, indexingQueue } from '../queues';
@@ -188,7 +188,7 @@ async function runPlanner(
 	};
 
 	while (true) {
-		const pageWhere = lastId
+		const pageWhere: SQL | undefined = lastId
 			? and(baseWhere, gt(archivedEmails.id, lastId))
 			: baseWhere;
 
