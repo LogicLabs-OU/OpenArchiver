@@ -524,7 +524,8 @@
           },
           "sentAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
           },
           "senderEmail": {
             "type": "string",
@@ -534,7 +535,6 @@
         },
         "required": [
           "id",
-          "sentAt",
           "senderEmail"
         ]
       },
@@ -560,7 +560,8 @@
           },
           "sentAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
           },
           "subject": {
             "type": "string",
@@ -635,7 +636,6 @@
           "id",
           "ingestionSourceId",
           "userEmail",
-          "sentAt",
           "senderEmail",
           "recipients",
           "storagePath",
@@ -938,6 +938,67 @@
           "jobId",
           "state",
           "data"
+        ]
+      },
+      "BackfillStatus": {
+        "type": "object",
+        "description": "Status snapshot for a date-backfill planner job. Counters reflect the live state of all batch jobs spawned by the planner (read from a Redis hash keyed by planner job id).",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "completed",
+              "failed"
+            ],
+            "description": "Collapsed BullMQ state. Reported as `running` whenever scanned < total, even if the planner itself is `completed`."
+          },
+          "jobId": {
+            "type": "string",
+            "example": "42"
+          },
+          "total": {
+            "type": "integer",
+            "example": 12500,
+            "description": "Total rows the planner identified for scanning."
+          },
+          "scanned": {
+            "type": "integer",
+            "example": 4321,
+            "description": "Rows processed (updated + unchanged + failed)."
+          },
+          "updated": {
+            "type": "integer",
+            "example": 1280,
+            "description": "Rows whose sent_at or original_date_source changed."
+          },
+          "failed": {
+            "type": "integer",
+            "example": 7,
+            "description": "Rows that errored mid-process. They are still marked scanned to skip on resume."
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "state",
+          "jobId",
+          "total",
+          "scanned",
+          "updated",
+          "failed",
+          "startedAt",
+          "finishedAt"
         ]
       },
       "IntegrityCheckResult": {
@@ -2076,6 +2137,192 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/admin/jobs/date-backfill": {
+      "post": {
+        "summary": "Start a date-backfill job",
+        "description": "Enqueues a planner job that scans `archived_emails WHERE\ndate_backfilled_at IS NULL`, fan-outs batch jobs that re-parse\neach row's stored EML and update `sent_at` /\n`original_date_source` using the dateExtractor fallback chain,\nand triggers a reindex for the rows whose date actually changed.\n\nIdempotent — re-running picks up where it left off. Requires\n`manage:all` (Super Admin) permission.\n",
+        "operationId": "startDateBackfill",
+        "tags": [
+          "Admin / Date Backfill"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ingestionSourceId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Narrow the scan to a single ingestion source."
+                  },
+                  "batchSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5000,
+                    "description": "Rows per batch job. Defaults to 100."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Planner job accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/admin/jobs/date-backfill/pause": {
+      "post": {
+        "summary": "Pause the date-backfill queue",
+        "description": "Queue-level pause: workers stop accepting new jobs but in-flight\njobs finish their current row batch. There is no per-job pause\nin BullMQ.\n",
+        "operationId": "pauseDateBackfill",
+        "tags": [
+          "Admin / Date Backfill"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Queue paused."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/admin/jobs/date-backfill/resume": {
+      "post": {
+        "summary": "Resume the date-backfill queue",
+        "description": "Mirror of `/pause`.",
+        "operationId": "resumeDateBackfill",
+        "tags": [
+          "Admin / Date Backfill"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Queue resumed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/admin/jobs/date-backfill/{jobId}/status": {
+      "get": {
+        "summary": "Get the status of a date-backfill planner job",
+        "description": "Returns the planner's BullMQ state collapsed into a 5-state\ncontract (`pending` | `running` | `paused` | `completed` |\n`failed`) plus the live counters (total / scanned / updated /\nfailed) accumulated by the spawned batch jobs.\n\nA planner is reported as `running` whenever the scanned counter\nhasn't yet caught up with total, even if its own BullMQ state is\n`completed` (the orchestrator finished enqueueing but batches are\nstill in flight).\n",
+        "operationId": "getDateBackfillStatus",
+        "tags": [
+          "Admin / Date Backfill"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current job state and counters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackfillStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Job not found."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
