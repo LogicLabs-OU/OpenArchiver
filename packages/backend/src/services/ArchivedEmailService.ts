@@ -1,4 +1,4 @@
-import { count, eq, asc, and, inArray, sql } from 'drizzle-orm';
+import { count, eq, asc, desc, and, inArray, sql } from 'drizzle-orm';
 import { db } from '../database';
 import {
 	archivedEmails,
