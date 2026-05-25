@@ -39,3 +39,19 @@ export const reindexQueue = new Queue('reindex', {
 	connection,
 	defaultJobOptions,
 });
+
+// Queue for the original-date backfill (issue #372). A planner job paginates
+// `archived_emails WHERE date_backfilled_at IS NULL` and enqueues batch jobs
+// on the same queue. Each batch job re-parses the raw EML, applies the
+// dateExtractor fallback chain, updates `sent_at` / `original_date_source` /
+// `date_backfilled_at`, and enqueues a single `index-email-batch` job on
+// `indexingQueue` for the rows whose sent_at actually changed.
+//
+// This is intentionally a separate queue from `reindexQueue` — different
+// purpose (writes to Postgres, then enqueues onto indexingQueue) and a
+// different cadence (idempotent resume via the `date_backfilled_at` flag,
+// no cursor state held in Redis).
+export const dateBackfillQueue = new Queue('date-backfill', {
+	connection,
+	defaultJobOptions,
+});
