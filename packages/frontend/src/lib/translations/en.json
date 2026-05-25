@@ -99,7 +99,13 @@
 			"unmerging": "Unmerging",
 			"delete_root_warning": "This ingestion has {{count}} merged source(s). Deleting it will also delete all merged sources and their data.",
 			"expand": "Expand",
-			"collapse": "Collapse"
+			"collapse": "Collapse",
+			"email_count": "Emails",
+			"size": "Size",
+			"oldest_email": "Oldest email",
+			"newest_email": "Newest email",
+			"last_sync": "Last sync",
+			"never": "Never"
 		},
 		"search": {
 			"title": "Search",

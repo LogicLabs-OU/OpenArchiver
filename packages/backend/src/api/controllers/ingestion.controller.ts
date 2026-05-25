@@ -66,6 +66,20 @@ export class IngestionController {
 		}
 	};
 
+	public getStats = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			const stats = await IngestionService.getStats(userId);
+			return res.status(200).json(stats);
+		} catch (error) {
+			logger.error({ err: error }, 'Get ingestion source stats error');
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+
 	public findById = async (req: Request, res: Response): Promise<Response> => {
 		try {
 			const { id } = req.params;

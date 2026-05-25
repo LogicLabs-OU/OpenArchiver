@@ -9,14 +9,61 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import IngestionSourceForm from '$lib/components/custom/IngestionSourceForm.svelte';
 	import { api } from '$lib/api.client';
-	import type { SafeIngestionSource, CreateIngestionSourceDto } from '@open-archiver/types';
+	import type {
+		SafeIngestionSource,
+		CreateIngestionSourceDto,
+		IngestionSourceDetailedStats,
+	} from '@open-archiver/types';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import { t } from '$lib/translations';
+	import { formatBytes } from '$lib/utils';
 
 	let { data }: { data: PageData } = $props();
 	let ingestionSources = $state(data.ingestionSources as SafeIngestionSource[]);
+	const ingestionStats = data.ingestionStats as IngestionSourceDetailedStats[];
+
+	/** Map of ingestion source ID -> stats row, for O(1) lookup in the table */
+	const statsById = $derived(new Map(ingestionStats.map((s) => [s.ingestionSourceId, s])));
+
+	/** Returns rolled-up stats for a root and its merged children */
+	function getGroupStats(root: SafeIngestionSource, children: SafeIngestionSource[]) {
+		const ids = [root.id, ...children.map((c) => c.id)];
+		let emailCount = 0;
+		let totalSizeBytes = 0;
+		let oldest: number | null = null;
+		let newest: number | null = null;
+		for (const id of ids) {
+			const s = statsById.get(id);
+			if (!s) continue;
+			emailCount += s.emailCount;
+			totalSizeBytes += Number(s.totalSizeBytes);
+			if (s.oldestEmailAt) {
+				const t = new Date(s.oldestEmailAt).getTime();
+				if (oldest === null || t < oldest) oldest = t;
+			}
+			if (s.newestEmailAt) {
+				const t = new Date(s.newestEmailAt).getTime();
+				if (newest === null || t > newest) newest = t;
+			}
+		}
+		return {
+			emailCount,
+			totalSizeBytes,
+			oldestEmailAt: oldest === null ? null : new Date(oldest),
+			newestEmailAt: newest === null ? null : new Date(newest),
+		};
+	}
+
+	function formatDateOrNever(d: Date | string | null | undefined): string {
+		if (!d) return $t('app.ingestions.never');
+		return new Date(d).toLocaleDateString();
+	}
+
+	function formatCount(n: number): string {
+		return n.toLocaleString();
+	}
 	let isDialogOpen = $state(false);
 	let isDeleteDialogOpen = $state(false);
 	let selectedSource = $state<SafeIngestionSource | null>(null);
@@ -426,6 +473,11 @@
 					<Table.Head>{$t('app.ingestions.provider')}</Table.Head>
 					<Table.Head>{$t('app.ingestions.status')}</Table.Head>
 					<Table.Head>{$t('app.ingestions.active')}</Table.Head>
+					<Table.Head class="text-right">{$t('app.ingestions.email_count')}</Table.Head>
+					<Table.Head class="text-right">{$t('app.ingestions.size')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.oldest_email')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.newest_email')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.last_sync')}</Table.Head>
 					<Table.Head>{$t('app.ingestions.created_at')}</Table.Head>
 					<Table.Head class="text-right">{$t('app.ingestions.actions')}</Table.Head>
 				</Table.Row>
@@ -439,6 +491,14 @@
 						{@const displayStatus = hasChildren
 							? getGroupStatus(source, children)
 							: source.status}
+						{@const rowStats = hasChildren
+							? getGroupStats(source, children)
+							: (statsById.get(source.id) ?? {
+									emailCount: 0,
+									totalSizeBytes: 0,
+									oldestEmailAt: null,
+									newestEmailAt: null,
+								})}
 
 						<!-- Root row -->
 						<Table.Row>
@@ -519,6 +579,15 @@
 									onCheckedChange={() => handleToggle(source)}
 								/>
 							</Table.Cell>
+							<Table.Cell class="text-right tabular-nums"
+								>{formatCount(rowStats.emailCount)}</Table.Cell
+							>
+							<Table.Cell class="text-right tabular-nums"
+								>{formatBytes(rowStats.totalSizeBytes)}</Table.Cell
+							>
+							<Table.Cell>{formatDateOrNever(rowStats.oldestEmailAt)}</Table.Cell>
+							<Table.Cell>{formatDateOrNever(rowStats.newestEmailAt)}</Table.Cell>
+							<Table.Cell>{formatDateOrNever(source.lastSyncFinishedAt)}</Table.Cell>
 							<Table.Cell
 								>{new Date(source.createdAt).toLocaleDateString()}</Table.Cell
 							>
@@ -558,6 +627,12 @@
 						<!-- Child rows (shown when group is expanded) -->
 						{#if hasChildren && isExpanded}
 							{#each children as child (child.id)}
+								{@const childStats = statsById.get(child.id) ?? {
+									emailCount: 0,
+									totalSizeBytes: 0,
+									oldestEmailAt: null,
+									newestEmailAt: null,
+								}}
 								<Table.Row class="bg-muted/30">
 									<Table.Cell>
 										<!-- No checkbox for children -->
@@ -612,6 +687,21 @@
 											onCheckedChange={() => handleToggle(child)}
 										/>
 									</Table.Cell>
+									<Table.Cell class="text-right tabular-nums"
+										>{formatCount(childStats.emailCount)}</Table.Cell
+									>
+									<Table.Cell class="text-right tabular-nums"
+										>{formatBytes(childStats.totalSizeBytes)}</Table.Cell
+									>
+									<Table.Cell
+										>{formatDateOrNever(childStats.oldestEmailAt)}</Table.Cell
+									>
+									<Table.Cell
+										>{formatDateOrNever(childStats.newestEmailAt)}</Table.Cell
+									>
+									<Table.Cell
+										>{formatDateOrNever(child.lastSyncFinishedAt)}</Table.Cell
+									>
 									<Table.Cell
 										>{new Date(
 											child.createdAt

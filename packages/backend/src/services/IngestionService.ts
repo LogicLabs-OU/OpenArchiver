@@ -4,11 +4,12 @@ import type {
 	CreateIngestionSourceDto,
 	UpdateIngestionSourceDto,
 	IngestionSource,
+	IngestionSourceDetailedStats,
 	IngestionCredentials,
 	IngestionProvider,
 	PendingEmail,
 } from '@open-archiver/types';
-import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, max, min, or, sql } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
 import { ingestionQueue } from '../jobs/queues';
@@ -150,6 +151,42 @@ export class IngestionService {
 			throw new Error('Failed to decrypt ingestion source credentials.');
 		}
 		return decryptedSource;
+	}
+
+	/**
+	 * Returns aggregate stats (email count, total size, oldest/newest sentAt)
+	 * for every ingestion source the given user can read. One row per source,
+	 * including sources with zero archived emails (counts default to 0, dates
+	 * to null).
+	 */
+	public static async getStats(userId: string): Promise<IngestionSourceDetailedStats[]> {
+		const { drizzleFilter } = await FilterBuilder.create(userId, 'ingestion', 'read');
+
+		let query = db
+			.select({
+				ingestionSourceId: ingestionSources.id,
+				emailCount: sql<number>`count(${archivedEmails.id})::int`,
+				totalSizeBytes: sql<number>`coalesce(sum(${archivedEmails.sizeBytes}), 0)::bigint`,
+				oldestEmailAt: min(archivedEmails.sentAt),
+				newestEmailAt: max(archivedEmails.sentAt),
+			})
+			.from(ingestionSources)
+			.leftJoin(archivedEmails, eq(ingestionSources.id, archivedEmails.ingestionSourceId))
+			.groupBy(ingestionSources.id)
+			.$dynamic();
+
+		if (drizzleFilter) {
+			query = query.where(drizzleFilter);
+		}
+
+		const rows = await query;
+		return rows.map((row) => ({
+			ingestionSourceId: row.ingestionSourceId,
+			emailCount: Number(row.emailCount ?? 0),
+			totalSizeBytes: Number(row.totalSizeBytes ?? 0),
+			oldestEmailAt: row.oldestEmailAt ?? null,
+			newestEmailAt: row.newestEmailAt ?? null,
+		}));
 	}
 
 	public static async update(
