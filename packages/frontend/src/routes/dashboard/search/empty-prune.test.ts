@@ -23,7 +23,7 @@ describe('toApiSearchQuery — top-level pruning', () => {
 		expect(out.filters).toBeUndefined();
 	});
 
-	it("trimmed-empty query is dropped, non-empty kept", () => {
+	it('trimmed-empty query is dropped, non-empty kept', () => {
 		const d = emptyDraft();
 		d.query = '   ';
 		expect(toApiSearchQuery(d).query).toBeUndefined();
@@ -32,12 +32,22 @@ describe('toApiSearchQuery — top-level pruning', () => {
 		expect(toApiSearchQuery(d).query).toBe('foo');
 	});
 
-	it('sort is omitted when empty, kept when set', () => {
+	it('explicit sort always wins, even with a query', () => {
 		const d = emptyDraft();
-		expect(toApiSearchQuery(d).sort).toBeUndefined();
-
+		d.query = 'foo';
 		d.sort = [{ field: 'timestamp', dir: 'asc' }];
 		expect(toApiSearchQuery(d).sort).toEqual([{ field: 'timestamp', dir: 'asc' }]);
+	});
+
+	it('empty sort with a query leaves sort undefined (relevance ranking)', () => {
+		const d = emptyDraft();
+		d.query = 'foo';
+		expect(toApiSearchQuery(d).sort).toBeUndefined();
+	});
+
+	it('empty sort with no query falls back to timestamp:desc (filter-only browse)', () => {
+		const d = emptyDraft();
+		expect(toApiSearchQuery(d).sort).toEqual([{ field: 'timestamp', dir: 'desc' }]);
 	});
 });
 
@@ -164,7 +174,7 @@ describe('toApiSearchQuery — timestamp', () => {
 		}
 	});
 
-	it("custom preset uses explicit from/to in the draft", () => {
+	it('custom preset uses explicit from/to in the draft', () => {
 		const d = emptyDraft();
 		d.datePreset = 'custom';
 		d.filters.timestamp = {

@@ -124,6 +124,9 @@ const VALID_MATCHING: ReadonlySet<MatchingStrategy> = new Set<MatchingStrategy>(
 
 const VALID_SORT_FIELDS: ReadonlySet<SortClause['field']> = new Set<SortClause['field']>([
 	'timestamp',
+	'subject',
+	'sizeBytes',
+	'from',
 ]);
 
 const VALID_DATE_PRESETS: ReadonlySet<DatePreset> = new Set<DatePreset>([
@@ -288,11 +291,7 @@ function encodeIngestionSourceFilter(
 	}
 }
 
-function encodePathFilter(
-	params: URLSearchParams,
-	short: 'path',
-	f: PathFilter | undefined
-): void {
+function encodePathFilter(params: URLSearchParams, short: 'path', f: PathFilter | undefined): void {
 	if (!f) return;
 	params.set(`f.${short}.op`, f.op);
 	for (const v of f.value) params.append(`f.${short}.v`, v);
@@ -311,11 +310,7 @@ function encodeBooleanShortcut(
 	params.set(`f.${short}`, bool ? '1' : '0');
 }
 
-function encodeShaFilter(
-	params: URLSearchParams,
-	short: 'sha',
-	f: StringFilter | undefined
-): void {
+function encodeShaFilter(params: URLSearchParams, short: 'sha', f: StringFilter | undefined): void {
 	if (!f) return;
 	// SHA is fixed-shape: op=eq, single value.
 	if (f.op === 'eq') {
@@ -596,8 +591,17 @@ export function toApiSearchQuery(draft: SearchQueryDraft): SearchQuery {
 	if (typeof draft.page === 'number' && draft.page > 0) out.page = draft.page;
 	if (typeof draft.limit === 'number' && draft.limit > 0) out.limit = draft.limit;
 	if (draft.matchingStrategy) out.matchingStrategy = draft.matchingStrategy;
+
+	// Sort precedence (P5, refs #298, #304):
+	//   1. Explicit user sort (`draft.sort[0]`) — always wins.
+	//   2. No sort + non-empty query → leave undefined so Meilisearch ranks by
+	//      relevance.
+	//   3. No sort + empty query (filter-only browsing) → fall back to newest
+	//      first so results aren't dumped in arbitrary insertion order.
 	if (draft.sort && draft.sort.length > 0) {
 		out.sort = draft.sort.slice(0, 1);
+	} else if (trimmedQuery.length === 0) {
+		out.sort = [{ field: 'timestamp', dir: 'desc' }];
 	}
 
 	const filters = pruneFilters(draft.filters ?? {}, draft.datePreset);
@@ -682,9 +686,7 @@ function pruneStringFilter(f: StringFilter | undefined): StringFilter | undefine
 	return { op: f.op, value: v } as StringFilter;
 }
 
-function pruneStringArrayFilter(
-	f: StringArrayFilter | undefined
-): StringArrayFilter | undefined {
+function pruneStringArrayFilter(f: StringArrayFilter | undefined): StringArrayFilter | undefined {
 	if (!f) return undefined;
 	const cleaned = f.value.map((v) => v.trim()).filter((v) => v.length > 0);
 	if (cleaned.length === 0) return undefined;
@@ -696,9 +698,7 @@ function pruneStringArrayFilter(
  * sentinel-only state (per sub-plan §4: tri-state 'any' → omit unless paired
  * with chips). Here we treat "any with no chips" as empty.
  */
-function pruneStringArrayTriState(
-	f: StringArrayFilter | undefined
-): StringArrayFilter | undefined {
+function pruneStringArrayTriState(f: StringArrayFilter | undefined): StringArrayFilter | undefined {
 	return pruneStringArrayFilter(f);
 }
 
@@ -838,10 +838,7 @@ export function fromApiSearchQuery(q: SearchQuery): SearchQueryDraft {
 	if (Array.isArray(q.sort)) {
 		draft.sort = q.sort
 			.filter(
-				(s) =>
-					s &&
-					VALID_SORT_FIELDS.has(s.field) &&
-					(s.dir === 'asc' || s.dir === 'desc')
+				(s) => s && VALID_SORT_FIELDS.has(s.field) && (s.dir === 'asc' || s.dir === 'desc')
 			)
 			.slice(0, 1);
 	}

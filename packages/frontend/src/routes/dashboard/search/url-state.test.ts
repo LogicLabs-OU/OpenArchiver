@@ -271,6 +271,20 @@ describe('url-state — combined and edge cases', () => {
 		expect(out.sort).toEqual([{ field: 'timestamp', dir: 'desc' }]);
 	});
 
+	it.each([
+		['subject', 'asc'],
+		['sizeBytes', 'desc'],
+		['sizeBytes', 'asc'],
+		['from', 'asc'],
+	] as const)('sort=%s:%s round-trips', (field, dir) => {
+		const d = emptyDraft();
+		d.sort = [{ field, dir }];
+		const params = encodeSearchParams(d);
+		expect(params.get('sort')).toBe(`${field}:${dir}`);
+		const out = roundTrip(d);
+		expect(out.sort).toEqual([{ field, dir }]);
+	});
+
 	it('sort=fake:desc decodes safely (drop unknown fields)', () => {
 		const params = new URLSearchParams('sort=fake:desc');
 		const out = decodeSearchParams(params);
@@ -356,9 +370,17 @@ describe('url-state — fromApiSearchQuery is the inverse of toApiSearchQuery (s
 
 	it('drops unknown sort field on decode', () => {
 		const api = {
-			sort: [{ field: 'subject', dir: 'asc' }],
+			sort: [{ field: 'totallyBogus', dir: 'asc' }],
 		} as unknown as SearchQuery;
 		const draft = fromApiSearchQuery(api);
 		expect(draft.sort).toEqual([]);
+	});
+
+	it('decodes each newly-allowed sort field', () => {
+		for (const field of ['subject', 'sizeBytes', 'from'] as const) {
+			const api = { sort: [{ field, dir: 'asc' }] } as SearchQuery;
+			const draft = fromApiSearchQuery(api);
+			expect(draft.sort).toEqual([{ field, dir: 'asc' }]);
+		}
 	});
 });
