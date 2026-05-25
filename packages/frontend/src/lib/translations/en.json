@@ -201,6 +201,17 @@
 				"attachments_count": "{{count}} attachment(s)",
 				"tags_more": "+{{count}} more",
 				"legal_hold": "On legal hold"
+			},
+			"sort": {
+				"label": "Sort by",
+				"relevance": "Relevance",
+				"date_desc": "Newest first",
+				"date_asc": "Oldest first",
+				"from_asc": "Sender A to Z",
+				"subject_asc": "Subject A to Z",
+				"size_desc": "Largest first",
+				"size_asc": "Smallest first",
+				"custom": "Custom"
 			}
 		},
 		"roles": {
