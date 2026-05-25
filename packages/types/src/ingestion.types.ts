@@ -136,6 +136,22 @@ export interface IngestionSource {
  */
 export type SafeIngestionSource = Omit<IngestionSource, 'credentials'>;
 
+/**
+ * Aggregate statistics for a single ingestion source, computed from its
+ * archived emails. Dates are returned as ISO strings over the wire and may
+ * be null when the source has no archived emails yet.
+ *
+ * Distinct from the dashboard's `IngestionSourceStats`, which exposes a
+ * lightweight per-source slice used on the dashboard overview.
+ */
+export interface IngestionSourceDetailedStats {
+	ingestionSourceId: string;
+	emailCount: number;
+	totalSizeBytes: number;
+	oldestEmailAt: Date | string | null;
+	newestEmailAt: Date | string | null;
+}
+
 export interface CreateIngestionSourceDto {
 	name: string;
 	provider: IngestionProvider;

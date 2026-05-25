@@ -75,6 +75,28 @@ export const createIngestionRouter = (
 
 	/**
 	 * @openapi
+	 * /v1/ingestion-sources/stats:
+	 *   get:
+	 *     summary: Per-source aggregate stats
+	 *     description: Returns aggregate stats (email count, total size, oldest/newest sentAt) for every ingestion source the caller can read. One row per source. Requires `read:ingestion` permission.
+	 *     operationId: getIngestionSourceStats
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     responses:
+	 *       '200':
+	 *         description: Array of per-source stats.
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '500':
+	 *         $ref: '#/components/responses/InternalServerError'
+	 */
+	router.get('/stats', requirePermission('read', 'ingestion'), ingestionController.getStats);
+
+	/**
+	 * @openapi
 	 * /v1/ingestion-sources/{id}:
 	 *   get:
 	 *     summary: Get an ingestion source
