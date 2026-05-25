@@ -8,8 +8,27 @@
 		CardDescription,
 	} from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { Badge } from '$lib/components/ui/badge';
+	import * as HoverCard from '$lib/components/ui/hover-card';
+	import PaperclipIcon from '@lucide/svelte/icons/paperclip';
+	import LockIcon from '@lucide/svelte/icons/lock';
 	import { t } from '$lib/translations';
+	import { formatBytes } from '$lib/utils';
 	import { onMount } from 'svelte';
+
+	/**
+	 * 1024-based byte formatter for the result-card meta strip (sub-plan §6).
+	 * Reuses the canonical `formatBytes` helper rather than introducing a
+	 * near-duplicate `humanFileSize` — they would behave identically.
+	 */
+	function humanFileSize(bytes: number | undefined): string {
+		if (typeof bytes !== 'number' || !Number.isFinite(bytes) || bytes < 0) return '';
+		return formatBytes(bytes, 1);
+	}
+
+	function truncate(s: string, max = 32): string {
+		return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+	}
 
 	type Props = {
 		searchResult: SearchResult;
@@ -148,6 +167,65 @@
 							{/if}
 						</span>
 					</CardDescription>
+
+					{@const tags = hit.tags ?? []}
+					{@const attachmentCount = Array.isArray(hit.attachments) ? hit.attachments.length : 0}
+					{#if hit.path || attachmentCount > 0 || tags.length > 0 || typeof hit.sizeBytes === 'number' || hit.isOnLegalHold}
+						<div class="text-muted-foreground mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+							{#if hit.path}
+								{#if hit.path.length > 32}
+									<HoverCard.Root>
+										<HoverCard.Trigger>
+											<Badge variant="outline" class="font-mono">
+												{truncate(hit.path)}
+											</Badge>
+										</HoverCard.Trigger>
+										<HoverCard.Content class="w-auto max-w-md break-all font-mono text-xs">
+											{hit.path}
+										</HoverCard.Content>
+									</HoverCard.Root>
+								{:else}
+									<Badge variant="outline" class="font-mono">{hit.path}</Badge>
+								{/if}
+							{/if}
+
+							{#if attachmentCount > 0}
+								<Badge variant="default" class="gap-1">
+									<PaperclipIcon class="size-3" />
+									{$t('app.search.card.attachments_count', {
+										count: attachmentCount,
+									} as any)}
+								</Badge>
+							{/if}
+
+							{#if tags.length > 0}
+								{#each tags.slice(0, 3) as tag (tag)}
+									<Badge variant="secondary">{tag}</Badge>
+								{/each}
+								{#if tags.length > 3}
+									<Badge variant="secondary">
+										{$t('app.search.card.tags_more', {
+											count: tags.length - 3,
+										} as any)}
+									</Badge>
+								{/if}
+							{/if}
+
+							{#if typeof hit.sizeBytes === 'number'}
+								<span>{humanFileSize(hit.sizeBytes)}</span>
+							{/if}
+
+							{#if hit.isOnLegalHold}
+								<span
+									class="text-destructive inline-flex items-center gap-0.5"
+									title={$t('app.search.card.legal_hold')}
+									aria-label={$t('app.search.card.legal_hold')}
+								>
+									<LockIcon class="size-3" />
+								</span>
+							{/if}
+						</div>
+					{/if}
 				</CardHeader>
 				<CardContent class="space-y-2">
 					<!-- Body matches -->
