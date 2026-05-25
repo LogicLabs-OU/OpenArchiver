@@ -110,6 +110,55 @@ export class ArchivedEmailService {
 		};
 	}
 
+	public static async getAllArchivedEmails(
+		page: number,
+		limit: number,
+		userId: string
+	): Promise<PaginatedArchivedEmails> {
+		const offset = (page - 1) * limit;
+		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+
+		const countQuery = db
+			.select({
+				count: count(archivedEmails.id),
+			})
+			.from(archivedEmails)
+			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id));
+
+		if (drizzleFilter) {
+			countQuery.where(drizzleFilter);
+		}
+
+		const [total] = await countQuery;
+
+		const itemsQuery = db
+			.select()
+			.from(archivedEmails)
+			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id))
+			.orderBy(desc(archivedEmails.sentAt))
+			.limit(limit)
+			.offset(offset);
+
+		if (drizzleFilter) {
+			itemsQuery.where(drizzleFilter);
+		}
+
+		const results = await itemsQuery;
+		const items = results.map((r) => r.archived_emails);
+
+		return {
+			items: items.map((item) => ({
+				...item,
+				recipients: this.mapRecipients(item.recipients),
+				tags: (item.tags as string[] | null) || null,
+				path: item.path || null,
+			})),
+			total: total.count,
+			page,
+			limit,
+		};
+	}
+
 	public static async getArchivedEmailById(
 		emailId: string,
 		userId: string,
