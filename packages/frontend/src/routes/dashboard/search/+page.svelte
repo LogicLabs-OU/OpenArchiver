@@ -20,6 +20,7 @@
 	import * as Pagination from '$lib/components/ui/pagination/index.js';
 	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 	let searchResult = $derived(data.searchResult);
@@ -235,7 +236,7 @@
 										></span>
 									{:else}
 										<span class="inline-block">
-											{new Date(hit.timestamp).toLocaleString()}
+											{$formatDateTimeStore(hit.timestamp)}
 										</span>
 									{/if}
 								</span>

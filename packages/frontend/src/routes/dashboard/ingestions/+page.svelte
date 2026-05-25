@@ -14,6 +14,7 @@
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import { t } from '$lib/translations';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 	let ingestionSources = $state(data.ingestionSources as SafeIngestionSource[]);
@@ -520,7 +521,7 @@
 								/>
 							</Table.Cell>
 							<Table.Cell
-								>{new Date(source.createdAt).toLocaleDateString()}</Table.Cell
+								>{$formatDateStore(source.createdAt)}</Table.Cell
 							>
 							<Table.Cell class="text-right">
 								<DropdownMenu.Root>
@@ -613,9 +614,7 @@
 										/>
 									</Table.Cell>
 									<Table.Cell
-										>{new Date(
-											child.createdAt
-										).toLocaleDateString()}</Table.Cell
+										>{$formatDateStore(child.createdAt)}</Table.Cell
 									>
 									<Table.Cell class="text-right">
 										<DropdownMenu.Root>

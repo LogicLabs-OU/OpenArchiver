@@ -6,7 +6,25 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Select from '$lib/components/ui/select';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
+	import {
+		dateFormat,
+		formatDateTime,
+		type DateFormat,
+	} from '$lib/stores/dateFormat.store';
+
+	const dateFormatOptions: { value: DateFormat; key: string }[] = [
+		{ value: 'locale', key: 'app.account.date_format_locale' },
+		{ value: 'iso', key: 'app.account.date_format_iso' },
+		{ value: 'eu', key: 'app.account.date_format_eu' },
+		{ value: 'us', key: 'app.account.date_format_us' },
+	];
+	const dateFormatLabel = $derived(
+		dateFormatOptions.find((o) => o.value === $dateFormat)?.key ??
+			'app.account.date_format_locale'
+	);
+	const dateFormatPreview = $derived(formatDateTime(new Date(), $dateFormat));
 
 	let { data, form } = $props();
 	let user = $derived(data.user);
@@ -128,6 +146,43 @@
 				>{$t('app.account.change_password')}</Button
 			>
 		</Card.Footer>
+	</Card.Root>
+
+	<!-- Preferences -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>{$t('app.account.preferences')}</Card.Title>
+			<Card.Description>{$t('app.account.preferences_desc')}</Card.Description>
+		</Card.Header>
+		<Card.Content class="space-y-4">
+			<div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+				<div>
+					<Label for="date_format">{$t('app.account.date_format')}</Label>
+					<p class="text-muted-foreground text-sm">
+						{$t('app.account.date_format_desc')}
+					</p>
+					<p class="text-muted-foreground mt-1 text-xs">
+						{dateFormatPreview}
+					</p>
+				</div>
+				<Select.Root
+					type="single"
+					value={$dateFormat}
+					onValueChange={(v) => {
+						if (v) $dateFormat = v as DateFormat;
+					}}
+				>
+					<Select.Trigger id="date_format" class="w-full sm:w-[260px]">
+						{$t(dateFormatLabel)}
+					</Select.Trigger>
+					<Select.Content>
+						{#each dateFormatOptions as option (option.value)}
+							<Select.Item value={option.value}>{$t(option.key)}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</div>
+		</Card.Content>
 	</Card.Root>
 </div>
 

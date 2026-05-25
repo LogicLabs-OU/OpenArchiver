@@ -8,6 +8,7 @@
 	import * as Pagination from '$lib/components/ui/pagination/index.js';
 	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 
@@ -68,7 +69,7 @@
 			{#if archivedEmails.items.length > 0}
 				{#each archivedEmails.items as email (email.id)}
 					<Table.Row>
-						<Table.Cell>{new Date(email.sentAt).toLocaleString()}</Table.Cell>
+						<Table.Cell>{$formatDateTimeStore(email.sentAt)}</Table.Cell>
 
 						<Table.Cell>
 							<div class="max-w-100 truncate">
