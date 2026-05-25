@@ -137,9 +137,13 @@
 							{#if !isMounted}
 								<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
 								></span>
-							{:else}
+							{:else if hit.timestamp}
 								<span class="inline-block">
 									{new Date(hit.timestamp).toLocaleString()}
+								</span>
+							{:else}
+								<span class="text-muted-foreground inline-block italic">
+									{$t('app.search.unknown_date')}
 								</span>
 							{/if}
 						</span>
