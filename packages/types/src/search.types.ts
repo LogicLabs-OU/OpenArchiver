@@ -172,12 +172,12 @@ export interface SearchFilters {
 }
 
 /**
- * Sort clause for `POST /v1/search`. P1 only allows `'timestamp'`; the type is
- * a union so P3 can extend it (e.g. `'sizeBytes'`, `'subject'`, `'from'`)
- * without a breaking change.
+ * Sort clause for `POST /v1/search`. The allowed `field` values mirror
+ * Meilisearch's `sortableAttributes` for the email index (see
+ * SearchService.applyIndexSettings).
  */
 export interface SortClause {
-	field: 'timestamp';
+	field: 'timestamp' | 'subject' | 'sizeBytes' | 'from';
 	dir: 'asc' | 'desc';
 }
 
