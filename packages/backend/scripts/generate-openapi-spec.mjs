@@ -364,6 +364,12 @@ const options = {
 							type: 'string',
 							example: 'open-archiver/attachments/abc123.pdf',
 						},
+						contentHashSha256: {
+							type: 'string',
+							description:
+								'SHA-256 hex digest of the attachment bytes. Used for filtering via `attachments.sha256`.',
+							example: 'a3f1b2c4...',
+						},
 					},
 					required: ['id', 'filename', 'sizeBytes', 'storagePath'],
 				},
@@ -486,6 +492,135 @@ const options = {
 						},
 					},
 					required: ['hits', 'total', 'page', 'limit', 'totalPages', 'processingTimeMs'],
+				},
+				// --- Search index document (what Meilisearch stores) ---
+				EmailDocument: {
+					type: 'object',
+					description:
+						'The shape of an email document as indexed in Meilisearch. Returned inside `SearchResults.hits`.',
+					properties: {
+						id: { type: 'string', example: 'clx1y2z3a0000b4d2' },
+						userEmail: { type: 'string', format: 'email' },
+						from: { type: 'string', example: 'alice@example.com' },
+						to: { type: 'array', items: { type: 'string' } },
+						cc: { type: 'array', items: { type: 'string' } },
+						bcc: { type: 'array', items: { type: 'string' } },
+						subject: { type: 'string' },
+						body: { type: 'string' },
+						attachments: {
+							type: 'array',
+							items: {
+								type: 'object',
+								properties: {
+									filename: { type: 'string' },
+									content: {
+										type: 'string',
+										description: 'Extracted text from the attachment.',
+									},
+									sha256: {
+										type: 'string',
+										description:
+											'SHA-256 hex digest. Optional on pre-P3 documents.',
+									},
+								},
+								required: ['filename', 'content'],
+							},
+						},
+						timestamp: {
+							type: 'integer',
+							description:
+								'Unix epoch (ms) of the email original date. Omitted when unknown.',
+						},
+						ingestionSourceId: { type: 'string' },
+						path: { type: 'string' },
+						tags: { type: 'array', items: { type: 'string' } },
+						hasAttachments: { type: 'boolean' },
+						sizeBytes: { type: 'integer' },
+						isOnLegalHold: { type: 'boolean' },
+						threadId: { type: 'string' },
+					},
+					required: [
+						'id',
+						'userEmail',
+						'from',
+						'to',
+						'cc',
+						'bcc',
+						'subject',
+						'body',
+						'attachments',
+						'ingestionSourceId',
+						'hasAttachments',
+						'sizeBytes',
+						'isOnLegalHold',
+					],
+				},
+				// --- Reindex orchestrator ---
+				ReindexProgress: {
+					type: 'object',
+					properties: {
+						scope: {
+							type: 'string',
+							enum: ['full', 'date', 'new-fields-only'],
+						},
+						rowsEnqueued: { type: 'integer', example: 1500 },
+						batchesEnqueued: { type: 'integer', example: 3 },
+						lastCursor: {
+							type: 'object',
+							properties: {
+								archivedAt: {
+									type: 'string',
+									format: 'date-time',
+									nullable: true,
+								},
+								id: { type: 'string', nullable: true },
+							},
+						},
+						finished: { type: 'boolean' },
+					},
+					required: ['scope', 'rowsEnqueued', 'batchesEnqueued', 'finished'],
+				},
+				ReindexStatus: {
+					type: 'object',
+					properties: {
+						jobId: { type: 'string', example: '42' },
+						state: {
+							type: 'string',
+							enum: [
+								'completed',
+								'failed',
+								'delayed',
+								'active',
+								'waiting',
+								'waiting-children',
+								'prioritized',
+								'paused',
+								'unknown',
+							],
+						},
+						progress: {
+							oneOf: [
+								{ $ref: '#/components/schemas/ReindexProgress' },
+								{ type: 'integer' },
+								{ type: 'null' },
+							],
+						},
+						failedReason: { type: 'string', nullable: true },
+						returnvalue: {
+							oneOf: [
+								{ $ref: '#/components/schemas/ReindexProgress' },
+								{ type: 'null' },
+							],
+						},
+						createdAt: { type: 'integer', nullable: true },
+						processedOn: { type: 'integer', nullable: true },
+						finishedOn: { type: 'integer', nullable: true },
+						data: {
+							type: 'object',
+							description: 'The orchestrator job payload as enqueued.',
+						},
+					},
+					required: ['jobId', 'state', 'data'],
 				},
 				// --- Integrity ---
 				IntegrityCheckResult: {
