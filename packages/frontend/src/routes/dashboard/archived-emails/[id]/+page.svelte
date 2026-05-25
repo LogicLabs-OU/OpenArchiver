@@ -341,6 +341,12 @@
 										>{formatBytes(email.sizeBytes)}</span
 									>
 								</div>
+								<div class="flex flex-wrap items-center gap-2">
+									<span>{$t('app.archive.archived_on')}:</span>
+									<span class="bg-muted truncate rounded p-1.5 text-xs"
+										>{new Date(email.archivedAt).toLocaleString()}</span
+									>
+								</div>
 							</div>
 						</div>
 						<div>
