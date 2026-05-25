@@ -52,7 +52,8 @@
 		"notFound": "Correo electrónico archivado no encontrado"
 	},
 	"search": {
-		"keywordsRequired": "Se requieren palabras clave"
+		"keywordsRequired": "Se requieren palabras clave",
+		"filterInvalid": "Filtro no válido: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "Se requiere la ruta del archivo",

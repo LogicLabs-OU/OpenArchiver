@@ -52,7 +52,8 @@
 		"notFound": "アーカイブされたメールが見つかりません"
 	},
 	"search": {
-		"keywordsRequired": "キーワードは必須です"
+		"keywordsRequired": "キーワードは必須です",
+		"filterInvalid": "無効なフィルター: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "ファイルパスは必須です",

@@ -52,7 +52,8 @@
 		"notFound": "E-mail arquivado não encontrado"
 	},
 	"search": {
-		"keywordsRequired": "Palavras-chave são obrigatórias"
+		"keywordsRequired": "Palavras-chave são obrigatórias",
+		"filterInvalid": "Filtro inválido: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "O caminho do arquivo é obrigatório",

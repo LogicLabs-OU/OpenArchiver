@@ -52,7 +52,8 @@
 		"notFound": "Gearchiveerde e-mail niet gevonden"
 	},
 	"search": {
-		"keywordsRequired": "Trefwoorden zijn verplicht"
+		"keywordsRequired": "Trefwoorden zijn verplicht",
+		"filterInvalid": "Ongeldig filter: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "Bestandspad is verplicht",

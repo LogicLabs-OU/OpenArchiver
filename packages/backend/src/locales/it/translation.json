@@ -52,7 +52,8 @@
 		"notFound": "Email archiviata non trovata"
 	},
 	"search": {
-		"keywordsRequired": "Le parole chiave sono obbligatorie"
+		"keywordsRequired": "Le parole chiave sono obbligatorie",
+		"filterInvalid": "Filtro non valido: {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "Il percorso del file è obbligatorio",

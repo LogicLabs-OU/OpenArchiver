@@ -52,7 +52,8 @@
 		"notFound": "E-mail archivé non trouvé"
 	},
 	"search": {
-		"keywordsRequired": "Des mots-clés sont requis"
+		"keywordsRequired": "Des mots-clés sont requis",
+		"filterInvalid": "Filtre invalide : {{detail}}"
 	},
 	"storage": {
 		"filePathRequired": "Le chemin du fichier est requis",
