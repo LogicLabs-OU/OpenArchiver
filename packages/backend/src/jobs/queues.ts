@@ -31,3 +31,11 @@ export const complianceLifecycleQueue = new Queue('compliance-lifecycle', {
 	connection,
 	defaultJobOptions,
 });
+
+// Queue for the reindex orchestrator. Producer drains `archived_emails` in
+// cursor-paginated pages and enqueues `index-email-batch` jobs onto
+// `indexingQueue`. See ReindexService / reindex-emails.processor.
+export const reindexQueue = new Queue('reindex', {
+	connection,
+	defaultJobOptions,
+});
