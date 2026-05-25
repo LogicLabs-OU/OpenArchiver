@@ -220,30 +220,60 @@ describe('translateFilters', () => {
 		});
 	});
 
-	describe('P3-gated fields rejected until FIELD_KINDS extends', () => {
-		const cases: Array<[string, unknown]> = [
-			['path', { op: 'in', value: ['/Inbox'] }],
-			['tags', { op: 'in', value: ['urgent'] }],
-			['hasAttachments', true],
-			['sizeBytes', { op: 'gte', value: 1000 }],
-			['isOnLegalHold', true],
-			['threadId', { op: 'eq', value: 't1' }],
-			['subject', { op: 'contains', value: 'invoice' }],
-		];
-		for (const [field, value] of cases) {
-			it(`rejects ${field}`, async () => {
-				await expect(
-					translateFilters({ [field]: value } as never)
-				).rejects.toThrow(/unknown field/);
+	describe('P3 fields (now in FIELD_KINDS)', () => {
+		it('renders path with include and exclude', async () => {
+			const out = await translateFilters({
+				path: { op: 'in', value: ['/Inbox', '/Archive'], exclude: ['/Spam'] },
 			});
-		}
+			expect(out).toBe(
+				"(path IN ['/Inbox', '/Archive']) AND NOT (path IN ['/Spam'])"
+			);
+		});
 
-		it('rejects attachments.sha256 (flattened)', async () => {
-			await expect(
-				translateFilters({
-					attachments: { sha256: { op: 'eq', value: 'abc' } },
-				})
-			).rejects.toThrow(/unknown field/);
+		it('renders tags any/all', async () => {
+			const anyOut = await translateFilters({
+				tags: { op: 'in', value: ['urgent'] },
+			});
+			expect(anyOut).toBe("tags IN ['urgent']");
+
+			const allOut = await translateFilters({
+				tags: { op: 'all', value: ['a', 'b'] },
+			});
+			expect(allOut).toBe("tags = 'a' AND tags = 'b'");
+		});
+
+		it('renders boolean hasAttachments / isOnLegalHold (both shapes)', async () => {
+			expect(await translateFilters({ hasAttachments: true })).toBe(
+				'hasAttachments = true'
+			);
+			expect(
+				await translateFilters({ isOnLegalHold: { op: 'eq', value: false } })
+			).toBe('isOnLegalHold = false');
+		});
+
+		it('renders numeric sizeBytes (gte / between)', async () => {
+			expect(await translateFilters({ sizeBytes: { op: 'gte', value: 1000 } })).toBe(
+				'sizeBytes >= 1000'
+			);
+			expect(
+				await translateFilters({ sizeBytes: { op: 'between', value: [1, 9] } })
+			).toBe('sizeBytes 1 TO 9');
+		});
+
+		it('renders threadId / subject', async () => {
+			expect(await translateFilters({ threadId: { op: 'eq', value: 't1' } })).toBe(
+				"threadId = 't1'"
+			);
+			expect(
+				await translateFilters({ subject: { op: 'contains', value: 'invoice' } })
+			).toBe("subject CONTAINS 'invoice'");
+		});
+
+		it('flattens attachments.sha256 to dotted field name', async () => {
+			const out = await translateFilters({
+				attachments: { sha256: { op: 'eq', value: 'abc123' } },
+			});
+			expect(out).toBe("attachments.sha256 = 'abc123'");
 		});
 	});
 
