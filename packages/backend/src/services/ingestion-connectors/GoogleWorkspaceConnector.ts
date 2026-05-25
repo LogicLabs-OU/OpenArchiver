@@ -10,6 +10,7 @@ import type {
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
+import { extractOriginalDate } from '../../helpers/dateExtractor';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
 
@@ -355,6 +356,11 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 
 		const threadId = getThreadId(parsedEmail.headers);
 
+		const { date: receivedAt, source: receivedAtSource } = extractOriginalDate(
+			parsedEmail,
+			rawEmail
+		);
+
 		return {
 			id: messageId,
 			threadId,
@@ -369,7 +375,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt,
+			receivedAtSource,
 			path,
 			tags,
 		};

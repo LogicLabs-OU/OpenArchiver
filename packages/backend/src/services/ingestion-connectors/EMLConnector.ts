@@ -8,6 +8,7 @@ import type {
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { logger } from '../../config/logger';
+import { extractOriginalDate } from '../../helpers/dateExtractor';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
@@ -311,6 +312,11 @@ export class EMLConnector implements IEmailConnector {
 			from.push({ name: 'No Sender', address: 'No Sender' });
 		}
 
+		const { date: receivedAt, source: receivedAtSource } = extractOriginalDate(
+			parsedEmail,
+			emlBuffer
+		);
+
 		return {
 			id: messageId,
 			threadId: threadId,
@@ -323,7 +329,8 @@ export class EMLConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt,
+			receivedAtSource,
 			tempFilePath,
 			path,
 		};
