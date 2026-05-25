@@ -3,6 +3,8 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type { IngestionSource, PaginatedArchivedEmails } from '@open-archiver/types';
 
+const ALL_SOURCES = 'all';
+
 export const load: PageServerLoad = async (event) => {
 	const { url } = event;
 	const ingestionSourceId = url.searchParams.get('ingestionSourceId');
@@ -30,10 +32,25 @@ export const load: PageServerLoad = async (event) => {
 		limit: 10,
 	};
 
-	// Use the provided ingestionSourceId, or default to the first one if it's not provided.
-	const selectedIngestionSourceId = ingestionSourceId || ingestionSources[0]?.id;
+	// Default to "all sources" when no explicit selection — gives users a cross-source
+	// overview without needing to pick one inbox first.
+	const selectedIngestionSourceId =
+		ingestionSourceId ?? (ingestionSources.length > 0 ? ALL_SOURCES : undefined);
 
-	if (selectedIngestionSourceId) {
+	if (selectedIngestionSourceId === ALL_SOURCES) {
+		const emailsResponse = await api(
+			`/archived-emails?page=${page}&limit=${limit}`,
+			event
+		);
+		const responseText = await emailsResponse.json();
+		if (!emailsResponse.ok) {
+			return error(
+				emailsResponse.status,
+				responseText.message || 'Failed to load archived emails.'
+			);
+		}
+		archivedEmails = responseText;
+	} else if (selectedIngestionSourceId) {
 		const emailsResponse = await api(
 			`/archived-emails/ingestion-source/${selectedIngestionSourceId}?page=${page}&limit=${limit}`,
 			event

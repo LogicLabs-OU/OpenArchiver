@@ -326,6 +326,7 @@
 			"title": "Archived emails",
 			"header": "Archived Emails",
 			"select_ingestion_source": "Select an ingestion source",
+			"all_sources": "All sources",
 			"date": "Date",
 			"subject": "Subject",
 			"sender": "Sender",

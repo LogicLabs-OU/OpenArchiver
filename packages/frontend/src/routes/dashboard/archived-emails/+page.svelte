@@ -11,14 +11,33 @@
 
 	let { data }: { data: PageData } = $props();
 
+	const ALL_SOURCES = 'all';
+
 	let ingestionSources = $derived(data.ingestionSources);
 	let archivedEmails = $derived(data.archivedEmails);
 	let selectedIngestionSourceId = $derived(data.selectedIngestionSourceId);
+
+	const selectedSourceLabel = $derived.by(() => {
+		if (!selectedIngestionSourceId) return $t('app.archived_emails_page.select_ingestion_source');
+		if (selectedIngestionSourceId === ALL_SOURCES)
+			return $t('app.archived_emails_page.all_sources');
+		return ingestionSources.find((s) => s.id === selectedIngestionSourceId)?.name;
+	});
 
 	const handleSourceChange = (value: string | undefined) => {
 		if (value) {
 			goto(`/dashboard/archived-emails?ingestionSourceId=${value}`);
 		}
+	};
+
+	const pageHref = (pageNum: number) => {
+		const params = new URLSearchParams();
+		if (selectedIngestionSourceId) {
+			params.set('ingestionSourceId', selectedIngestionSourceId);
+		}
+		params.set('page', String(pageNum));
+		params.set('limit', String(archivedEmails.limit));
+		return `/dashboard/archived-emails?${params.toString()}`;
 	};
 </script>
 
@@ -36,13 +55,12 @@
 				value={selectedIngestionSourceId}
 			>
 				<Select.Trigger class="w-full">
-					<span
-						>{selectedIngestionSourceId
-							? ingestionSources.find((s) => s.id === selectedIngestionSourceId)?.name
-							: $t('app.archived_emails_page.select_ingestion_source')}</span
-					>
+					<span>{selectedSourceLabel}</span>
 				</Select.Trigger>
 				<Select.Content>
+					<Select.Item value={ALL_SOURCES}
+						>{$t('app.archived_emails_page.all_sources')}</Select.Item
+					>
 					{#each ingestionSources as source}
 						<Select.Item value={source.id}>{source.name}</Select.Item>
 					{/each}
@@ -118,11 +136,7 @@
 			{#snippet children({ pages, currentPage })}
 				<Pagination.Content>
 					<Pagination.Item>
-						<a
-							href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
-								currentPage - 1
-							}&limit=${archivedEmails.limit}`}
-						>
+						<a href={pageHref(currentPage - 1)}>
 							<Pagination.PrevButton>
 								<ChevronLeft class="h-4 w-4" />
 								<span class="hidden sm:block"
@@ -138,9 +152,7 @@
 							</Pagination.Item>
 						{:else}
 							<Pagination.Item>
-								<a
-									href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${page.value}&limit=${archivedEmails.limit}`}
-								>
+								<a href={pageHref(page.value)}>
 									<Pagination.Link {page} isActive={currentPage === page.value}>
 										{page.value}
 									</Pagination.Link>
@@ -149,11 +161,7 @@
 						{/if}
 					{/each}
 					<Pagination.Item>
-						<a
-							href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
-								currentPage + 1
-							}&limit=${archivedEmails.limit}`}
-						>
+						<a href={pageHref(currentPage + 1)}>
 							<Pagination.NextButton>
 								<span class="hidden sm:block"
 									>{$t('app.archived_emails_page.next')}</span
