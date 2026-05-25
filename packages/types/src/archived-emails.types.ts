@@ -20,7 +20,8 @@ export interface Attachment {
 export interface ThreadEmail {
 	id: string; //the archivedemail id
 	subject: string | null;
-	sentAt: Date;
+	/** The original sent date of the email. Null if the original Date header was missing or unparseable. */
+	sentAt: Date | null;
 	senderEmail: string;
 }
 
@@ -32,7 +33,14 @@ export interface ArchivedEmail {
 	ingestionSourceId: string;
 	userEmail: string;
 	messageIdHeader: string | null;
-	sentAt: Date;
+	/** The original sent date of the email. Null if the original Date header was missing or unparseable. */
+	sentAt: Date | null;
+	/**
+	 * Source used to populate `sentAt`. Defaults to `'header'` server-side, but is required
+	 * here so consumers handle the fallback cases ('received' = Received-header derived,
+	 * 'unknown' = no parseable date) explicitly.
+	 */
+	originalDateSource: 'header' | 'received' | 'unknown';
 	subject: string | null;
 	senderName: string | null;
 	senderEmail: string;

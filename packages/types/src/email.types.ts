@@ -1,4 +1,12 @@
 /**
+ * Indicates the source used to determine the original date of an email.
+ * - 'header': parsed from the RFC 5322 `Date:` header (preferred, sender's clock).
+ * - 'received': fallback derived from the first `Received:` header (server timestamp).
+ * - 'unknown': no usable date could be determined; the consuming code must handle null.
+ */
+export type OriginalDateSource = 'header' | 'received' | 'unknown';
+
+/**
  * Represents a single email address, including an optional name and the email address itself.
  */
 export interface EmailAddress {
@@ -43,8 +51,10 @@ export interface EmailObject {
 	headers: Map<string, any>;
 	/** An array of `EmailAttachment` objects found in the email. */
 	attachments: EmailAttachment[];
-	/** The date and time when the email was received. */
-	receivedAt: Date;
+	/** The date and time when the email was received. Null if the original Date header was missing or unparseable. */
+	receivedAt: Date | null;
+	/** Indicates where `receivedAt` was sourced from (Date header, Received header, or unknown). */
+	receivedAtSource?: OriginalDateSource;
 	/** Path to a temporary file on disk containing the raw EML bytes.
 	 * Connectors write the raw email to tmpdir() and pass only the path,
 	 * keeping large buffers off the JS heap between yield and processEmail(). */
@@ -83,7 +93,8 @@ export interface EmailDocument {
 		filename: string;
 		content: string; // Extracted text from the attachment
 	}[];
-	timestamp: number;
+	/** Unix epoch (ms) of the email's original date. Omitted when the date is unknown. */
+	timestamp?: number;
 	ingestionSourceId: string;
 	// other metadata
 }
