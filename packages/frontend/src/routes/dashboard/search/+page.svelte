@@ -14,8 +14,10 @@
 	import SearchResults from './components/SearchResults.svelte';
 	import AdvancedFilters from './components/AdvancedFilters.svelte';
 	import ActiveFilterBadges from './components/ActiveFilterBadges.svelte';
+	import SortControl from './components/SortControl.svelte';
 	import { encodeSearchParams, emptyDraft } from './url-state';
 	import type { SearchQueryDraft } from './url-state';
+	import type { SortClause } from '@open-archiver/types';
 
 	let { data }: { data: PageData } = $props();
 
@@ -74,6 +76,14 @@
 
 	function handleApply(next: SearchQueryDraft) {
 		// Apply from the AdvancedFilters footer — reset to page 1.
+		navigateWith({ ...next, page: 1 });
+	}
+
+	function handleSortChange(sort: SortClause[]) {
+		// Sort picker applies immediately and resets pagination, like a chip
+		// removal. The route owns navigation; SortControl is content-agnostic.
+		const next: SearchQueryDraft = { ...draft, sort };
+		draft = next;
 		navigateWith({ ...next, page: 1 });
 	}
 
@@ -159,11 +169,7 @@
 		/>
 	</div>
 
-	<ActiveFilterBadges
-		draft={applied}
-		sources={sourceOptions}
-		onRemove={handleRemoveBadge}
-	/>
+	<ActiveFilterBadges draft={applied} sources={sourceOptions} onRemove={handleRemoveBadge} />
 
 	{#if error}
 		<Alert.Root variant="destructive">
@@ -174,16 +180,25 @@
 	{/if}
 
 	{#if searchResult}
-		<p class="text-muted-foreground mb-4">
-			{#if searchResult.total > 0}
-				{$t('app.search.found_results_in', {
-					total: searchResult.total,
-					seconds: searchResult.processingTimeMs / 1000,
-				} as any)}
-			{:else}
+		{#if searchResult.total > 0}
+			<div class="mb-4 flex items-center justify-between gap-2">
+				<p class="text-muted-foreground">
+					{$t('app.search.found_results_in', {
+						total: searchResult.total,
+						seconds: searchResult.processingTimeMs / 1000,
+					} as any)}
+				</p>
+				<SortControl
+					sort={draft.sort}
+					hasQuery={Boolean((draft.query ?? '').trim())}
+					onChange={handleSortChange}
+				/>
+			</div>
+		{:else}
+			<p class="text-muted-foreground mb-4">
 				{$t('app.search.found_results', { total: searchResult.total } as any)}
-			{/if}
-		</p>
+			</p>
+		{/if}
 
 		<SearchResults {searchResult} />
 
