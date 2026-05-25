@@ -9,6 +9,7 @@ import type {
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
+import { extractOriginalDate } from '../../helpers/dateExtractor';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import { ConfidentialClientApplication, Configuration, LogLevel } from '@azure/msal-node';
 import { Client } from '@microsoft/microsoft-graph-client';
@@ -325,6 +326,11 @@ export class MicrosoftConnector implements IEmailConnector {
 			);
 		};
 
+		const { date: receivedAt, source: receivedAtSource } = extractOriginalDate(
+			parsedEmail,
+			rawEmail
+		);
+
 		return {
 			id: messageId,
 			userEmail: userEmail,
@@ -338,7 +344,8 @@ export class MicrosoftConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt,
+			receivedAtSource,
 			path,
 		};
 	}
