@@ -32,6 +32,28 @@ import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
 
+// Strip characters that Postgres TEXT columns reject (code 22021,
+// "invalid byte sequence for encoding UTF8"): NUL (U+0000) and unpaired
+// UTF-16 surrogates. Some IMAP/MIME-parsed emails contain these in headers
+// or decoded bodies and would otherwise abort the whole row insert.
+function stripUnsafeChars(s: string): string {
+	// Drop NULs (Postgres TEXT rejects U+0000), then replace lone surrogates with U+FFFD.
+	return s
+		.replace(/\x00/g, '')
+		.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '�');
+}
+
+function sanitizeForPg<T>(value: T): T {
+	if (typeof value === 'string') return stripUnsafeChars(value) as unknown as T;
+	if (value === null || typeof value !== 'object') return value;
+	if (Array.isArray(value)) return value.map((v) => sanitizeForPg(v)) as unknown as T;
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+		out[k] = sanitizeForPg(v);
+	}
+	return out as unknown as T;
+}
+
 export class IngestionService {
 	private static auditService = new AuditService();
 	private static decryptSource(
@@ -570,6 +592,20 @@ export class IngestionService {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
 
+			// Strip Postgres-unsafe chars (NUL, unpaired surrogates) from text
+			// fields. Without this, certain malformed source emails abort the
+			// archived_emails INSERT with error code 22021 and the worker
+			// retry loop blocks the entire mailbox sync.
+			email.subject = email.subject ? stripUnsafeChars(email.subject) : email.subject;
+			email.path = email.path ? stripUnsafeChars(email.path) : email.path;
+			if (Array.isArray(email.tags)) email.tags = email.tags.map(stripUnsafeChars);
+			email.from = sanitizeForPg(email.from);
+			email.to = sanitizeForPg(email.to);
+			email.cc = sanitizeForPg(email.cc);
+			email.bcc = sanitizeForPg(email.bcc);
+			email.threadId = email.threadId ? stripUnsafeChars(email.threadId) : email.threadId;
+			email.id = email.id ? stripUnsafeChars(email.id) : email.id;
+
 			// If this source is a child in a merge group, redirect all storage and DB
 			// ownership to the root source. Child sources are "assistants" — they fetch
 			// emails on behalf of the root but never own any stored content.
@@ -591,6 +627,7 @@ export class IngestionService {
 					.update(rawEmlBuffer)
 					.digest('hex')}-${source.id}-${email.id}`;
 			}
+			messageId = stripUnsafeChars(messageId);
 			// Check if an email with the same message ID has already been imported
 			// within the merge group. This prevents duplicate imports when the same
 			// email exists in multiple mailboxes or across merged ingestion sources.
