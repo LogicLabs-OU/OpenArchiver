@@ -40,7 +40,15 @@ export class StorageController {
 
 			const fileStream = await this.storageService.get(safePath);
 			const fileName = path.basename(safePath);
-			res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+			// RFC 6266: a raw `filename="..."` header value must be Latin-1, so a
+			// non-ASCII (e.g. CJK) filename makes res.setHeader throw ERR_INVALID_CHAR
+			// and the download fails with HTTP 500. Send an ASCII fallback plus a
+			// UTF-8 `filename*` parameter with the real name.
+			const asciiName = fileName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+			res.setHeader(
+				'Content-Disposition',
+				`attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
+			);
 			fileStream.pipe(res);
 		} catch (error) {
 			console.error('Error downloading file:', error);
