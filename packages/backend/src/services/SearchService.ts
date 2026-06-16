@@ -4,12 +4,20 @@ import type {
 	SearchQuery,
 	SearchResult,
 	EmailDocument,
+	SearchHit,
 	TopSender,
 	User,
 } from '@open-archiver/types';
 import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { IngestionService } from './IngestionService';
+
+const FIELD_SEARCH_ATTRIBUTES = new Set([
+	'subject',
+	'body',
+	'attachments.filename',
+	'attachments.content',
+]);
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -63,54 +71,72 @@ export class SearchService {
 		userId: string,
 		actorIp: string
 	): Promise<SearchResult> {
-		const { query, filters, page = 1, limit = 10, matchingStrategy = 'last' } = dto;
+		const {
+			query,
+			filters,
+			attributesToSearchOn,
+			fieldQueries,
+			page = 1,
+			limit = 10,
+			matchingStrategy = 'last',
+		} = dto;
 		const index = await this.getIndex<EmailDocument>('emails');
 
 		const searchParams: SearchParams = {
-			limit,
-			offset: (page - 1) * limit,
 			attributesToHighlight: ['*'],
 			showMatchesPosition: true,
 			sort: ['timestamp:desc'],
 			matchingStrategy,
 		};
 
-		if (filters) {
-			const filterParts: string[] = [];
-			for (const [key, value] of Object.entries(filters)) {
-				// Expand ingestionSourceId to the full merge group
-				if (key === 'ingestionSourceId' && typeof value === 'string') {
-					const groupIds = await IngestionService.findGroupSourceIds(value);
-					if (groupIds.length === 1) {
-						filterParts.push(`ingestionSourceId = '${groupIds[0]}'`);
-					} else {
-						const inList = groupIds.map((id) => `'${id}'`).join(', ');
-						filterParts.push(`ingestionSourceId IN [${inList}]`);
-					}
-				} else if (typeof value === 'string') {
-					filterParts.push(`${key} = '${value}'`);
-				} else {
-					filterParts.push(`${key} = ${value}`);
-				}
-			}
-			searchParams.filter = filterParts.join(' AND ');
+		if (attributesToSearchOn?.length) {
+			searchParams.attributesToSearchOn = attributesToSearchOn;
 		}
 
-		// Create a filter based on the user's permissions.
-		// This ensures that the user can only search for emails they are allowed to see.
-		const { searchFilter } = await FilterBuilder.create(userId, 'archive', 'read');
-		if (searchFilter) {
-			// Convert the MongoDB-style filter from CASL to a MeiliSearch filter string.
-			if (searchParams.filter) {
-				// If there are existing filters, append the access control filter.
-				searchParams.filter = `${searchParams.filter} AND ${searchFilter}`;
-			} else {
-				// Otherwise, just use the access control filter.
-				searchParams.filter = searchFilter;
-			}
+		const filter = await this.buildFilter(filters, userId);
+		if (filter) {
+			searchParams.filter = filter;
 		}
-		// console.log('searchParams', searchParams);
-		const searchResults = await index.search(query, searchParams);
+
+		let hits: SearchHit[];
+		let total: number;
+		let processingTimeMs: number;
+
+		const safeFieldQueries = this.getSafeFieldQueries(fieldQueries);
+
+		if (safeFieldQueries.length === 1 && !query) {
+			const fieldQuery = safeFieldQueries[0];
+			const searchResults = await index.search(fieldQuery.query, {
+				...searchParams,
+				attributesToSearchOn: [fieldQuery.attribute],
+				limit,
+				offset: (page - 1) * limit,
+			});
+			hits = searchResults.hits;
+			total = searchResults.estimatedTotalHits ?? searchResults.hits.length;
+			processingTimeMs = searchResults.processingTimeMs;
+		} else if (safeFieldQueries.length) {
+			const advancedResults = await this.searchWithFieldQueries(
+				index,
+				query,
+				safeFieldQueries,
+				searchParams,
+				page,
+				limit
+			);
+			hits = advancedResults.hits;
+			total = advancedResults.total;
+			processingTimeMs = advancedResults.processingTimeMs;
+		} else {
+			const searchResults = await index.search(query, {
+				...searchParams,
+				limit,
+				offset: (page - 1) * limit,
+			});
+			hits = searchResults.hits;
+			total = searchResults.estimatedTotalHits ?? searchResults.hits.length;
+			processingTimeMs = searchResults.processingTimeMs;
+		}
 
 		await this.auditService.createAuditLog({
 			actorIdentifier: userId,
@@ -124,19 +150,128 @@ export class SearchService {
 				page,
 				limit,
 				matchingStrategy,
+				attributesToSearchOn,
+				fieldQueries: safeFieldQueries,
 			},
 		});
 
 		return {
-			hits: searchResults.hits,
-			total: searchResults.estimatedTotalHits ?? searchResults.hits.length,
+			hits,
+			total,
 			page,
 			limit,
-			totalPages: Math.ceil(
-				(searchResults.estimatedTotalHits ?? searchResults.hits.length) / limit
-			),
-			processingTimeMs: searchResults.processingTimeMs,
+			totalPages: Math.ceil(total / limit),
+			processingTimeMs,
 		};
+	}
+
+	private getSafeFieldQueries(
+		fieldQueries: SearchQuery['fieldQueries']
+	): NonNullable<SearchQuery['fieldQueries']> {
+		return (fieldQueries ?? []).filter((fieldQuery) =>
+			FIELD_SEARCH_ATTRIBUTES.has(fieldQuery.attribute)
+		);
+	}
+
+	private async buildFilter(
+		filters: SearchQuery['filters'],
+		userId: string
+	): Promise<string | undefined> {
+		const filterParts: string[] = [];
+
+		if (filters) {
+			for (const [key, value] of Object.entries(filters)) {
+				// Expand ingestionSourceId to the full merge group
+				if (key === 'ingestionSourceId' && typeof value === 'string') {
+					const groupIds = await IngestionService.findGroupSourceIds(value);
+					if (groupIds.length === 1) {
+						filterParts.push(
+							`ingestionSourceId = '${this.escapeFilterValue(groupIds[0])}'`
+						);
+					} else {
+						const inList = groupIds
+							.map((id) => `'${this.escapeFilterValue(id)}'`)
+							.join(', ');
+						filterParts.push(`ingestionSourceId IN [${inList}]`);
+					}
+				} else if (key === 'timestamp' && typeof value === 'object' && value !== null) {
+					const range = value as { from?: number; to?: number };
+					if (typeof range.from === 'number') {
+						filterParts.push(`timestamp >= ${range.from}`);
+					}
+					if (typeof range.to === 'number') {
+						filterParts.push(`timestamp <= ${range.to}`);
+					}
+				} else if (typeof value === 'string') {
+					filterParts.push(`${key} = '${this.escapeFilterValue(value)}'`);
+				} else {
+					filterParts.push(`${key} = ${value}`);
+				}
+			}
+		}
+
+		// Create a filter based on the user's permissions.
+		// This ensures that the user can only search for emails they are allowed to see.
+		const { searchFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+		if (searchFilter) {
+			filterParts.push(searchFilter);
+		}
+
+		return filterParts.length ? filterParts.join(' AND ') : undefined;
+	}
+
+	private async searchWithFieldQueries(
+		index: Index<EmailDocument>,
+		query: string,
+		fieldQueries: NonNullable<SearchQuery['fieldQueries']>,
+		searchParams: SearchParams,
+		page: number,
+		limit: number
+	): Promise<Pick<SearchResult, 'hits' | 'total' | 'processingTimeMs'>> {
+		const maxCandidates = 1000;
+		const searches = [
+			...(query ? [{ query, attributesToSearchOn: searchParams.attributesToSearchOn }] : []),
+			...fieldQueries.map((fieldQuery) => ({
+				query: fieldQuery.query,
+				attributesToSearchOn: [fieldQuery.attribute],
+			})),
+		];
+
+		const results = await Promise.all(
+			searches.map((search) =>
+				index.search(search.query, {
+					...searchParams,
+					attributesToSearchOn: search.attributesToSearchOn,
+					limit: maxCandidates,
+					offset: 0,
+				})
+			)
+		);
+
+		const idSets = results.map((result) => new Set(result.hits.map((hit) => String(hit.id))));
+		const primaryResult = results.reduce((smallest, result) => {
+			const smallestTotal = smallest.estimatedTotalHits ?? smallest.hits.length;
+			const resultTotal = result.estimatedTotalHits ?? result.hits.length;
+			return resultTotal < smallestTotal ? result : smallest;
+		}, results[0]);
+
+		const matchedHits = primaryResult.hits.filter((hit) =>
+			idSets.every((idSet) => idSet.has(String(hit.id)))
+		);
+		const offset = (page - 1) * limit;
+
+		return {
+			hits: matchedHits.slice(offset, offset + limit),
+			total: matchedHits.length,
+			processingTimeMs: results.reduce(
+				(totalMs, result) => totalMs + result.processingTimeMs,
+				0
+			),
+		};
+	}
+
+	private escapeFilterValue(value: string): string {
+		return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 	}
 
 	public async getTopSenders(limit = 10): Promise<TopSender[]> {
