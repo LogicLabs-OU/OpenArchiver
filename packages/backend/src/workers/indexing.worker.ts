@@ -26,3 +26,17 @@ logger.info('Indexing worker started');
 
 process.on('SIGINT', () => worker.close());
 process.on('SIGTERM', () => worker.close());
+
+// pdf2json can emit an unhandled promise rejection deep in its image parsing
+// (e.g. "Bits per component missing in image") that bypasses the pdfParser
+// error events and would otherwise crash the whole worker process. Keep the
+// process alive so the affected job resolves empty (via the textExtractor
+// timeout) and BullMQ can move on to the next email instead of indexing halting.
+process.on('unhandledRejection', (reason: unknown) => {
+	const message = reason instanceof Error ? reason.message : String(reason);
+	logger.warn({ reason: message }, 'Unhandled rejection in indexing worker (suppressed)');
+});
+process.on('uncaughtException', (err: unknown) => {
+	const message = err instanceof Error ? err.message : String(err);
+	logger.error({ err: message }, 'Uncaught exception in indexing worker (suppressed)');
+});

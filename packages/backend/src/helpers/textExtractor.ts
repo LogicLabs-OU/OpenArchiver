@@ -9,10 +9,13 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 	return new Promise((resolve) => {
 		const pdfParser = new PDFParser(null, true);
 		let completed = false;
+		let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
 		const finish = (text: string) => {
 			if (completed) return;
 			completed = true;
+
+			if (timeoutHandle) clearTimeout(timeoutHandle);
 
 			// explicit cleanup
 			try {
@@ -46,11 +49,14 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 			finish('');
 		}
 
-		// reduced Timeout for better performance
-		// setTimeout(() => {
-		// 	logger.warn('PDF parsing timed out');
-		// 	finish('');
-		// }, 5000);
+		// Safety timeout: pdf2json can fail asynchronously (e.g. "Bits per component
+		// missing in image") without ever emitting pdfParser_dataError, which would
+		// leave this promise pending forever and stall the indexing job. Resolve
+		// empty so extraction gives up cleanly and the caller can proceed.
+		timeoutHandle = setTimeout(() => {
+			logger.warn('PDF parsing timed out');
+			finish('');
+		}, 30000);
 	});
 }
 

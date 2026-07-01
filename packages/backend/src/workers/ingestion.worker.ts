@@ -42,3 +42,15 @@ logger.info('Ingestion worker started');
 
 process.on('SIGINT', () => worker.close());
 process.on('SIGTERM', () => worker.close());
+
+// A source file that is unreadable or locked (e.g. an EACCES 'error' event on a
+// ReadStream for a PST still open in Outlook over SMB) can crash the whole
+// worker process. Keep it alive so the offending job fails and the others proceed.
+process.on('unhandledRejection', (reason: unknown) => {
+	const message = reason instanceof Error ? reason.message : String(reason);
+	logger.warn({ reason: message }, 'Unhandled rejection in ingestion worker (suppressed)');
+});
+process.on('uncaughtException', (err: unknown) => {
+	const message = err instanceof Error ? err.message : String(err);
+	logger.error({ err: message }, 'Uncaught exception in ingestion worker (suppressed)');
+});
