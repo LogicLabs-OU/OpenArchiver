@@ -38,6 +38,30 @@ Manage ingestion sources — the configured connections to email providers (Goog
 
 <OAOperation operationId="triggerForceSync" />
 
+## Reindex an Ingestion Source
+
+Rebuilds the search-index documents for a source (and its whole merge group) from the archived emails already in the database — it never re-downloads or re-ingests, and it never creates duplicate documents (Meilisearch is keyed by the email ID, so re-adding upserts). Send `{"mode": "full"}` to rebuild every document, or omit it (default `missing`) to only index emails not yet in the index.
+
+<OAOperation operationId="reindexIngestionSource" />
+
+## Reindex All Sources
+
+Enqueues a reindex across every ingestion source. Requires `manage:ingestion`.
+
+<OAOperation operationId="reindexAllIngestionSources" />
+
+## Get Index Health
+
+Compares the number of archived emails in the database against the number of documents in the search index for a source (and its merge group). A gap means some emails are missing from search and can be repaired with a reindex.
+
+<OAOperation operationId="getIngestionSourceIndexHealth" />
+
+## Get Statistics
+
+Read-only statistics for a source (and its merge group): email/mailbox/thread counts, storage usage (email + attachment bytes, deduplicated), index coverage, attachment and compliance counts, a per-mailbox breakdown, merge-group children, and recent activity.
+
+<OAOperation operationId="getIngestionSourceStats" />
+
 ## Unmerge an Ingestion Source
 
 <OAOperation operationId="unmergeIngestionSource" />
