@@ -159,6 +159,52 @@ export interface UpdateIngestionSourceDto {
 	mergedIntoId?: string | null;
 }
 
+/**
+ * Rich, read-only statistics for a single ingestion source, aggregated across its
+ * whole merge group. Backs the per-source statistics page. All counts/bytes are
+ * group-scoped; `emailBytes` is physical storage (deduplicated by file hash).
+ */
+export interface IngestionStats {
+	sourceId: string;
+	name: string;
+	provider: IngestionProvider;
+	status: IngestionStatus;
+	/** Total archived emails (all rows, including shared-file references). */
+	totalEmails: number;
+	/** Distinct mailbox owners (archived_emails.userEmail). */
+	mailboxCount: number;
+	/** Distinct email threads. */
+	threadCount: number;
+	/** Physical email storage in bytes, deduplicated by storage hash. */
+	emailBytes: number;
+	/** Deduplicated attachment storage in bytes. */
+	attachmentBytes: number;
+	/** emailBytes + attachmentBytes. */
+	totalBytes: number;
+	/** Distinct stored attachment files. */
+	attachmentCount: number;
+	/** Emails that have at least one attachment. */
+	emailsWithAttachments: number;
+	/** Documents present in the search index (Meilisearch) for this group. */
+	indexedCount: number;
+	/** Emails flagged as journaled. */
+	journaledCount: number;
+	/** Emails under a legal hold (enterprise feature — displayed only in enterprise mode). */
+	legalHoldCount: number;
+	/** Earliest / latest email sent date (ISO string) or null when empty. */
+	firstEmailAt: string | null;
+	lastEmailAt: string | null;
+	lastSyncStartedAt: Date | string | null;
+	lastSyncFinishedAt: Date | string | null;
+	lastSyncStatusMessage: string | null;
+	/** Per-mailbox breakdown, ordered by email count desc. */
+	mailboxes: { userEmail: string; emailCount: number; bytes: number }[];
+	/** Merge-group child sources (empty when this is a standalone source). */
+	children: { id: string; name: string; provider: IngestionProvider; status: IngestionStatus }[];
+	/** Emails archived per day over the last 30 days. */
+	recentActivity: { date: string; count: number }[];
+}
+
 export interface IContinuousSyncJob {
 	ingestionSourceId: string;
 }

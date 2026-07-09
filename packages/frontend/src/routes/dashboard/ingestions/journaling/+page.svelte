@@ -6,18 +6,22 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { MoreHorizontal, Plus, Radio, Mail, Copy, Check, RefreshCw } from 'lucide-svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
+	import JournalingSourceForm from '$lib/components/custom/JournalingSourceForm.svelte';
 	import type { JournalingSource } from '@open-archiver/types';
 
 	let { data }: { data: PageData; form: ActionData } = $props();
 
 	let sources = $derived(data.sources);
 	let smtpHealth = $derived(data.smtpHealth);
+
+	/** Root ingestion sources available for the merge-into dropdown (exclude children). */
+	const mergeableRootSources = $derived(
+		(data.ingestionSources ?? []).filter((s) => !s.mergedIntoId)
+	);
 
 	// --- Dialog state ---
 	let isCreateOpen = $state(false);
@@ -57,11 +61,10 @@
 				body: formData,
 			});
 			const result = await res.json();
-			// SvelteKit actions return { type, status, data } wrapped structure
-			const data = result?.data;
-			const success = Array.isArray(data)
-				? data[0]?.success !== false
-				: data?.success !== false;
+			const resultData = result?.data;
+			const success = Array.isArray(resultData)
+				? resultData[0]?.success !== false
+				: resultData?.success !== false;
 
 			if (success) {
 				setAlert({
@@ -72,7 +75,9 @@
 					show: true,
 				});
 			} else {
-				const msg = Array.isArray(data) ? data[0]?.message : data?.message;
+				const msg = Array.isArray(resultData)
+					? resultData[0]?.message
+					: resultData?.message;
 				setAlert({
 					type: 'error',
 					title: $t('app.journaling.regenerate_address_error'),
@@ -91,9 +96,9 @@
 			});
 		} finally {
 			isFormLoading = false;
+			isRegenerateOpen = false;
 			isEditOpen = false;
 			selectedSource = null;
-			// Re-run the load function to get updated data without a full page reload
 			await invalidateAll();
 		}
 	}
@@ -140,6 +145,7 @@
 	</Badge>
 </div>
 
+<!-- Sources table -->
 <div class="rounded-md border">
 	<Table.Root>
 		<Table.Header>
@@ -162,8 +168,9 @@
 								<div class="mt-1 flex items-center gap-1">
 									<code
 										class="bg-muted rounded px-1.5 py-0.5 font-mono text-[11px]"
-										>{source.routingAddress}</code
 									>
+										{source.routingAddress}
+									</code>
 									<button
 										type="button"
 										class="text-muted-foreground hover:text-foreground"
@@ -185,9 +192,9 @@
 						<Table.Cell>
 							<div class="flex flex-wrap gap-1">
 								{#each source.allowedIps.slice(0, 3) as ip}
-									<Badge variant="outline" class="font-mono text-[10px]">
-										{ip}
-									</Badge>
+									<Badge variant="outline" class="font-mono text-[10px]"
+										>{ip}</Badge
+									>
 								{/each}
 								{#if source.allowedIps.length > 3}
 									<Badge variant="secondary" class="text-[10px]">
@@ -206,13 +213,11 @@
 						</Table.Cell>
 						<Table.Cell>
 							{#if source.status === 'active'}
-								<Badge class="bg-green-600 text-white">
-									{$t('app.journaling.active')}
-								</Badge>
+								<Badge class="bg-green-600 text-white"
+									>{$t('app.journaling.active')}</Badge
+								>
 							{:else}
-								<Badge variant="secondary">
-									{$t('app.journaling.paused')}
-								</Badge>
+								<Badge variant="secondary">{$t('app.journaling.paused')}</Badge>
 							{/if}
 						</Table.Cell>
 						<Table.Cell>
@@ -243,7 +248,6 @@
 									<DropdownMenu.Item onclick={() => openEdit(source)}>
 										{$t('app.journaling.edit')}
 									</DropdownMenu.Item>
-									<!-- Toggle active/paused -->
 									<form
 										method="POST"
 										action="?/toggleStatus"
@@ -307,143 +311,28 @@
 	</Table.Root>
 </div>
 
-<!-- Create dialog -->
+<!-- ── Create dialog ─────────────────────────────────────── -->
 <Dialog.Root bind:open={isCreateOpen}>
-	<Dialog.Content class="sm:max-w-[560px]">
-		<Dialog.Header>
+	<Dialog.Content class="flex max-h-[90vh] flex-col sm:max-w-[580px]">
+		<Dialog.Header class="shrink-0">
 			<Dialog.Title>{$t('app.journaling.create')}</Dialog.Title>
-			<Dialog.Description>
-				{$t('app.journaling.create_description')}
-			</Dialog.Description>
+			<Dialog.Description>{$t('app.journaling.create_description')}</Dialog.Description>
 		</Dialog.Header>
-		<form
-			method="POST"
-			action="?/create"
-			class="space-y-4"
-			use:enhance={() => {
-				isFormLoading = true;
-				return async ({ result, update }) => {
-					isFormLoading = false;
-					if (result.type === 'success') {
-						isCreateOpen = false;
-						setAlert({
-							type: 'success',
-							title: $t('app.journaling.create_success'),
-							message: '',
-							duration: 3000,
-							show: true,
-						});
-					} else if (result.type === 'failure') {
-						setAlert({
-							type: 'error',
-							title: $t('app.journaling.create_error'),
-							message: String(result.data?.message ?? ''),
-							duration: 5000,
-							show: true,
-						});
-					}
-					await update();
-				};
-			}}
-		>
-			<div class="space-y-1.5">
-				<Label for="create-name">{$t('app.journaling.name')}</Label>
-				<Input
-					id="create-name"
-					name="name"
-					required
-					placeholder={$t('app.journaling.name_placeholder')}
-				/>
-			</div>
-			<div class="space-y-1.5">
-				<Label for="create-ips">{$t('app.journaling.allowed_ips')}</Label>
-				<Input
-					id="create-ips"
-					name="allowedIps"
-					required
-					placeholder={$t('app.journaling.allowed_ips_placeholder')}
-				/>
-				<p class="text-muted-foreground text-xs">
-					{$t('app.journaling.allowed_ips_hint')}
-				</p>
-			</div>
-			<div class="flex items-center gap-2">
-				<input
-					type="checkbox"
-					id="create-tls"
-					name="requireTls"
-					class="h-4 w-4 rounded border"
-					checked
-				/>
-				<Label for="create-tls">{$t('app.journaling.require_tls')}</Label>
-			</div>
-			<div class="space-y-3 rounded-md border p-3">
-				<p class="text-muted-foreground text-xs font-medium">
-					{$t('app.journaling.smtp_auth_hint')}
-				</p>
-				<div class="space-y-1.5">
-					<Label for="create-username">{$t('app.journaling.smtp_username')}</Label>
-					<Input
-						id="create-username"
-						name="smtpUsername"
-						placeholder={$t('app.journaling.smtp_username_placeholder')}
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label for="create-password">{$t('app.journaling.smtp_password')}</Label>
-					<Input
-						id="create-password"
-						name="smtpPassword"
-						type="password"
-						placeholder={$t('app.journaling.smtp_password_placeholder')}
-					/>
-				</div>
-			</div>
-			<div class="flex justify-end gap-2">
-				<Button
-					type="button"
-					variant="outline"
-					onclick={() => (isCreateOpen = false)}
-					disabled={isFormLoading}
-				>
-					{$t('app.journaling.cancel')}
-				</Button>
-				<Button type="submit" disabled={isFormLoading}>
-					{#if isFormLoading}
-						{$t('app.common.working')}
-					{:else}
-						{$t('app.journaling.create')}
-					{/if}
-				</Button>
-			</div>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
 
-<!-- Edit dialog -->
-<Dialog.Root bind:open={isEditOpen}>
-	<Dialog.Content class="sm:max-w-[560px]">
-		<Dialog.Header>
-			<Dialog.Title>{$t('app.journaling.edit')}</Dialog.Title>
-			<Dialog.Description>
-				{$t('app.journaling.edit_description')}
-			</Dialog.Description>
-		</Dialog.Header>
-		{#if selectedSource}
+		<div class="min-h-0 flex-1 overflow-y-auto pr-1">
 			<form
 				method="POST"
-				action="?/update"
-				class="space-y-4"
+				action="?/create"
+				class="space-y-4 py-1"
 				use:enhance={() => {
 					isFormLoading = true;
 					return async ({ result, update }) => {
 						isFormLoading = false;
 						if (result.type === 'success') {
-							isEditOpen = false;
-							selectedSource = null;
+							isCreateOpen = false;
 							setAlert({
 								type: 'success',
-								title: $t('app.journaling.update_success'),
+								title: $t('app.journaling.create_success'),
 								message: '',
 								duration: 3000,
 								show: true,
@@ -451,7 +340,7 @@
 						} else if (result.type === 'failure') {
 							setAlert({
 								type: 'error',
-								title: $t('app.journaling.update_error'),
+								title: $t('app.journaling.create_error'),
 								message: String(result.data?.message ?? ''),
 								duration: 5000,
 								show: true,
@@ -461,23 +350,40 @@
 					};
 				}}
 			>
-				<input type="hidden" name="id" value={selectedSource.id} />
+				<JournalingSourceForm
+					{mergeableRootSources}
+					isLoading={isFormLoading}
+					onCancel={() => (isCreateOpen = false)}
+				/>
+			</form>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>
 
+<!-- ── Edit dialog ───────────────────────────────────────── -->
+<Dialog.Root bind:open={isEditOpen}>
+	<Dialog.Content class="flex max-h-[90vh] flex-col sm:max-w-[580px]">
+		<Dialog.Header class="shrink-0">
+			<Dialog.Title>{$t('app.journaling.edit')}</Dialog.Title>
+			<Dialog.Description>{$t('app.journaling.edit_description')}</Dialog.Description>
+		</Dialog.Header>
+
+		{#if selectedSource}
+			<div class="min-h-0 flex-1 overflow-y-auto pr-1">
 				<!-- SMTP Connection Info (read-only) -->
-				<div class="bg-muted/30 rounded-md border p-3">
+				<div class="bg-muted/30 mb-4 rounded-md border p-3">
 					<p class="mb-2 text-xs font-medium">
 						{$t('app.journaling.smtp_connection_info')}
 					</p>
 
-					<!-- Routing Address (most important) -->
 					<div class="mb-3">
-						<span class="text-muted-foreground text-[10px]"
-							>{$t('app.journaling.routing_address')}</span
-						>
+						<span class="text-muted-foreground text-[10px]">
+							{$t('app.journaling.routing_address')}
+						</span>
 						<div class="mt-0.5 flex items-center gap-1.5">
-							<code class="bg-muted rounded px-2 py-1 font-mono text-sm font-medium"
-								>{selectedSource.routingAddress}</code
-							>
+							<code class="bg-muted rounded px-2 py-1 font-mono text-sm font-medium">
+								{selectedSource.routingAddress}
+							</code>
 							<button
 								type="button"
 								class="text-muted-foreground hover:text-foreground"
@@ -497,7 +403,6 @@
 						<p class="text-muted-foreground mt-1 text-[10px]">
 							{$t('app.journaling.routing_address_hint')}
 						</p>
-						<!-- Regenerate address — opens confirmation dialog -->
 						<div class="mt-2 flex items-start gap-2">
 							<Button
 								type="button"
@@ -518,15 +423,15 @@
 
 					<div class="grid grid-cols-2 gap-2">
 						<div>
-							<span class="text-muted-foreground text-[10px]"
-								>{$t('app.journaling.smtp_host')}</span
-							>
+							<span class="text-muted-foreground text-[10px]">
+								{$t('app.journaling.smtp_host')}
+							</span>
 							<div class="flex items-center gap-1">
-								<code class="text-xs"
-									>{typeof window !== 'undefined'
+								<code class="text-xs">
+									{typeof window !== 'undefined'
 										? window.location.hostname
-										: 'localhost'}</code
-								>
+										: 'localhost'}
+								</code>
 								<button
 									type="button"
 									class="text-muted-foreground hover:text-foreground"
@@ -547,9 +452,9 @@
 							</div>
 						</div>
 						<div>
-							<span class="text-muted-foreground text-[10px]"
-								>{$t('app.journaling.smtp_port')}</span
-							>
+							<span class="text-muted-foreground text-[10px]">
+								{$t('app.journaling.smtp_port')}
+							</span>
 							<div class="flex items-center gap-1">
 								<code class="text-xs">{smtpHealth.port}</code>
 								<button
@@ -568,78 +473,52 @@
 					</div>
 				</div>
 
-				<div class="space-y-1.5">
-					<Label for="edit-name">{$t('app.journaling.name')}</Label>
-					<Input id="edit-name" name="name" required value={selectedSource.name} />
-				</div>
-				<div class="space-y-1.5">
-					<Label for="edit-ips">{$t('app.journaling.allowed_ips')}</Label>
-					<Input
-						id="edit-ips"
-						name="allowedIps"
-						required
-						value={selectedSource.allowedIps.join(', ')}
+				<form
+					method="POST"
+					action="?/update"
+					class="space-y-4 pb-1"
+					use:enhance={() => {
+						isFormLoading = true;
+						return async ({ result, update }) => {
+							isFormLoading = false;
+							if (result.type === 'success') {
+								isEditOpen = false;
+								selectedSource = null;
+								setAlert({
+									type: 'success',
+									title: $t('app.journaling.update_success'),
+									message: '',
+									duration: 3000,
+									show: true,
+								});
+							} else if (result.type === 'failure') {
+								setAlert({
+									type: 'error',
+									title: $t('app.journaling.update_error'),
+									message: String(result.data?.message ?? ''),
+									duration: 5000,
+									show: true,
+								});
+							}
+							await update();
+						};
+					}}
+				>
+					<JournalingSourceForm
+						source={selectedSource}
+						isLoading={isFormLoading}
+						onCancel={() => {
+							isEditOpen = false;
+							selectedSource = null;
+						}}
 					/>
-					<p class="text-muted-foreground text-xs">
-						{$t('app.journaling.allowed_ips_hint')}
-					</p>
-				</div>
-				<div class="flex items-center gap-2">
-					<input
-						type="checkbox"
-						id="edit-tls"
-						name="requireTls"
-						class="h-4 w-4 rounded border"
-						checked={selectedSource.requireTls}
-					/>
-					<Label for="edit-tls">{$t('app.journaling.require_tls')}</Label>
-				</div>
-				<div class="space-y-3 rounded-md border p-3">
-					<p class="text-muted-foreground text-xs font-medium">
-						{$t('app.journaling.smtp_auth_hint')}
-					</p>
-					<div class="space-y-1.5">
-						<Label for="edit-username">{$t('app.journaling.smtp_username')}</Label>
-						<Input
-							id="edit-username"
-							name="smtpUsername"
-							value={selectedSource.smtpUsername ?? ''}
-							placeholder={$t('app.journaling.smtp_username_placeholder')}
-						/>
-					</div>
-					<div class="space-y-1.5">
-						<Label for="edit-password">{$t('app.journaling.smtp_password')}</Label>
-						<Input
-							id="edit-password"
-							name="smtpPassword"
-							type="password"
-							placeholder={$t('app.journaling.smtp_password_placeholder')}
-						/>
-					</div>
-				</div>
-				<div class="flex justify-end gap-2">
-					<Button
-						type="button"
-						variant="outline"
-						onclick={() => (isEditOpen = false)}
-						disabled={isFormLoading}
-					>
-						{$t('app.journaling.cancel')}
-					</Button>
-					<Button type="submit" disabled={isFormLoading}>
-						{#if isFormLoading}
-							{$t('app.common.working')}
-						{:else}
-							{$t('app.journaling.save')}
-						{/if}
-					</Button>
-				</div>
-			</form>
+				</form>
+			</div>
 		{/if}
 	</Dialog.Content>
 </Dialog.Root>
 
-<!-- Delete confirmation dialog -->
+<!-- ── Delete confirmation dialog ───────────────────────── -->
 <Dialog.Root bind:open={isDeleteOpen}>
 	<Dialog.Content>
 		<Dialog.Header>
@@ -701,7 +580,7 @@
 	</Dialog.Content>
 </Dialog.Root>
 
-<!-- Regenerate address confirmation dialog -->
+<!-- ── Regenerate address confirmation dialog ────────────── -->
 <Dialog.Root bind:open={isRegenerateOpen}>
 	<Dialog.Content>
 		<Dialog.Header>
@@ -721,10 +600,7 @@
 			<Button
 				variant="destructive"
 				disabled={isFormLoading}
-				onclick={() => {
-					isRegenerateOpen = false;
-					handleRegenerateAddress(selectedSource?.id ?? '');
-				}}
+				onclick={() => handleRegenerateAddress(selectedSource?.id ?? '')}
 			>
 				{#if isFormLoading}
 					{$t('app.common.working')}

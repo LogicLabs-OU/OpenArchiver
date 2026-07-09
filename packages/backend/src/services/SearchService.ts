@@ -1,4 +1,4 @@
-import { Index, MeiliSearch, SearchParams } from 'meilisearch';
+import { Index, MeiliSearch, SearchParams, type TaskType } from 'meilisearch';
 import { config } from '../config';
 import type {
 	SearchQuery,
@@ -6,10 +6,16 @@ import type {
 	EmailDocument,
 	TopSender,
 	User,
+	SearchInstanceOverview,
+	SearchIndexInfo,
+	SearchTasksResult,
+	SearchTaskStatus,
+	SearchTaskType,
 } from '@open-archiver/types';
 import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { IngestionService } from './IngestionService';
+import { logger } from '../config/logger';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -27,16 +33,172 @@ export class SearchService {
 		return this.client.index<T>(name);
 	}
 
+	/**
+	 * Enqueues documents into a Meilisearch index and returns the EnqueuedTask.
+	 * NOTE: this only queues the write — call waitForTask() with the returned
+	 * task's uid to confirm the documents were actually indexed. The primary key
+	 * is set once at index creation (configureEmailIndex), not per call.
+	 */
 	public async addDocuments<T extends Record<string, any>>(
 		indexName: string,
 		documents: T[],
 		primaryKey?: string
 	) {
 		const index = await this.getIndex<T>(indexName);
-		if (primaryKey) {
-			index.update({ primaryKey });
+		return index.addDocuments(documents, primaryKey ? { primaryKey } : undefined);
+	}
+
+	/**
+	 * Waits for a Meilisearch task to reach a terminal state and returns it.
+	 * Throws if the task fails or the wait times out — callers rely on this to
+	 * fail their job so BullMQ retries instead of silently reporting success.
+	 */
+	public async waitForTask(taskUid: number) {
+		return this.client.tasks.waitForTask(taskUid, {
+			timeout: config.meili.waitForTaskTimeoutMs,
+		});
+	}
+
+	/**
+	 * Number of documents currently present in an index (exact).
+	 */
+	public async getIndexedCount(indexName: string): Promise<number> {
+		const index = await this.getIndex(indexName);
+		const stats = await index.getStats();
+		return stats.numberOfDocuments;
+	}
+
+	/**
+	 * Instance-level overview of the search engine for the admin index page:
+	 * host, version, health, database size, and the `emails` index metadata.
+	 * Never exposes the API key. Best-effort — a failing sub-call degrades that
+	 * field rather than failing the whole overview.
+	 */
+	public async getInstanceOverview(): Promise<SearchInstanceOverview> {
+		const [statsRes, versionRes, healthRes, rawInfoRes, indexStatsRes, facetRes] =
+			await Promise.allSettled([
+				this.client.getStats(),
+				this.client.getVersion(),
+				this.client.health(),
+				this.getIndex('emails').then((i) => i.getRawInfo()),
+				this.getIndex('emails').then((i) => i.getStats()),
+				// Per-source document counts straight from the search index (facet
+				// distribution on the filterable `ingestionSourceId` attribute).
+				this.getIndex<EmailDocument>('emails').then((i) =>
+					i.search('', { facets: ['ingestionSourceId'], limit: 0 })
+				),
+			]);
+
+		const stats = statsRes.status === 'fulfilled' ? statsRes.value : null;
+		const version = versionRes.status === 'fulfilled' ? versionRes.value : null;
+		const health =
+			healthRes.status === 'fulfilled' && healthRes.value.status === 'available'
+				? 'available'
+				: 'unavailable';
+
+		// Per-source document counts from the search index, enriched with names for
+		// display (names come from the DB purely as labels; the COUNTS are Meilisearch's).
+		let documentsBySource: SearchInstanceOverview['documentsBySource'] = [];
+		if (facetRes.status === 'fulfilled') {
+			const dist = facetRes.value.facetDistribution?.ingestionSourceId ?? {};
+			const entries = Object.entries(dist).map(([ingestionSourceId, count]) => ({
+				ingestionSourceId,
+				count: count as number,
+			}));
+			const names = await IngestionService.getSourceNames(
+				entries.map((e) => e.ingestionSourceId)
+			).catch(() => ({}) as Record<string, string>);
+			documentsBySource = entries
+				.map((e) => ({ ...e, name: names[e.ingestionSourceId] ?? null }))
+				.sort((a, b) => b.count - a.count);
 		}
-		return index.addDocuments(documents);
+
+		let index: SearchIndexInfo | null = null;
+		if (rawInfoRes.status === 'fulfilled' && indexStatsRes.status === 'fulfilled') {
+			const raw = rawInfoRes.value;
+			const iStats = indexStatsRes.value;
+			index = {
+				uid: raw.uid,
+				primaryKey: raw.primaryKey ?? null,
+				numberOfDocuments: iStats.numberOfDocuments,
+				isIndexing: iStats.isIndexing,
+				fieldDistribution: iStats.fieldDistribution,
+				rawDocumentDbSize: iStats.rawDocumentDbSize,
+				avgDocumentSize: iStats.avgDocumentSize,
+				createdAt: raw.createdAt ?? null,
+				updatedAt: raw.updatedAt ?? null,
+			};
+		}
+
+		return {
+			host: config.search.host,
+			version: version
+				? {
+						pkgVersion: version.pkgVersion,
+						commitSha: version.commitSha,
+						commitDate: version.commitDate,
+					}
+				: null,
+			health,
+			databaseSize: stats?.databaseSize ?? 0,
+			usedDatabaseSize: stats?.usedDatabaseSize ?? 0,
+			lastUpdate: stats?.lastUpdate ?? null,
+			index,
+			documentsBySource,
+		};
+	}
+
+	/**
+	 * Cursor-paginated Meilisearch task list, scoped to the `emails` index.
+	 */
+	public async getTasks(query: {
+		limit: number;
+		from?: number;
+		statuses?: SearchTaskStatus[];
+		types?: SearchTaskType[];
+	}): Promise<SearchTasksResult> {
+		const result = await this.client.tasks.getTasks({
+			limit: query.limit,
+			from: query.from,
+			indexUids: ['emails'],
+			...(query.statuses && query.statuses.length ? { statuses: query.statuses } : {}),
+			...(query.types && query.types.length
+				? { types: query.types as TaskType[] }
+				: {}),
+		});
+
+		return {
+			results: result.results.map((t) => ({
+				uid: t.uid,
+				indexUid: t.indexUid,
+				status: t.status,
+				type: t.type,
+				enqueuedAt: t.enqueuedAt,
+				startedAt: t.startedAt,
+				finishedAt: t.finishedAt,
+				duration: t.duration,
+				error: t.error
+					? {
+							message: t.error.message,
+							code: t.error.code,
+							type: t.error.type,
+							link: t.error.link,
+						}
+					: null,
+				details: t.details
+					? {
+							receivedDocuments: t.details.receivedDocuments,
+							indexedDocuments: t.details.indexedDocuments,
+							deletedDocuments: t.details.deletedDocuments,
+							primaryKey: t.details.primaryKey,
+						}
+					: undefined,
+			})),
+			total: result.total,
+			limit: result.limit,
+			from: result.from,
+			next: result.next,
+		};
 	}
 
 	public async search<T extends Record<string, any>>(
@@ -160,6 +322,28 @@ export class SearchService {
 	}
 
 	public async configureEmailIndex() {
+		// Ensure the index exists with the correct primary key. Doing this once at
+		// startup (instead of on every addDocuments call) avoids a fire-and-forget
+		// update racing with document writes on a fresh index.
+		//
+		// IMPORTANT: createIndex() enqueues an `indexCreation` task that fails
+		// asynchronously with "Index `emails` already exists" when the index is
+		// already there — it does NOT throw synchronously, so a try/catch cannot
+		// suppress it. That produced a failed Meilisearch task on every boot.
+		// Check for existence first and only create when actually missing.
+		try {
+			await this.client.getIndex('emails');
+		} catch (error: any) {
+			// meilisearch-js surfaces the API error code under `cause.code`
+			// (older versions used `code`); check both for robustness.
+			const code = error?.cause?.code ?? error?.code;
+			if (code === 'index_not_found') {
+				await this.client.createIndex('emails', { primaryKey: 'id' });
+			} else {
+				logger.warn({ error }, 'Failed to check whether the emails index exists');
+			}
+		}
+
 		const index = await this.getIndex('emails');
 		await index.updateSettings({
 			searchableAttributes: [

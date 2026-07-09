@@ -492,6 +492,21 @@
 								</li>
 							{/each}
 						</ul>
+						<!-- Journaling Source indicator — shows whether this email was captured via SMTP journaling -->
+						<div class="flex items-center justify-between pt-1">
+							<span class="text-muted-foreground text-xs">
+								{$t('app.archive.is_journaled')}
+							</span>
+							{#if email.isJournaled}
+								<Badge variant="secondary" class="text-xs">
+									{$t('app.journaling.title')}
+								</Badge>
+							{:else}
+								<Badge variant="outline" class="text-muted-foreground text-xs">
+									No
+								</Badge>
+							{/if}
+						</div>
 						{#if enterpriseMode}
 							<Button
 								variant="outline"

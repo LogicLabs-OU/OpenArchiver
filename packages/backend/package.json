@@ -36,6 +36,7 @@
 		"bcryptjs": "^3.0.2",
 		"bullmq": "^5.56.3",
 		"busboy": "^1.6.0",
+		"cookie-parser": "^1.4.7",
 		"cors": "^2.8.5",
 		"cross-fetch": "^4.1.0",
 		"deepmerge-ts": "^7.1.5",
@@ -72,6 +73,7 @@
 	"devDependencies": {
 		"@types/archiver": "^6.0.3",
 		"@types/busboy": "^1.5.4",
+		"@types/cookie-parser": "^1.4.10",
 		"@types/cors": "^2.8.19",
 		"@types/express": "^5.0.3",
 		"@types/mailparser": "^3.4.6",

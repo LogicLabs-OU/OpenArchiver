@@ -30,26 +30,41 @@
 		{
 			value: 'generic_imap',
 			label: $t('app.components.ingestion_source_form.provider_generic_imap'),
+			disabled: false,
 		},
 		{
 			value: 'google_workspace',
 			label: $t('app.components.ingestion_source_form.provider_google_workspace'),
+			disabled: false,
 		},
 		{
 			value: 'microsoft_365',
 			label: $t('app.components.ingestion_source_form.provider_microsoft_365'),
+			disabled: false,
 		},
 		{
 			value: 'pst_import',
 			label: $t('app.components.ingestion_source_form.provider_pst_import'),
+			disabled: false,
 		},
 		{
 			value: 'eml_import',
 			label: $t('app.components.ingestion_source_form.provider_eml_import'),
+			disabled: false,
 		},
 		{
 			value: 'mbox_import',
 			label: $t('app.components.ingestion_source_form.provider_mbox_import'),
+			disabled: false,
+		},
+		// smtp_journaling sources are created and managed via the Journaling page.
+		// This entry exists only so that editing an existing smtp_journaling ingestion
+		// source displays the correct provider label instead of falling back to the
+		// first option. It is disabled to prevent users from selecting it when creating.
+		{
+			value: 'smtp_journaling',
+			label: $t('app.components.ingestion_source_form.provider_smtp_journaling'),
+			disabled: true,
 		},
 	];
 
@@ -187,7 +202,9 @@
 			</Select.Trigger>
 			<Select.Content>
 				{#each providerOptions as option}
-					<Select.Item value={option.value}>{option.label}</Select.Item>
+					<Select.Item value={option.value} disabled={option.disabled}
+						>{option.label}</Select.Item
+					>
 				{/each}
 			</Select.Content>
 		</Select.Root>

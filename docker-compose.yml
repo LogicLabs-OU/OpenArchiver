@@ -6,11 +6,11 @@ services:
         container_name: open-archiver
         restart: unless-stopped
         ports:
-            - '${PORT_FRONTEND:-3000}:3000' # Frontend
+            - '3000:${PORT_FRONTEND:-3000}' # Frontend
         env_file:
             - .env
         volumes:
-            - ${STORAGE_LOCAL_ROOT_PATH}:${STORAGE_LOCAL_ROOT_PATH}
+            - 'archiver-data:${STORAGE_LOCAL_ROOT_PATH}'
         depends_on:
             - postgres
             - valkey
@@ -66,6 +66,8 @@ volumes:
     valkeydata:
         driver: local
     meilidata:
+        driver: local
+    archiver-data:
         driver: local
 
 networks:

@@ -41,6 +41,9 @@ export interface ArchivedEmail {
 	storageHashSha256: string;
 	sizeBytes: number;
 	isIndexed: boolean;
+	/** Number of times indexing has been attempted and failed for this email.
+	 * Used by the reconcile job to stop retrying persistently-failing ("poison") emails. */
+	indexAttempts?: number;
 	hasAttachments: boolean;
 	isOnLegalHold: boolean;
 	isJournaled: boolean | null;

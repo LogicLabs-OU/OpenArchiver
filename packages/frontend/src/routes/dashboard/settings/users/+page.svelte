@@ -3,7 +3,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { MoreHorizontal, Trash, Edit } from 'lucide-svelte';
+	import { MoreHorizontal, Trash, Edit, ShieldOff } from 'lucide-svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import UserForm from '$lib/components/custom/UserForm.svelte';
@@ -20,6 +20,11 @@
 	let userToDelete = $state<User | null>(null);
 	let isDeleting = $state(false);
 
+	// Disable 2FA state (enterprise only)
+	let isDisable2faDialogOpen = $state(false);
+	let userToDisable2fa = $state<User | null>(null);
+	let isDisabling2fa = $state(false);
+
 	const openCreateDialog = () => {
 		selectedUser = null;
 		isDialogOpen = true;
@@ -33,6 +38,11 @@
 	const openDeleteDialog = (user: User) => {
 		userToDelete = user;
 		isDeleteDialogOpen = true;
+	};
+
+	const openDisable2faDialog = (user: User) => {
+		userToDisable2fa = user;
+		isDisable2faDialogOpen = true;
 	};
 
 	const confirmDelete = async () => {
@@ -56,6 +66,43 @@
 			userToDelete = null;
 		} finally {
 			isDeleting = false;
+		}
+	};
+
+	const confirmDisable2fa = async () => {
+		if (!userToDisable2fa) return;
+		isDisabling2fa = true;
+		try {
+			const res = await api(
+				`/enterprise/advanced-security/mfa/users/${userToDisable2fa.id}`,
+				{ method: 'DELETE' }
+			);
+			if (!res.ok) {
+				const errorBody = await res.json().catch(() => ({}));
+				setAlert({
+					type: 'error',
+					title: $t('app.users.disable_2fa_failed'),
+					message: errorBody.message || $t('app.users.disable_2fa_failed'),
+					duration: 5000,
+					show: true,
+				});
+				return;
+			}
+			// Update local state: mark the user as having 2FA disabled
+			users = users.map((u) =>
+				u.id === userToDisable2fa!.id ? { ...u, totpEnabled: false } : u
+			);
+			isDisable2faDialogOpen = false;
+			userToDisable2fa = null;
+			setAlert({
+				type: 'success',
+				title: $t('app.users.disable_2fa_success'),
+				message: '',
+				duration: 4000,
+				show: true,
+			});
+		} finally {
+			isDisabling2fa = false;
 		}
 	};
 
@@ -155,6 +202,16 @@
 											<Edit class="mr-2 h-4 w-4" />
 											{$t('app.users.edit')}</DropdownMenu.Item
 										>
+										{#if data.enterpriseMode && user.totpEnabled}
+											<DropdownMenu.Separator />
+											<DropdownMenu.Item
+												class="cursor-pointer"
+												onclick={() => openDisable2faDialog(user)}
+											>
+												<ShieldOff class="mr-2 h-4 w-4" />
+												{$t('app.users.disable_2fa')}
+											</DropdownMenu.Item>
+										{/if}
 										<DropdownMenu.Separator />
 										<DropdownMenu.Item
 											class="text-destructive cursor-pointer"
@@ -194,6 +251,42 @@
 			</Dialog.Description>
 		</Dialog.Header>
 		<UserForm {roles} user={selectedUser} onSubmit={handleFormSubmit} />
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Disable 2FA Confirmation Dialog (enterprise only) -->
+<Dialog.Root bind:open={isDisable2faDialogOpen}>
+	<Dialog.Content class="sm:max-w-lg">
+		<Dialog.Header>
+			<Dialog.Title>{$t('app.users.disable_2fa_confirmation_title')}</Dialog.Title>
+			<Dialog.Description>
+				{$t('app.users.disable_2fa_confirmation_description')}
+			</Dialog.Description>
+		</Dialog.Header>
+		<Dialog.Footer class="sm:justify-start">
+			<Button
+				type="button"
+				variant="destructive"
+				onclick={confirmDisable2fa}
+				disabled={isDisabling2fa}
+			>
+				{#if isDisabling2fa}
+					{$t('app.users.disabling_2fa')}
+				{:else}
+					{$t('app.users.confirm')}
+				{/if}
+			</Button>
+			<Dialog.Close>
+				<Button
+					type="button"
+					variant="secondary"
+					onclick={() => {
+						isDisable2faDialogOpen = false;
+						userToDisable2fa = null;
+					}}>{$t('app.users.cancel')}</Button
+				>
+			</Dialog.Close>
+		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
 

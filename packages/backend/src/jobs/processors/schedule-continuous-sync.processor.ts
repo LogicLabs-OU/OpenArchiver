@@ -1,7 +1,7 @@
 import { Job } from 'bullmq';
 import { db } from '../../database';
 import { ingestionSources } from '../../database/schema';
-import { or, eq } from 'drizzle-orm';
+import { or, eq, and, ne } from 'drizzle-orm';
 import { ingestionQueue } from '../queues';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
@@ -24,10 +24,17 @@ export default async (job: Job) => {
 	// Step 2: Find all sources with status 'active' or 'error' for continuous syncing.
 	// Sources previously stuck in 'importing'/'syncing' due to a crash will now appear
 	// as 'error' (set by cleanStaleSessions above) and will be picked up here for retry.
+	// Exclude smtp_journaling sources — they receive emails via the SMTP listener and
+	// the journal-inbound BullMQ queue, not through the poll-based connector pipeline.
 	const sourcesToSync = await db
 		.select({ id: ingestionSources.id })
 		.from(ingestionSources)
-		.where(or(eq(ingestionSources.status, 'active'), eq(ingestionSources.status, 'error')));
+		.where(
+			and(
+				or(eq(ingestionSources.status, 'active'), eq(ingestionSources.status, 'error')),
+				ne(ingestionSources.provider, 'smtp_journaling')
+			)
+		);
 
 	logger.info({ count: sourcesToSync.length }, 'Dispatching continuous-sync jobs for sources');
 

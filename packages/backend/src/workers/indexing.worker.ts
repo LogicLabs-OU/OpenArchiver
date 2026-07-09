@@ -1,12 +1,18 @@
 import { Worker } from 'bullmq';
 import { connection } from '../config/redis';
 import indexEmailBatchProcessor from '../jobs/processors/index-email-batch.processor';
+import reindexProcessor from '../jobs/processors/reindex.processor';
+import reconcileIndexProcessor from '../jobs/processors/reconcile-index.processor';
 import { logger } from '../config/logger';
 
 const processor = async (job: any) => {
 	switch (job.name) {
 		case 'index-email-batch':
 			return indexEmailBatchProcessor(job);
+		case 'reindex':
+			return reindexProcessor(job);
+		case 'reconcile-index':
+			return reconcileIndexProcessor(job);
 		default:
 			throw new Error(`Unknown job name: ${job.name}`);
 	}

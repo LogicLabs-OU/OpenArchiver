@@ -15,11 +15,21 @@ export const AuditLogActions = [
 	'PAUSE',
 	'SYNC',
 	'UPLOAD',
+	'REINDEX',
 
 	// Other Actions
 	'SEARCH',
 	'DOWNLOAD',
 	'GENERATE', // For API keys
+
+	// MFA Actions
+	'TOTP_ENROLLED',
+	'TOTP_DISABLED',
+	'MFA_VERIFY_SUCCESS',
+	'MFA_VERIFY_FAIL',
+	'BACKUP_CODE_USED',
+	'BACKUP_CODES_REGENERATED',
+	'SECURITY_POLICY_UPDATED',
 ] as const;
 
 export const AuditLogTargetTypes = [
@@ -36,6 +46,7 @@ export const AuditLogTargetTypes = [
 	'SystemSettings',
 	'User',
 	'File', // For uploads and downloads
+	'SecurityPolicy',
 ] as const;
 
 export type AuditLogAction = (typeof AuditLogActions)[number];
