@@ -45,6 +45,10 @@
 					label: $t('app.jobs.jobs'),
 				},
 				{
+					href: '/dashboard/admin/index',
+					label: $t('app.layout.index_admin'),
+				},
+				{
 					href: '/dashboard/settings/users',
 					label: $t('app.layout.users'),
 				},

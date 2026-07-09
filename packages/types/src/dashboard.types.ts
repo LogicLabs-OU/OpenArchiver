@@ -36,3 +36,15 @@ export interface TopSender {
 export interface IndexedInsights {
 	topSenders: TopSender[];
 }
+
+/**
+ * Index-health snapshot comparing how many emails are archived in the database
+ * against how many documents exist in the search index. A gap indicates emails
+ * that are missing from search and can be repaired with a reindex.
+ */
+export interface IndexHealth {
+	/** Number of archived emails in the database (source of truth). */
+	archivedCount: number;
+	/** Number of documents present in the Meilisearch index. */
+	indexedCount: number;
+}

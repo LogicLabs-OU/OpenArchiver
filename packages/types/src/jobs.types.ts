@@ -4,6 +4,36 @@
 export type JobStatus = 'active' | 'completed' | 'failed' | 'delayed' | 'waiting' | 'paused';
 
 /**
+ * Scope of a reindex job.
+ * - `source`: reindex a single ingestion source (and its merge group).
+ * - `all`: reindex the entire archive.
+ */
+export type ReindexScope = 'source' | 'all';
+
+/**
+ * Mode of a reindex job.
+ * - `missing`: only (re)index emails that are not yet marked indexed (cheap, self-healing).
+ * - `full`: reset the scoped rows to unindexed and rebuild every document.
+ */
+export type ReindexMode = 'missing' | 'full';
+
+/**
+ * Payload for the `reindex` master job on the indexing queue. It rebuilds
+ * Meilisearch documents from the source-of-truth `archived_emails` rows without
+ * re-ingesting. Idempotent — Meilisearch is keyed by the email id, so re-adding
+ * a document upserts rather than duplicates.
+ */
+export interface IReindexJob {
+	scope: ReindexScope;
+	/** Required when scope is `source`. */
+	ingestionSourceId?: string;
+	mode: ReindexMode;
+}
+
+/** Payload for the periodic `reconcile-index` self-healing job (no fields needed). */
+export interface IReconcileIndexJob {}
+
+/**
  * A detailed representation of a job, providing essential information for monitoring and debugging.
  */
 export interface IJob {

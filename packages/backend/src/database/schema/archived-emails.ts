@@ -1,5 +1,15 @@
-import { relations } from 'drizzle-orm';
-import { boolean, jsonb, pgTable, text, timestamp, uuid, bigint, index } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
+import {
+	boolean,
+	integer,
+	jsonb,
+	pgTable,
+	text,
+	timestamp,
+	uuid,
+	bigint,
+	index,
+} from 'drizzle-orm/pg-core';
 import { ingestionSources } from './ingestion-sources';
 
 export const archivedEmails = pgTable(
@@ -24,6 +34,10 @@ export const archivedEmails = pgTable(
 		storageHashSha256: text('storage_hash_sha256').notNull(),
 		sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
 		isIndexed: boolean('is_indexed').notNull().default(false),
+		/** Number of failed indexing attempts. The reconcile job stops retrying an
+		 * email once this reaches MAX_INDEX_ATTEMPTS, preventing poison emails from
+		 * churning the queue forever. */
+		indexAttempts: integer('index_attempts').notNull().default(0),
 		hasAttachments: boolean('has_attachments').notNull().default(false),
 		isOnLegalHold: boolean('is_on_legal_hold').notNull().default(false),
 		isJournaled: boolean('is_journaled').default(false),
@@ -34,6 +48,13 @@ export const archivedEmails = pgTable(
 	(table) => [
 		index('thread_id_idx').on(table.threadId),
 		index('provider_msg_source_idx').on(table.providerMessageId, table.ingestionSourceId),
+		// Partial index for the reconcile/reindex scan. Keyed on id (the keyset
+		// pagination order) and filtered to unindexed rows, so once the archive is
+		// mostly indexed the index stays tiny and the "find unindexed, ordered by id"
+		// scan stays cheap even with tens of millions of rows.
+		index('archived_emails_unindexed_idx')
+			.on(table.id)
+			.where(sql`${table.isIndexed} = false`),
 	]
 );
 

@@ -75,6 +75,40 @@ export const createIngestionRouter = (
 
 	/**
 	 * @openapi
+	 * /v1/ingestion-sources/reindex-all:
+	 *   post:
+	 *     summary: Reindex the entire archive
+	 *     description: Enqueues a reindex of every ingestion source. Rebuilds search documents from existing archived emails without re-ingesting. Requires `manage:ingestion` permission.
+	 *     operationId: reindexAllIngestionSources
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     requestBody:
+	 *       required: false
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               mode:
+	 *                 type: string
+	 *                 enum: [missing, full]
+	 *     responses:
+	 *       '202':
+	 *         description: Reindex job accepted and queued.
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 */
+	router.post(
+		'/reindex-all',
+		requirePermission('manage', 'ingestion'),
+		ingestionController.reindexAll
+	);
+
+	/**
+	 * @openapi
 	 * /v1/ingestion-sources/{id}:
 	 *   get:
 	 *     summary: Get an ingestion source
@@ -290,6 +324,113 @@ export const createIngestionRouter = (
 		requirePermission('sync', 'ingestion'),
 		ingestionController.triggerForceSync
 	);
+
+	/**
+	 * @openapi
+	 * /v1/ingestion-sources/{id}/reindex:
+	 *   post:
+	 *     summary: Reindex an ingestion source
+	 *     description: Enqueues a reindex of the source (and its merge group). Rebuilds search documents from existing archived emails without re-ingesting or duplicating. Requires `sync:ingestion` permission.
+	 *     operationId: reindexIngestionSource
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     parameters:
+	 *       - name: id
+	 *         in: path
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     requestBody:
+	 *       required: false
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               mode:
+	 *                 type: string
+	 *                 enum: [missing, full]
+	 *     responses:
+	 *       '202':
+	 *         description: Reindex job accepted and queued.
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '404':
+	 *         $ref: '#/components/responses/NotFound'
+	 */
+	router.post('/:id/reindex', requirePermission('sync', 'ingestion'), ingestionController.reindex);
+
+	/**
+	 * @openapi
+	 * /v1/ingestion-sources/{id}/index-health:
+	 *   get:
+	 *     summary: Get index health for a source
+	 *     description: Returns the number of archived emails vs. indexed documents for the source (and its merge group). Requires `read:ingestion` permission.
+	 *     operationId: getIngestionSourceIndexHealth
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     parameters:
+	 *       - name: id
+	 *         in: path
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     responses:
+	 *       '200':
+	 *         description: Index health snapshot.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 archivedCount:
+	 *                   type: integer
+	 *                 indexedCount:
+	 *                   type: integer
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '404':
+	 *         $ref: '#/components/responses/NotFound'
+	 */
+	router.get(
+		'/:id/index-health',
+		requirePermission('read', 'ingestion'),
+		ingestionController.getIndexHealth
+	);
+
+	/**
+	 * @openapi
+	 * /v1/ingestion-sources/{id}/stats:
+	 *   get:
+	 *     summary: Get statistics for a source
+	 *     description: Returns read-only statistics for the source (and its merge group) — email/mailbox/thread counts, storage usage, index coverage, attachment/compliance counts, per-mailbox breakdown, merge-group children, and recent activity. Requires `read:ingestion` permission.
+	 *     operationId: getIngestionSourceStats
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     parameters:
+	 *       - name: id
+	 *         in: path
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     responses:
+	 *       '200':
+	 *         description: Ingestion source statistics.
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '404':
+	 *         $ref: '#/components/responses/NotFound'
+	 */
+	router.get('/:id/stats', requirePermission('read', 'ingestion'), ingestionController.getStats);
 
 	/**
 	 * @openapi

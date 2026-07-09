@@ -8,13 +8,18 @@ import type {
 	IngestionProvider,
 	PendingEmail,
 } from '@open-archiver/types';
-import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import { and, count, countDistinct, desc, eq, gte, inArray, max, min, or, sql } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
-import { ingestionQueue } from '../jobs/queues';
+import { ingestionQueue, indexingQueue } from '../jobs/queues';
 import type { JobType } from 'bullmq';
 import { StorageService } from './StorageService';
-import type { IInitialImportJob, EmailObject } from '@open-archiver/types';
+import type {
+	IInitialImportJob,
+	EmailObject,
+	ReindexMode,
+	IngestionStats,
+} from '@open-archiver/types';
 import { stripAttachmentsFromEml } from '../helpers/emlUtils';
 import {
 	archivedEmails,
@@ -232,6 +237,24 @@ export class IngestionService {
 	}
 
 	/**
+	 * Bulk id → name lookup for ingestion sources. Used to attach human-readable
+	 * labels to counts computed elsewhere (e.g. Meilisearch facet distributions).
+	 * Ids with no matching row are simply absent from the returned record.
+	 */
+	public static async getSourceNames(ids: string[]): Promise<Record<string, string>> {
+		if (ids.length === 0) return {};
+		const rows = await db
+			.select({ id: ingestionSources.id, name: ingestionSources.name })
+			.from(ingestionSources)
+			.where(inArray(ingestionSources.id, ids));
+		const map: Record<string, string> = {};
+		for (const row of rows) {
+			map[row.id] = row.name;
+		}
+		return map;
+	}
+
+	/**
 	 * Detaches a child source from its merge group, making it standalone.
 	 */
 	public static async unmerge(
@@ -354,6 +377,241 @@ export class IngestionService {
 		const source = await this.findById(id);
 
 		await ingestionQueue.add('initial-import', { ingestionSourceId: source.id });
+	}
+
+	/**
+	 * Enqueues a reindex of a single ingestion source (and its merge group).
+	 * Rebuilds search documents from existing archived rows — never re-ingests.
+	 * @param mode 'missing' (default) reindexes only emails not yet in the index;
+	 *   'full' rebuilds every document for the source.
+	 */
+	public static async triggerReindex(id: string, mode: ReindexMode = 'missing'): Promise<void> {
+		const source = await this.findById(id);
+		if (!source) {
+			throw new Error('Ingestion source not found');
+		}
+		// attempts: 1 — the master reindex resets is_indexed=false before dispatching, so an
+		// auto-retry would re-reset rows workers already re-indexed. A failed dispatch is
+		// re-triggerable by hand and the periodic reconcile job backstops any gap. The
+		// per-batch index-email-batch jobs keep the default retries (they are idempotent).
+		await indexingQueue.add(
+			'reindex',
+			{
+				scope: 'source',
+				ingestionSourceId: source.id,
+				mode,
+			},
+			{ attempts: 1 }
+		);
+	}
+
+	/**
+	 * Enqueues a reindex of the entire archive across all sources.
+	 * @param mode 'missing' (default) or 'full'.
+	 */
+	public static async triggerReindexAll(mode: ReindexMode = 'missing'): Promise<void> {
+		// attempts: 1 — see triggerReindex; the destructive is_indexed reset must not auto-retry.
+		await indexingQueue.add('reindex', { scope: 'all', mode }, { attempts: 1 });
+	}
+
+	/**
+	 * Index-health snapshot for a single source (and its merge group): how many
+	 * emails are archived in the database vs. how many documents exist in the index.
+	 * A gap indicates emails missing from search that a reindex can repair.
+	 */
+	public static async getIndexHealth(
+		id: string
+	): Promise<{ archivedCount: number; indexedCount: number }> {
+		const groupIds = await this.findGroupSourceIds(id);
+		const sourceFilter =
+			groupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, groupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, groupIds);
+
+		// Count archived rows vs. rows the DB knows are indexed in a single scan.
+		// `is_indexed` is set by IndexingService.markIndexed only after Meilisearch
+		// confirms the write, so this is an exact, uncapped indexed count. (The global
+		// dashboard health cross-checks the true Meili document count instead; per-source
+		// we trust the flag, which is also what reindex/reconcile act on.)
+		const [row] = await db
+			.select({
+				archivedCount: count(),
+				indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+					Number
+				),
+			})
+			.from(archivedEmails)
+			.where(sourceFilter);
+
+		return { archivedCount: row?.archivedCount ?? 0, indexedCount: row?.indexedCount ?? 0 };
+	}
+
+	/**
+	 * Rich read-only statistics for a source, aggregated across its whole merge group.
+	 * Backs the per-source statistics page. All queries are group-scoped.
+	 */
+	public static async getIngestionStats(id: string): Promise<IngestionStats> {
+		const source = await this.findById(id);
+		const rootId = source.mergedIntoId ?? source.id;
+		const groupIds = await this.findGroupSourceIds(id);
+
+		const emailFilter =
+			groupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, groupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, groupIds);
+		const attachmentFilter =
+			groupIds.length === 1
+				? eq(attachmentsSchema.ingestionSourceId, groupIds[0])
+				: inArray(attachmentsSchema.ingestionSourceId, groupIds);
+
+		const thirtyDaysAgo = new Date();
+		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+		// Run the independent aggregate queries concurrently.
+		const [
+			emailAggRows,
+			physicalRows,
+			attachmentAggRows,
+			mailboxRows,
+			mailboxBytesRows,
+			children,
+			recentActivity,
+		] = await Promise.all([
+			// Email aggregates in a single scan.
+			db
+				.select({
+					totalEmails: count(),
+					mailboxCount: countDistinct(archivedEmails.userEmail),
+					threadCount: countDistinct(archivedEmails.threadId),
+					firstEmailAt: min(archivedEmails.sentAt),
+					lastEmailAt: max(archivedEmails.sentAt),
+					journaledCount:
+						sql<number>`count(*) filter (where ${archivedEmails.isJournaled})`.mapWith(
+							Number
+						),
+					legalHoldCount:
+						sql<number>`count(*) filter (where ${archivedEmails.isOnLegalHold})`.mapWith(
+							Number
+						),
+					emailsWithAttachments:
+						sql<number>`count(*) filter (where ${archivedEmails.hasAttachments})`.mapWith(
+							Number
+						),
+					// Exact, uncapped index coverage from the DB `is_indexed` flag (set only
+					// after Meilisearch confirms the write) — same source of truth reindex uses.
+					indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+						Number
+					),
+				})
+				.from(archivedEmails)
+				.where(emailFilter),
+			// Physical email storage: dedup by file hash so shared-file reference rows
+			// (same physical .eml reused across mailboxes) are not double-counted.
+			db
+				.select({
+					bytes: sql<number>`coalesce(sum(t.size_bytes), 0)`.mapWith(Number),
+				})
+				.from(
+					sql`(select distinct ${archivedEmails.storageHashSha256} as hash, ${archivedEmails.sizeBytes} as size_bytes from ${archivedEmails} where ${emailFilter}) as t`
+				),
+			// Attachment aggregates (attachments are already deduplicated per root source).
+			db
+				.select({
+					attachmentCount: count(),
+					attachmentBytes: sql<number>`coalesce(sum(${attachmentsSchema.sizeBytes}), 0)`.mapWith(
+						Number
+					),
+				})
+				.from(attachmentsSchema)
+				.where(attachmentFilter),
+			// Per-mailbox email counts (raw, ordered by count desc). Storage is computed
+			// separately below with hash-dedup so it matches the group `emailBytes` basis.
+			db
+				.select({
+					userEmail: archivedEmails.userEmail,
+					emailCount: count(),
+				})
+				.from(archivedEmails)
+				.where(emailFilter)
+				.groupBy(archivedEmails.userEmail)
+				.orderBy(desc(count())),
+			// Per-mailbox physical storage, deduplicated by file hash within each mailbox
+			// (same methodology as the group-level `emailBytes`). A file shared across
+			// different mailboxes is still attributed to each mailbox that received it, so
+			// the parts can exceed the deduped group total — that is inherent to per-mailbox
+			// attribution of shared storage.
+			db
+				.select({
+					userEmail: sql<string>`t.user_email`,
+					bytes: sql<number>`coalesce(sum(t.size_bytes), 0)`.mapWith(Number),
+				})
+				.from(
+					sql`(select distinct ${archivedEmails.userEmail} as user_email, ${archivedEmails.storageHashSha256} as hash, ${archivedEmails.sizeBytes} as size_bytes from ${archivedEmails} where ${emailFilter}) as t`
+				)
+				.groupBy(sql`t.user_email`),
+			// Merge-group children metadata.
+			db
+				.select({
+					id: ingestionSources.id,
+					name: ingestionSources.name,
+					provider: ingestionSources.provider,
+					status: ingestionSources.status,
+				})
+				.from(ingestionSources)
+				.where(eq(ingestionSources.mergedIntoId, rootId)),
+			// Emails archived per day over the last 30 days.
+			db
+				.select({
+					date: sql<string>`date_trunc('day', ${archivedEmails.archivedAt})`,
+					count: count(),
+				})
+				.from(archivedEmails)
+				.where(and(emailFilter, gte(archivedEmails.archivedAt, thirtyDaysAgo)))
+				.groupBy(sql`date_trunc('day', ${archivedEmails.archivedAt})`)
+				.orderBy(sql`date_trunc('day', ${archivedEmails.archivedAt})`),
+		]);
+
+		const emailAgg = emailAggRows[0];
+		const emailBytes = physicalRows[0]?.bytes ?? 0;
+		const attachmentBytes = attachmentAggRows[0]?.attachmentBytes ?? 0;
+
+		// Merge the raw per-mailbox counts with the hash-deduped per-mailbox bytes.
+		const bytesByMailbox = new Map(mailboxBytesRows.map((r) => [r.userEmail, r.bytes]));
+		const mailboxes = mailboxRows.map((m) => ({
+			userEmail: m.userEmail,
+			emailCount: m.emailCount,
+			bytes: bytesByMailbox.get(m.userEmail) ?? 0,
+		}));
+
+		return {
+			sourceId: source.id,
+			name: source.name,
+			provider: source.provider,
+			status: source.status,
+			totalEmails: emailAgg?.totalEmails ?? 0,
+			mailboxCount: emailAgg?.mailboxCount ?? 0,
+			threadCount: emailAgg?.threadCount ?? 0,
+			emailBytes,
+			attachmentBytes,
+			totalBytes: emailBytes + attachmentBytes,
+			attachmentCount: attachmentAggRows[0]?.attachmentCount ?? 0,
+			emailsWithAttachments: emailAgg?.emailsWithAttachments ?? 0,
+			indexedCount: emailAgg?.indexedCount ?? 0,
+			journaledCount: emailAgg?.journaledCount ?? 0,
+			legalHoldCount: emailAgg?.legalHoldCount ?? 0,
+			firstEmailAt: emailAgg?.firstEmailAt
+				? new Date(emailAgg.firstEmailAt).toISOString()
+				: null,
+			lastEmailAt: emailAgg?.lastEmailAt
+				? new Date(emailAgg.lastEmailAt).toISOString()
+				: null,
+			lastSyncStartedAt: source.lastSyncStartedAt ?? null,
+			lastSyncFinishedAt: source.lastSyncFinishedAt ?? null,
+			lastSyncStatusMessage: source.lastSyncStatusMessage ?? null,
+			mailboxes,
+			children,
+			recentActivity,
+		};
 	}
 
 	public static async triggerForceSync(id: string, actor: User, actorIp: string): Promise<void> {

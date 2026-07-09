@@ -8,10 +8,13 @@ import {
 } from '@open-archiver/types';
 import { logger } from '../../config/logger';
 import { UserService } from '../../services/UserService';
+import { AuditService } from '../../services/AuditService';
 import { checkDeletionEnabled } from '../../helpers/deletionGuard';
+import type { ReindexMode } from '@open-archiver/types';
 
 export class IngestionController {
 	private userService = new UserService();
+	private auditService = new AuditService();
 	/**
 	 * Converts an IngestionSource object to a safe version for client-side consumption
 	 * by removing the credentials.
@@ -247,6 +250,89 @@ export class IngestionController {
 			return res.status(202).json({ message: req.t('ingestion.forceSyncTriggered') });
 		} catch (error) {
 			console.error(`Trigger force sync for ${req.params.id} error:`, error);
+			if (error instanceof Error && error.message === 'Ingestion source not found') {
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
+			}
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+
+	public reindex = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const { id } = req.params;
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			// Default to 'missing' (cheap self-heal); allow explicit 'full' rebuild.
+			const mode: ReindexMode = req.body?.mode === 'full' ? 'full' : 'missing';
+			await IngestionService.triggerReindex(id, mode);
+
+			await this.auditService.createAuditLog({
+				actorIdentifier: userId,
+				actionType: 'REINDEX',
+				targetType: 'IngestionSource',
+				targetId: id,
+				actorIp: req.ip || 'unknown',
+				details: { scope: 'source', mode },
+			});
+
+			return res.status(202).json({ message: req.t('ingestion.reindexTriggered') });
+		} catch (error) {
+			logger.error({ err: error }, `Trigger reindex for ${req.params.id} error`);
+			if (error instanceof Error && error.message === 'Ingestion source not found') {
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
+			}
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+
+	public reindexAll = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+			const mode: ReindexMode = req.body?.mode === 'full' ? 'full' : 'missing';
+			await IngestionService.triggerReindexAll(mode);
+
+			await this.auditService.createAuditLog({
+				actorIdentifier: userId,
+				actionType: 'REINDEX',
+				targetType: 'IngestionSource',
+				targetId: null,
+				actorIp: req.ip || 'unknown',
+				details: { scope: 'all', mode },
+			});
+
+			return res.status(202).json({ message: req.t('ingestion.reindexTriggered') });
+		} catch (error) {
+			logger.error({ err: error }, 'Trigger reindex-all error');
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+
+	public getIndexHealth = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const { id } = req.params;
+			const health = await IngestionService.getIndexHealth(id);
+			return res.status(200).json(health);
+		} catch (error) {
+			logger.error({ err: error }, `Get index health for ${req.params.id} error`);
+			if (error instanceof Error && error.message === 'Ingestion source not found') {
+				return res.status(404).json({ message: req.t('ingestion.notFound') });
+			}
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+
+	public getStats = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const { id } = req.params;
+			const stats = await IngestionService.getIngestionStats(id);
+			return res.status(200).json(stats);
+		} catch (error) {
+			logger.error({ err: error }, `Get stats for ${req.params.id} error`);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
 				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}

@@ -47,6 +47,7 @@
 		"notFound": "Ingestion source not found",
 		"initialImportTriggered": "Initial import triggered successfully.",
 		"forceSyncTriggered": "Force sync triggered successfully.",
+		"reindexTriggered": "Reindex triggered successfully.",
 		"journalingSourceManagedByJournaling": "SMTP journaling sources are managed through the Journaling page and cannot be modified via the ingestion source API."
 	},
 	"archivedEmail": {

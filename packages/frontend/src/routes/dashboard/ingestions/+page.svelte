@@ -3,17 +3,23 @@
 	import * as Table from '$lib/components/ui/table';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { MoreHorizontal, Trash, RefreshCw, ChevronRight } from 'lucide-svelte';
+	import { MoreHorizontal, Trash, RefreshCw, ChevronRight, Database } from 'lucide-svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import IngestionSourceForm from '$lib/components/custom/IngestionSourceForm.svelte';
 	import { api } from '$lib/api.client';
-	import type { SafeIngestionSource, CreateIngestionSourceDto } from '@open-archiver/types';
+	import type {
+		SafeIngestionSource,
+		CreateIngestionSourceDto,
+		IndexHealth,
+		ReindexMode,
+	} from '@open-archiver/types';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import { t } from '$lib/translations';
+	import { goto } from '$app/navigation';
 
 	let { data }: { data: PageData } = $props();
 	let ingestionSources = $state(data.ingestionSources as SafeIngestionSource[]);
@@ -138,6 +144,68 @@
 			}
 			return s;
 		});
+	};
+
+	const handleReindex = async (id: string) => {
+		const res = await api(`/ingestion-sources/${id}/reindex`, { method: 'POST' });
+		if (!res.ok) {
+			const errorBody = await res.json();
+			setAlert({
+				type: 'error',
+				title: 'Failed to trigger reindex',
+				message: errorBody.message || JSON.stringify(errorBody),
+				duration: 5000,
+				show: true,
+			});
+			return;
+		}
+		setAlert({
+			type: 'success',
+			title: $t('app.ingestions.reindex_success'),
+			message: '',
+			duration: 3000,
+			show: true,
+		});
+	};
+
+	const handleReindexAll = async (mode: ReindexMode) => {
+		const res = await api(`/ingestion-sources/reindex-all`, {
+			method: 'POST',
+			body: JSON.stringify({ mode }),
+		});
+		if (!res.ok) {
+			const errorBody = await res.json();
+			setAlert({
+				type: 'error',
+				title: 'Failed to trigger reindex',
+				message: errorBody.message || JSON.stringify(errorBody),
+				duration: 5000,
+				show: true,
+			});
+			return;
+		}
+		setAlert({
+			type: 'success',
+			title: $t('app.ingestions.reindex_success'),
+			message: '',
+			duration: 3000,
+			show: true,
+		});
+	};
+
+	// Index-health per source, loaded lazily when the status hover card opens.
+	let indexHealth = $state<Record<string, IndexHealth | 'loading' | 'error'>>({});
+	const loadIndexHealth = async (id: string) => {
+		const current = indexHealth[id];
+		if (current && current !== 'error') return; // already loaded or loading
+		indexHealth[id] = 'loading';
+		try {
+			const res = await api(`/ingestion-sources/${id}/index-health`);
+			if (!res.ok) throw new Error('failed');
+			indexHealth[id] = (await res.json()) as IndexHealth;
+		} catch {
+			indexHealth[id] = 'error';
+		}
 	};
 
 	const handleToggle = async (source: SafeIngestionSource) => {
@@ -400,7 +468,27 @@
 				</DropdownMenu.Root>
 			{/if}
 		</div>
-		<Button onclick={openCreateDialog}>{$t('app.ingestions.create_new')}</Button>
+		<div class="flex items-center gap-2">
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button {...props} variant="outline">
+							<Database class="mr-2 h-4 w-4" />
+							{$t('app.ingestions.reindex_all')}
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content>
+					<DropdownMenu.Item onclick={() => handleReindexAll('missing')}>
+						{$t('app.ingestions.reindex_missing')}
+					</DropdownMenu.Item>
+					<DropdownMenu.Item onclick={() => handleReindexAll('full')}>
+						{$t('app.ingestions.reindex_full')}
+					</DropdownMenu.Item>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+			<Button onclick={openCreateDialog}>{$t('app.ingestions.create_new')}</Button>
+		</div>
 	</div>
 
 	<div class="rounded-md border">
@@ -490,7 +578,9 @@
 								>{source.provider.split('_').join(' ')}</Table.Cell
 							>
 							<Table.Cell class="min-w-24">
-								<HoverCard.Root>
+								<HoverCard.Root
+									onOpenChange={(open) => open && loadIndexHealth(source.id)}
+								>
 									<HoverCard.Trigger>
 										<Badge
 											class="{getStatusClasses(
@@ -506,6 +596,20 @@
 												<b>{$t('app.ingestions.last_sync_message')}:</b>
 												{source.lastSyncStatusMessage ||
 													$t('app.ingestions.empty')}
+											</p>
+											<p class="font-mono">
+												<b>{$t('app.ingestions.index_health')}:</b>
+												{#if !indexHealth[source.id] || indexHealth[source.id] === 'loading'}
+													{$t('app.ingestions.index_health_loading')}
+												{:else if indexHealth[source.id] === 'error'}
+													{$t('app.ingestions.index_health_error')}
+												{:else}
+													{@const h = indexHealth[source.id] as IndexHealth}
+													{$t('app.ingestions.index_health_summary', {
+														indexed: h.indexedCount,
+														total: h.archivedCount
+													} as any)}
+												{/if}
 											</p>
 										</div>
 									</HoverCard.Content>
@@ -538,11 +642,18 @@
 										<DropdownMenu.Label
 											>{$t('app.ingestions.actions')}</DropdownMenu.Label
 										>
+										<DropdownMenu.Item
+											onclick={() => goto(`/dashboard/ingestions/${source.id}`)}
+											>{$t('app.ingestions.view_stats')}</DropdownMenu.Item
+										>
 										<DropdownMenu.Item onclick={() => openEditDialog(source)}
 											>{$t('app.ingestions.edit')}</DropdownMenu.Item
 										>
 										<DropdownMenu.Item onclick={() => handleSync(source.id)}
 											>{$t('app.ingestions.force_sync')}</DropdownMenu.Item
+										>
+										<DropdownMenu.Item onclick={() => handleReindex(source.id)}
+											>{$t('app.ingestions.reindex')}</DropdownMenu.Item
 										>
 										<DropdownMenu.Separator />
 										<DropdownMenu.Item
@@ -638,6 +749,12 @@
 													>{$t(
 														'app.ingestions.actions'
 													)}</DropdownMenu.Label
+												>
+												<DropdownMenu.Item
+													onclick={() => goto(`/dashboard/ingestions/${child.id}`)}
+													>{$t(
+														'app.ingestions.view_stats'
+													)}</DropdownMenu.Item
 												>
 												<DropdownMenu.Item
 													onclick={() => openEditDialog(child)}

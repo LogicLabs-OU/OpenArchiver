@@ -15,6 +15,7 @@ export const AuditLogActions = [
 	'PAUSE',
 	'SYNC',
 	'UPLOAD',
+	'REINDEX',
 
 	// Other Actions
 	'SEARCH',

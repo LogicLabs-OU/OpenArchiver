@@ -177,5 +177,40 @@ export const createDashboardRouter = (authService: AuthService): Router => {
 		dashboardController.getIndexedInsights
 	);
 
+	/**
+	 * @openapi
+	 * /v1/dashboard/index-health:
+	 *   get:
+	 *     summary: Get global index health
+	 *     description: Returns the total number of archived emails vs. documents in the search index. A gap indicates emails missing from search. Requires `read:dashboard` permission.
+	 *     operationId: getIndexHealth
+	 *     tags:
+	 *       - Dashboard
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     responses:
+	 *       '200':
+	 *         description: Index health snapshot.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 archivedCount:
+	 *                   type: integer
+	 *                 indexedCount:
+	 *                   type: integer
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '403':
+	 *         $ref: '#/components/responses/Forbidden'
+	 */
+	router.get(
+		'/index-health',
+		requirePermission('read', 'dashboard', 'dashboard.permissionRequired'),
+		dashboardController.getIndexHealth
+	);
+
 	return router;
 };
