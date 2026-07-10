@@ -48,6 +48,11 @@ export const archivedEmails = pgTable(
 	(table) => [
 		index('thread_id_idx').on(table.threadId),
 		index('provider_msg_source_idx').on(table.providerMessageId, table.ingestionSourceId),
+		// Mirror of provider_msg_source_idx for the messageIdHeader dedup branch. Without
+		// this, doesEmailExist's OR (providerMessageId | messageIdHeader) and processEmail's
+		// messageIdHeader lookups sequential-scan archived_emails on every ingested email,
+		// pinning multiple CPU cores during re-syncs of large archives.
+		index('msgid_header_source_idx').on(table.messageIdHeader, table.ingestionSourceId),
 		// Partial index for the reconcile/reindex scan. Keyed on id (the keyset
 		// pagination order) and filtered to unindexed rows, so once the archive is
 		// mostly indexed the index stays tiny and the "find unindexed, ordered by id"

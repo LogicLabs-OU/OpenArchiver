@@ -1,0 +1,51 @@
+name: release-tag
+
+on:
+    release:
+        types: [published]
+
+permissions:
+    contents: read
+
+jobs:
+    tag-release-image:
+        runs-on: ubuntu-latest
+        env:
+            IMAGE: logiclabshq/open-archiver
+        steps:
+            - name: Checkout released tag
+              uses: actions/checkout@v4
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ vars.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Resolve source image tag (short SHA of the released commit)
+              id: src
+              run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+            - name: Re-tag image
+              env:
+                  SOURCE_TAG: ${{ steps.src.outputs.sha }}
+                  VERSION: ${{ github.event.release.tag_name }}
+                  IS_PRERELEASE: ${{ github.event.release.prerelease }}
+              run: |
+                  set -euo pipefail
+                  echo "Re-tagging ${IMAGE}:${SOURCE_TAG} -> ${VERSION}"
+                  TAGS=(-t "${IMAGE}:${VERSION}")
+                  if [ "${IS_PRERELEASE}" = "true" ]; then
+                      echo "Pre-release: skipping the 'latest' tag."
+                  else
+                      TAGS+=(-t "${IMAGE}:latest")
+                  fi
+                  docker buildx imagetools create "${TAGS[@]}" "${IMAGE}:${SOURCE_TAG}"
+
+            - name: Verify resulting tags
+              env:
+                  VERSION: ${{ github.event.release.tag_name }}
+              run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"

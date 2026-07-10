@@ -145,6 +145,13 @@ export class MboxConnector implements IEmailConnector {
 		const fileStream = await this.getFileStream();
 		const mboxSplitter = new MboxSplitter();
 		const emailStream = fileStream.pipe(mboxSplitter);
+		// pipe() does not forward source errors to the destination, so a source-stream error
+		// (e.g. EACCES on a locked/unreadable mbox) would fire an unhandled 'error' event and
+		// crash the worker. Destroy the splitter with the error instead, so the `for await`
+		// below throws it and the job fails cleanly.
+		fileStream.on('error', (err) => {
+			emailStream.destroy(err instanceof Error ? err : new Error(String(err)));
+		});
 
 		for await (const emailBuffer of emailStream) {
 			try {

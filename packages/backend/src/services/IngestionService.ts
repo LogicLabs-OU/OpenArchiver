@@ -36,6 +36,11 @@ import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
 
+/** Placeholder used when an email has no parseable From address. sender_email is NOT NULL,
+ * so inserting null (from a missing/unparseable sender, e.g. Exchange "Deleted Items"
+ * system messages) would fail with Postgres 23502 and drop the email entirely. */
+const UNKNOWN_SENDER = 'unknown@no-sender.invalid';
+
 export class IngestionService {
 	private static auditService = new AuditService();
 	private static decryptSource(
@@ -788,6 +793,21 @@ export class IngestionService {
 	}
 
 	/**
+	 * Builds the filesystem-safe filename component for an email's .eml from its id.
+	 * The provider id / Message-ID becomes an actual filename, but Exchange-style ids can
+	 * exceed the 255-byte filename limit or contain '/', producing ENAMETOOLONG / bad-path
+	 * mkdir errors that drop the email. When the id is unsafe we substitute its sha256 hash;
+	 * the real Message-ID is still preserved in archived_emails.message_id_header. Short,
+	 * safe ids are left as-is so common filenames stay human-readable.
+	 */
+	private buildEmailFileName(id: string): string {
+		if (id.length <= 200 && !/[/\\]/.test(id)) {
+			return id;
+		}
+		return createHash('sha256').update(id).digest('hex');
+	}
+
+	/**
 	 * @param skipTempFileCleanup When true, the caller is responsible for deleting
 	 *   email.tempFilePath. Used by the journaling fan-out loop which calls
 	 *   processEmail() multiple times with the same EmailObject — only the last
@@ -864,6 +884,15 @@ export class IngestionService {
 			// the existing storagePath and storageHashSha256.
 			const existingGroupEmail = await db.query.archivedEmails.findFirst({
 				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
+				// Only the fields needed to build the shared-file reference row below —
+				// avoid fetching the entire wide row on every group dedup check.
+				columns: {
+					id: true,
+					storagePath: true,
+					storageHashSha256: true,
+					sizeBytes: true,
+					hasAttachments: true,
+				},
 			});
 
 			if (existingGroupEmail) {
@@ -880,7 +909,7 @@ export class IngestionService {
 						sentAt: email.receivedAt,
 						subject: email.subject,
 						senderName: email.from[0]?.name,
-						senderEmail: email.from[0]?.address,
+						senderEmail: email.from[0]?.address || UNKNOWN_SENDER,
 						recipients: {
 							to: email.to,
 							cc: email.cc,
@@ -937,7 +966,7 @@ export class IngestionService {
 			// Child sources are assistants; all content physically belongs to the root.
 			// Path uses the source ID only — not the name — so that renaming a source
 			// never causes a path mismatch between old and newly stored files.
-			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/emails/${sanitizedPath}${email.id}.eml`;
+			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/emails/${sanitizedPath}${this.buildEmailFileName(email.id)}.eml`;
 
 			// GoBD / Preserve Original File mode: store the unmodified raw EML as-is.
 			// No attachment stripping, no attachment table records — the full MIME body
@@ -994,7 +1023,7 @@ export class IngestionService {
 						sentAt: email.receivedAt,
 						subject: email.subject,
 						senderName: email.from[0]?.name,
-						senderEmail: email.from[0]?.address,
+						senderEmail: email.from[0]?.address || UNKNOWN_SENDER,
 						recipients: {
 							to: email.to,
 							cc: email.cc,
@@ -1032,7 +1061,7 @@ export class IngestionService {
 					sentAt: email.receivedAt,
 					subject: email.subject,
 					senderName: email.from[0]?.name,
-					senderEmail: email.from[0]?.address,
+					senderEmail: email.from[0]?.address || UNKNOWN_SENDER,
 					recipients: {
 						to: email.to,
 						cc: email.cc,

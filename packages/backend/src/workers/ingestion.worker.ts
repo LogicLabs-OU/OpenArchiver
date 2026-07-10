@@ -40,5 +40,19 @@ const worker = new Worker('ingestion', processor, {
 
 logger.info('Ingestion worker started');
 
+// Last-resort telemetry net for rejections/throws that ESCAPE a job's promise chain. Without
+// it, Node crashes the worker, which `concurrently` never restarts, stalling all ingestion.
+// Ordinary errors thrown inside a job are rejected and retried by BullMQ as usual, and
+// source-stream errors (e.g. EACCES on a locked file) are now surfaced at the connector so
+// they reject the job too — so this net only catches genuinely-escaped async failures. It
+// does NOT re-run the offending job (an escaped rejection is disconnected from BullMQ), so it
+// logs and keeps the worker alive rather than letting one dropped job take the process down.
+process.on('unhandledRejection', (reason) => {
+	logger.error({ reason }, 'Unhandled promise rejection in ingestion worker - continuing');
+});
+process.on('uncaughtException', (err) => {
+	logger.error({ err }, 'Uncaught exception in ingestion worker - continuing');
+});
+
 process.on('SIGINT', () => worker.close());
 process.on('SIGTERM', () => worker.close());
