@@ -34,25 +34,36 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		const connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
-		// Pre-check for duplicates without fetching full email content.
-		// Scoped to this specific mailbox (userEmail) so that different recipients
-		// of the same email each get their own archived row — only skipping when
-		// THIS mailbox already has the email (re-sync idempotency).
+		const { knownMessageIds, groupSourceIds } =
+			await IngestionService.preloadExistingMessageIds(ingestionSourceId);
+		logger.info(
+			{ ingestionSourceId, preloadedCount: knownMessageIds.size },
+			'Pre-loaded existing message IDs for duplicate checking'
+		);
+
 		const checkDuplicate = async (messageId: string) => {
-			return await IngestionService.doesEmailExist(messageId, ingestionSourceId, userEmail);
+			return knownMessageIds.has(messageId);
+		};
+
+		const checkGroupHasMessageId = (rfcMessageId: string) => {
+			return knownMessageIds.has(rfcMessageId);
 		};
 
 		for await (const email of connector.fetchEmails(
 			userEmail,
 			source.syncState,
-			checkDuplicate
+			checkDuplicate,
+			checkGroupHasMessageId
 		)) {
 			if (email) {
 				const processedEmail = await ingestionService.processEmail(
 					email,
 					source,
 					storageService,
-					userEmail
+					userEmail,
+					false,
+					groupSourceIds,
+					knownMessageIds
 				);
 				if (processedEmail) {
 					emailBatch.push(processedEmail);

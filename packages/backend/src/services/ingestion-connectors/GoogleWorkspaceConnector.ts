@@ -9,7 +9,7 @@ import type {
 } from '@open-archiver/types';
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { logger } from '../../config/logger';
-import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
+import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
 
@@ -136,7 +136,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 	public async *fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string) => Promise<boolean>,
+		checkGroupHasMessageId?: (rfcMessageId: string) => boolean
 	): AsyncGenerator<EmailObject> {
 		const authClient = this.getAuthClient(userEmail, [
 			'https://www.googleapis.com/auth/gmail.readonly',
@@ -148,7 +149,12 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 
 		// If no sync state is provided for this user, this is an initial import. Get all messages.
 		if (!startHistoryId) {
-			yield* this.fetchAllMessagesForUser(gmail, userEmail, checkDuplicate);
+			yield* this.fetchAllMessagesForUser(
+				gmail,
+				userEmail,
+				checkDuplicate,
+				checkGroupHasMessageId
+			);
 			return;
 		}
 
@@ -173,45 +179,13 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 					for (const messageAdded of historyRecord.messagesAdded) {
 						if (messageAdded.message?.id) {
 							try {
-								const messageId = messageAdded.message.id;
-
-								// Optimization: Check for existence before fetching full content
-								if (checkDuplicate && (await checkDuplicate(messageId))) {
-									logger.debug(
-										{ messageId, userEmail },
-										'Skipping duplicate email (pre-check)'
-									);
-									continue;
-								}
-
-								const metadataResponse = await gmail.users.messages.get({
-									userId: userEmail,
-									id: messageId,
-									format: 'METADATA',
-									fields: 'labelIds',
-								});
-								const labels = await this.getLabelDetails(
+								yield* this.fetchSingleMessage(
 									gmail,
 									userEmail,
-									metadataResponse.data.labelIds || []
+									messageAdded.message.id,
+									checkDuplicate,
+									checkGroupHasMessageId
 								);
-
-								const msgResponse = await gmail.users.messages.get({
-									userId: userEmail,
-									id: messageId,
-									format: 'RAW',
-								});
-
-								if (msgResponse.data.raw) {
-									const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
-									yield this.parseRawEmail(
-										rawEmail,
-										msgResponse.data.id!,
-										userEmail,
-										labels.path,
-										labels.tags
-									);
-								}
 							} catch (error: any) {
 								if (error.code === 404) {
 									logger.warn(
@@ -237,7 +211,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 	private async *fetchAllMessagesForUser(
 		gmail: gmail_v1.Gmail,
 		userEmail: string,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string) => Promise<boolean>,
+		checkGroupHasMessageId?: (rfcMessageId: string) => boolean
 	): AsyncGenerator<EmailObject> {
 		// Capture the history ID at the start to ensure no emails are missed during the import process.
 		// Any emails arriving during this import will be covered by the next sync starting from this point.
@@ -263,45 +238,13 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			for (const message of messages) {
 				if (message.id) {
 					try {
-						const messageId = message.id;
-
-						// Optimization: Check for existence before fetching full content
-						if (checkDuplicate && (await checkDuplicate(messageId))) {
-							logger.debug(
-								{ messageId, userEmail },
-								'Skipping duplicate email (pre-check)'
-							);
-							continue;
-						}
-
-						const metadataResponse = await gmail.users.messages.get({
-							userId: userEmail,
-							id: messageId,
-							format: 'METADATA',
-							fields: 'labelIds',
-						});
-						const labels = await this.getLabelDetails(
+						yield* this.fetchSingleMessage(
 							gmail,
 							userEmail,
-							metadataResponse.data.labelIds || []
+							message.id,
+							checkDuplicate,
+							checkGroupHasMessageId
 						);
-
-						const msgResponse = await gmail.users.messages.get({
-							userId: userEmail,
-							id: messageId,
-							format: 'RAW',
-						});
-
-						if (msgResponse.data.raw) {
-							const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
-							yield this.parseRawEmail(
-								rawEmail,
-								msgResponse.data.id!,
-								userEmail,
-								labels.path,
-								labels.tags
-							);
-						}
 					} catch (error: any) {
 						if (error.code === 404) {
 							logger.warn(
@@ -316,6 +259,130 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			}
 			pageToken = listResponse.data.nextPageToken ?? undefined;
 		} while (pageToken);
+	}
+
+	private async *fetchSingleMessage(
+		gmail: gmail_v1.Gmail,
+		userEmail: string,
+		messageId: string,
+		checkDuplicate?: (messageId: string) => Promise<boolean>,
+		checkGroupHasMessageId?: (rfcMessageId: string) => boolean
+	): AsyncGenerator<EmailObject> {
+		if (checkDuplicate && (await checkDuplicate(messageId))) {
+			logger.debug({ messageId, userEmail }, 'Skipping duplicate email (pre-check)');
+			return;
+		}
+
+		const metadataResponse = await gmail.users.messages.get({
+			userId: userEmail,
+			id: messageId,
+			format: 'METADATA',
+			metadataHeaders: ['Message-ID', 'Subject', 'From', 'To', 'Cc', 'Date'],
+		});
+
+		const labels = await this.getLabelDetails(
+			gmail,
+			userEmail,
+			metadataResponse.data.labelIds || []
+		);
+
+		const rfcMessageId = this.extractRfcMessageId(metadataResponse.data);
+		if (
+			rfcMessageId &&
+			checkGroupHasMessageId &&
+			checkGroupHasMessageId(rfcMessageId)
+		) {
+			logger.debug(
+				{ messageId, rfcMessageId, userEmail },
+				'Skipping RAW download (group already has RFC Message-ID)'
+			);
+			yield await this.parseMetadataOnly(
+				messageId,
+				userEmail,
+				metadataResponse.data,
+				labels.path,
+				labels.tags
+			);
+			return;
+		}
+
+		const msgResponse = await gmail.users.messages.get({
+			userId: userEmail,
+			id: messageId,
+			format: 'RAW',
+		});
+
+		if (msgResponse.data.raw) {
+			const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
+			yield await this.parseRawEmail(
+				rawEmail,
+				msgResponse.data.id!,
+				userEmail,
+				labels.path,
+				labels.tags
+			);
+		}
+	}
+
+	private extractRfcMessageId(message: gmail_v1.Schema$Message): string | undefined {
+		const header = message.payload?.headers?.find(
+			(h) => h.name?.toLowerCase() === 'message-id'
+		);
+		return header?.value?.trim() || undefined;
+	}
+
+	private async parseMetadataOnly(
+		gmailMessageId: string,
+		userEmail: string,
+		message: gmail_v1.Schema$Message,
+		path: string,
+		tags: string[]
+	): Promise<EmailObject> {
+		const getHeader = (name: string): string | undefined => {
+			const header = message.payload?.headers?.find(
+				(h) => h.name?.toLowerCase() === name.toLowerCase()
+			);
+			return header?.value ?? undefined;
+		};
+
+		const headerLines: string[] = [];
+		for (const name of ['Message-ID', 'Subject', 'From', 'To', 'Cc', 'Date']) {
+			const value = getHeader(name);
+			if (value) {
+				headerLines.push(`${name}: ${value}`);
+			}
+		}
+
+		const parsedEmail: ParsedMail = await simpleParser(
+			Buffer.from(`${headerLines.join('\r\n')}\r\n\r\n`)
+		);
+
+		const mapAddresses = (
+			addresses: AddressObject | AddressObject[] | undefined
+		): EmailAddress[] => {
+			if (!addresses) return [];
+			const addressArray = Array.isArray(addresses) ? addresses : [addresses];
+			return addressArray.flatMap((a) =>
+				a.value.map((v) => ({ name: v.name, address: v.address || '' }))
+			);
+		};
+
+		return {
+			id: gmailMessageId,
+			threadId: message.threadId ?? undefined,
+			userEmail,
+			from: mapAddresses(parsedEmail.from),
+			to: mapAddresses(parsedEmail.to),
+			cc: mapAddresses(parsedEmail.cc),
+			subject: parsedEmail.subject || '',
+			body: '',
+			html: '',
+			headers: parsedEmail.headers,
+			attachments: [],
+			receivedAt: parsedEmail.date || new Date(),
+			path,
+			tags,
+		};
 	}
 
 	/**

@@ -22,7 +22,10 @@
 		"db:generate": "drizzle-kit generate --config=drizzle.config.ts",
 		"db:push": "drizzle-kit push --config=drizzle.config.ts",
 		"db:migrate": "node dist/database/migrate.js",
-		"db:migrate:dev": "ts-node-dev src/database/migrate.ts"
+		"db:migrate:dev": "ts-node-dev src/database/migrate.ts",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"pretest": "pnpm --filter @open-archiver/types build"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.844.0",
@@ -86,6 +89,7 @@
 		"swagger-jsdoc": "^6.2.8",
 		"ts-node-dev": "^2.0.0",
 		"tsconfig-paths": "^4.2.0",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"vitest": "^3.2.4"
 	}
 }

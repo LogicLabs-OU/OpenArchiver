@@ -436,9 +436,10 @@ export class IngestionService {
 		const [row] = await db
 			.select({
 				archivedCount: count(),
-				indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
-					Number
-				),
+				indexedCount:
+					sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+						Number
+					),
 			})
 			.from(archivedEmails)
 			.where(sourceFilter);
@@ -499,9 +500,10 @@ export class IngestionService {
 						),
 					// Exact, uncapped index coverage from the DB `is_indexed` flag (set only
 					// after Meilisearch confirms the write) — same source of truth reindex uses.
-					indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
-						Number
-					),
+					indexedCount:
+						sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+							Number
+						),
 				})
 				.from(archivedEmails)
 				.where(emailFilter),
@@ -518,9 +520,10 @@ export class IngestionService {
 			db
 				.select({
 					attachmentCount: count(),
-					attachmentBytes: sql<number>`coalesce(sum(${attachmentsSchema.sizeBytes}), 0)`.mapWith(
-						Number
-					),
+					attachmentBytes:
+						sql<number>`coalesce(sum(${attachmentsSchema.sizeBytes}), 0)`.mapWith(
+							Number
+						),
 				})
 				.from(attachmentsSchema)
 				.where(attachmentFilter),
@@ -788,6 +791,37 @@ export class IngestionService {
 	}
 
 	/**
+	 * Bulk pre-load of all known message IDs in a merge group.
+	 * Used once per mailbox job so connector duplicate checks are O(1) in-memory lookups.
+	 */
+	public static async preloadExistingMessageIds(sourceId: string): Promise<{
+		knownMessageIds: Set<string>;
+		groupSourceIds: string[];
+	}> {
+		const groupIds = await this.findGroupSourceIds(sourceId);
+		const sourceFilter =
+			groupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, groupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, groupIds);
+
+		const rows = await db
+			.select({
+				messageIdHeader: archivedEmails.messageIdHeader,
+				providerMessageId: archivedEmails.providerMessageId,
+			})
+			.from(archivedEmails)
+			.where(sourceFilter);
+
+		const knownMessageIds = new Set<string>();
+		for (const row of rows) {
+			if (row.messageIdHeader) knownMessageIds.add(row.messageIdHeader);
+			if (row.providerMessageId) knownMessageIds.add(row.providerMessageId);
+		}
+
+		return { knownMessageIds, groupSourceIds: groupIds };
+	}
+
+	/**
 	 * @param skipTempFileCleanup When true, the caller is responsible for deleting
 	 *   email.tempFilePath. Used by the journaling fan-out loop which calls
 	 *   processEmail() multiple times with the same EmailObject — only the last
@@ -798,12 +832,11 @@ export class IngestionService {
 		source: IngestionSource,
 		storage: StorageService,
 		userEmail: string,
-		skipTempFileCleanup: boolean = false
+		skipTempFileCleanup: boolean = false,
+		groupSourceIds?: string[],
+		knownMessageIds?: Set<string>
 	): Promise<PendingEmail | null> {
 		try {
-			// Read the raw bytes from the temp file written by the connector
-			const rawEmlBuffer = await readFile(email.tempFilePath);
-
 			// If this source is a child in a merge group, redirect all storage and DB
 			// ownership to the root source. Child sources are "assistants" — they fetch
 			// emails on behalf of the root but never own any stored content.
@@ -811,63 +844,55 @@ export class IngestionService {
 				? await IngestionService.findById(source.mergedIntoId)
 				: source;
 
-			// Generate a unique message ID for the email. If the email already has a message-id header, use that.
-			// Otherwise, generate a new one based on the email's hash, source ID, and email ID.
 			const messageIdHeader = email.headers.get('message-id');
 			let messageId: string | undefined;
 			if (Array.isArray(messageIdHeader)) {
-				messageId = messageIdHeader[0];
+				messageId = messageIdHeader[0]?.trim();
 			} else if (typeof messageIdHeader === 'string') {
-				messageId = messageIdHeader;
+				messageId = messageIdHeader.trim() || undefined;
 			}
-			if (!messageId) {
-				messageId = `generated-${createHash('sha256')
-					.update(rawEmlBuffer)
-					.digest('hex')}-${source.id}-${email.id}`;
-			}
-			// ── Three-gate deduplication ──────────────────────────────────────
-			// Gate 1: Per-mailbox idempotency — has THIS mailbox already archived
-			//         this email? If so, skip entirely (handles re-sync / retry).
-			// Gate 2: Shared-file reference — does the email exist in ANOTHER
-			//         mailbox within the merge group? If so, skip file write and
-			//         create a reference row pointing to the existing storagePath.
-			// Gate 3: Full new ingestion — first time this email is seen anywhere
-			//         in the group. Write file + create row.
-			// ─────────────────────────────────────────────────────────────────
 
-			const groupIds = await IngestionService.findGroupSourceIds(source.id);
+			const groupIds = groupSourceIds ?? (await IngestionService.findGroupSourceIds(source.id));
 			const groupSourceFilter =
 				groupIds.length === 1
 					? eq(archivedEmails.ingestionSourceId, groupIds[0])
 					: inArray(archivedEmails.ingestionSourceId, groupIds);
 
-			// Gate 1: Per-mailbox duplicate check (idempotency guard for re-sync)
-			const perMailboxDuplicate = await db.query.archivedEmails.findFirst({
-				where: and(
-					eq(archivedEmails.messageIdHeader, messageId),
-					eq(archivedEmails.userEmail, userEmail),
-					groupSourceFilter
-				),
-				columns: { id: true },
-			});
+			const trackKnownIds = (msgId: string) => {
+				knownMessageIds?.add(msgId);
+				knownMessageIds?.add(email.id);
+			};
 
-			if (perMailboxDuplicate) {
-				logger.info(
-					{ messageId, userEmail, ingestionSourceId: source.id },
-					'Skipping duplicate email (same mailbox already has this email)'
-				);
-				return null;
-			}
+			const tryGates1And2 = async (
+				msgId: string
+			): Promise<PendingEmail | 'duplicate' | null> => {
+				// Gate 1: Per-mailbox duplicate check (idempotency guard for re-sync)
+				const perMailboxDuplicate = await db.query.archivedEmails.findFirst({
+					where: and(
+						eq(archivedEmails.messageIdHeader, msgId),
+						eq(archivedEmails.userEmail, userEmail),
+						groupSourceFilter
+					),
+					columns: { id: true },
+				});
 
-			// Gate 2: Check if any OTHER mailbox in the group already has this email.
-			// If so, we skip the file write and create a reference row that shares
-			// the existing storagePath and storageHashSha256.
-			const existingGroupEmail = await db.query.archivedEmails.findFirst({
-				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
-			});
+				if (perMailboxDuplicate) {
+					logger.info(
+						{ messageId: msgId, userEmail, ingestionSourceId: source.id },
+						'Skipping duplicate email (same mailbox already has this email)'
+					);
+					return 'duplicate';
+				}
 
-			if (existingGroupEmail) {
-				// Shared-file reference path: no file write, just a new DB row
+				const existingGroupEmail = await db.query.archivedEmails.findFirst({
+					where: and(eq(archivedEmails.messageIdHeader, msgId), groupSourceFilter),
+				});
+
+				if (!existingGroupEmail) {
+					return null;
+				}
+
+				// Gate 2: Shared-file reference path — no file write, just a new DB row
 				// pointing to the same physical storagePath.
 				const [referenceRow] = await db
 					.insert(archivedEmails)
@@ -875,7 +900,7 @@ export class IngestionService {
 						ingestionSourceId: effectiveSource.id,
 						userEmail,
 						threadId: email.threadId,
-						messageIdHeader: messageId,
+						messageIdHeader: msgId,
 						providerMessageId: email.id,
 						sentAt: email.receivedAt,
 						subject: email.subject,
@@ -886,7 +911,6 @@ export class IngestionService {
 							cc: email.cc,
 							bcc: email.bcc ?? [],
 						},
-						// Re-use existing physical file and hash
 						storagePath: existingGroupEmail.storagePath,
 						storageHashSha256: existingGroupEmail.storageHashSha256,
 						sizeBytes: existingGroupEmail.sizeBytes,
@@ -918,7 +942,7 @@ export class IngestionService {
 
 				logger.info(
 					{
-						messageId,
+						messageId: msgId,
 						userEmail,
 						existingEmailId: existingGroupEmail.id,
 						referenceEmailId: referenceRow.id,
@@ -926,9 +950,45 @@ export class IngestionService {
 					'Created shared-file reference row for another mailbox owner'
 				);
 
+				trackKnownIds(msgId);
+
 				return {
 					archivedEmailId: referenceRow.id,
 				};
+			};
+
+			// ── Three-gate deduplication ──────────────────────────────────────
+			// Gate 1+2 can run without reading the temp file when RFC Message-ID is known.
+			// Gate 3 reads the temp file for full new ingestion (or hash fallback).
+			if (messageId) {
+				const gateResult = await tryGates1And2(messageId);
+				if (gateResult === 'duplicate') {
+					return null;
+				}
+				if (gateResult) {
+					return gateResult;
+				}
+			}
+
+			if (!email.tempFilePath) {
+				return null;
+			}
+
+			// Read raw bytes only when full ingestion (Gate 3) or hash fallback is needed.
+			const rawEmlBuffer = await readFile(email.tempFilePath);
+
+			if (!messageId) {
+				messageId = `generated-${createHash('sha256')
+					.update(rawEmlBuffer)
+					.digest('hex')}-${source.id}-${email.id}`;
+
+				const gateResult = await tryGates1And2(messageId);
+				if (gateResult === 'duplicate') {
+					return null;
+				}
+				if (gateResult) {
+					return gateResult;
+				}
 			}
 
 			// Gate 3: Full new ingestion — first time this email is seen in the group.
@@ -1009,6 +1069,8 @@ export class IngestionService {
 						tags: email.tags,
 					})
 					.returning();
+
+				trackKnownIds(messageId);
 
 				return {
 					archivedEmailId: archivedEmail.id,
@@ -1109,6 +1171,8 @@ export class IngestionService {
 				}
 			}
 
+			trackKnownIds(messageId);
+
 			return {
 				archivedEmailId: archivedEmail.id,
 			};
@@ -1124,7 +1188,7 @@ export class IngestionService {
 			// Clean up the temp file unless the caller opted out (e.g. journaling
 			// fan-out loop that calls processEmail() multiple times with the same
 			// EmailObject — temp file must survive until the last call finishes).
-			if (!skipTempFileCleanup) {
+			if (!skipTempFileCleanup && email.tempFilePath) {
 				await unlink(email.tempFilePath).catch((err) =>
 					logger.warn(
 						{ err, tempFilePath: email.tempFilePath },
