@@ -24,18 +24,48 @@ export class LocalFileSystemProvider implements IStorageProvider {
 		}
 	}
 
+	/**
+	 * Resolves a stored relative path to the exact path on disk.
+	 *
+	 * Attachment filenames can reach this provider in either Unicode NFC or NFD
+	 * normalization form, depending on the mail client that composed the original
+	 * message. The path recorded in the database is not guaranteed to use the same
+	 * normalization form as the byte sequence that was actually written to disk by
+	 * `put()`. Linux filesystems compare filenames byte-for-byte and do not
+	 * normalize Unicode, so a naive `fs.access` on the DB-provided path can fail
+	 * with ENOENT even though a canonically identical file exists on disk.
+	 *
+	 * We try the exact path first (fast path, zero behavior change for the common
+	 * ASCII case), then fall back to the NFC and NFD forms before giving up.
+	 */
+	private async resolveExistingPath(filePath: string): Promise<string | null> {
+		const candidates = Array.from(
+			new Set([filePath, filePath.normalize('NFC'), filePath.normalize('NFD')])
+		);
+
+		for (const candidate of candidates) {
+			const fullPath = path.join(this.rootPath, candidate);
+			try {
+				await fs.access(fullPath);
+				return fullPath;
+			} catch {
+				// try next candidate
+			}
+		}
+
+		return null;
+	}
+
 	async get(filePath: string): Promise<NodeJS.ReadableStream> {
-		const fullPath = path.join(this.rootPath, filePath);
-		try {
-			await fs.access(fullPath);
-			return createReadStream(fullPath);
-		} catch (error) {
+		const fullPath = await this.resolveExistingPath(filePath);
+		if (!fullPath) {
 			throw new Error('File not found');
 		}
+		return createReadStream(fullPath);
 	}
 
 	async delete(filePath: string): Promise<void> {
-		const fullPath = path.join(this.rootPath, filePath);
+		const fullPath = (await this.resolveExistingPath(filePath)) ?? path.join(this.rootPath, filePath);
 		try {
 			await fs.rm(fullPath, { recursive: true, force: true });
 		} catch (error: any) {
@@ -47,12 +77,6 @@ export class LocalFileSystemProvider implements IStorageProvider {
 	}
 
 	async exists(filePath: string): Promise<boolean> {
-		const fullPath = path.join(this.rootPath, filePath);
-		try {
-			await fs.access(fullPath);
-			return true;
-		} catch {
-			return false;
-		}
+		return (await this.resolveExistingPath(filePath)) !== null;
 	}
 }

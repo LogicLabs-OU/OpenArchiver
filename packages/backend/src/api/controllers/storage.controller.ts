@@ -40,7 +40,20 @@ export class StorageController {
 
 			const fileStream = await this.storageService.get(safePath);
 			const fileName = path.basename(safePath);
-			res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+			// Node's header validation rejects raw non-ASCII bytes (and Unicode
+			// combining marks in particular), throwing ERR_INVALID_CHAR and
+			// crashing the request with a 500 for any attachment whose filename
+			// contains e.g. Cyrillic characters or NFD-decomposed diacritics.
+			// RFC 6266 / RFC 5987 encoding fixes this: an ASCII-safe fallback for
+			// legacy clients, plus a UTF-8 percent-encoded filename* for modern
+			// browsers, which correctly display the original filename.
+			const asciiFallback = fileName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, "'");
+			const encodedFileName = encodeURIComponent(fileName);
+			res.setHeader(
+				'Content-Disposition',
+				`attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedFileName}`
+			);
 			fileStream.pipe(res);
 		} catch (error) {
 			console.error('Error downloading file:', error);
