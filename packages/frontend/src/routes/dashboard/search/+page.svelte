@@ -32,7 +32,7 @@
 	);
 
 	type ViewMode = 'detailed' | 'list';
-	let viewMode: ViewMode = $state('detailed');
+	let viewMode: ViewMode = $state('list');
 
 	const strategies = [
 		{ value: 'last', label: $t('app.search.strategy_fuzzy') },
