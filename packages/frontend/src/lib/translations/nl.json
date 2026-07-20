@@ -79,6 +79,7 @@
 			"view_label": "Weergave",
 			"view_list": "Lijstweergave",
 			"view_detailed": "Gedetailleerde weergave",
+			"columns_label": "Kolommen",
 			"error": "Fout",
 			"found_results_in": "{{total}} resultaten gevonden in {{seconds}}s",
 			"found_results": "{{total}} resultaten gevonden",

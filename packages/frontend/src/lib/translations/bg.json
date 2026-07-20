@@ -79,6 +79,7 @@
 			"view_label": "Изглед",
 			"view_list": "Списък",
 			"view_detailed": "Подробен изглед",
+			"columns_label": "Колони",
 			"error": "Грешка",
 			"found_results_in": "Намерени {{total}} резултати за {{seconds}}и",
 			"found_results": "Намерени {{total}} резултати",

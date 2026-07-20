@@ -79,6 +79,7 @@
 			"view_label": "Vaade",
 			"view_list": "Loendivaade",
 			"view_detailed": "Üksikasjalik vaade",
+			"columns_label": "Veerud",
 			"error": "Viga",
 			"found_results_in": "Leiti {{total}} tulemust {{seconds}} sekundiga",
 			"found_results": "Leiti {{total}} tulemust",

@@ -87,6 +87,7 @@
 			"view_label": "Visualizzazione",
 			"view_list": "Vista elenco",
 			"view_detailed": "Vista dettagliata",
+			"columns_label": "Colonne",
 			"error": "Errore",
 			"found_results_in": "Trovati {{total}} risultati in {{seconds}}s",
 			"found_results": "Trovati {{total}} risultati",

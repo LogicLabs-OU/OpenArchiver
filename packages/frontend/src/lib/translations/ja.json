@@ -79,6 +79,7 @@
 			"view_label": "表示",
 			"view_list": "リスト表示",
 			"view_detailed": "詳細表示",
+			"columns_label": "列",
 			"error": "エラー",
 			"found_results_in": "{{seconds}}秒で{{total}}件の結果が見つかりました",
 			"found_results": "{{total}}件の結果が見つかりました",

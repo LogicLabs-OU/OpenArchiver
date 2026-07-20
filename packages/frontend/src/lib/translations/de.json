@@ -115,6 +115,7 @@
 			"view_label": "Ansicht",
 			"view_list": "Listenansicht",
 			"view_detailed": "Detailansicht",
+			"columns_label": "Spalten",
 			"error": "Fehler",
 			"found_results_in": "{{total}} Ergebnisse in {{seconds}}s gefunden",
 			"found_results": "{{total}} Ergebnisse gefunden",

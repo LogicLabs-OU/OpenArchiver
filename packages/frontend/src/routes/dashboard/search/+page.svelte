@@ -11,6 +11,7 @@
 		CardDescription,
 	} from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -34,6 +35,28 @@
 	type ViewMode = 'detailed' | 'list';
 	let viewMode: ViewMode = $state('list');
 
+	type ListColumn = 'subject' | 'from' | 'to' | 'date';
+	const listColumnStorageKey = 'openarchiver:search:list-columns';
+	const listColumnLabels: Record<ListColumn, () => string> = {
+		subject: () => $t('app.archived_emails_page.subject'),
+		from: () => $t('app.search.from'),
+		to: () => $t('app.search.to'),
+		date: () => $t('app.archived_emails_page.date'),
+	};
+	let visibleColumns: Record<ListColumn, boolean> = $state({
+		subject: true,
+		from: true,
+		to: true,
+		date: true,
+	});
+
+	function toggleColumn(column: ListColumn, value: boolean) {
+		const visibleCount = Object.values(visibleColumns).filter(Boolean).length;
+		if (!value && visibleCount <= 1) return;
+		visibleColumns[column] = value;
+		localStorage.setItem(listColumnStorageKey, JSON.stringify(visibleColumns));
+	}
+
 	const strategies = [
 		{ value: 'last', label: $t('app.search.strategy_fuzzy') },
 		{ value: 'all', label: $t('app.search.strategy_verbatim') },
@@ -48,6 +71,16 @@
 	let isMounted = $state(false);
 	onMount(() => {
 		isMounted = true;
+
+		const stored = localStorage.getItem(listColumnStorageKey);
+		if (stored) {
+			try {
+				const parsed = JSON.parse(stored);
+				visibleColumns = { ...visibleColumns, ...parsed };
+			} catch {
+				// Ignore malformed stored preferences and keep the defaults.
+			}
+		}
 	});
 
 	function shadowRender(node: HTMLElement, html: string | undefined) {
@@ -216,6 +249,33 @@
 							{$t('app.search.view_list')}
 						</Button>
 					</div>
+
+					{#if viewMode === 'list'}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="outline"
+										size="sm"
+										class="cursor-pointer"
+									>
+										{$t('app.search.columns_label')}
+									</Button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end">
+								{#each Object.keys(visibleColumns) as ListColumn[] as column}
+									<DropdownMenu.CheckboxItem
+										checked={visibleColumns[column]}
+										onCheckedChange={(value) => toggleColumn(column, value)}
+									>
+										{listColumnLabels[column]()}
+									</DropdownMenu.CheckboxItem>
+								{/each}
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					{/if}
 				</div>
 			{/if}
 		</div>
@@ -225,10 +285,18 @@
 				<Table.Root>
 					<Table.Header>
 						<Table.Row>
-							<Table.Head>{$t('app.archived_emails_page.subject')}</Table.Head>
-							<Table.Head>{$t('app.search.from')}</Table.Head>
-							<Table.Head>{$t('app.search.to')}</Table.Head>
-							<Table.Head>{$t('app.archived_emails_page.date')}</Table.Head>
+							{#if visibleColumns.subject}
+								<Table.Head>{$t('app.archived_emails_page.subject')}</Table.Head>
+							{/if}
+							{#if visibleColumns.from}
+								<Table.Head>{$t('app.search.from')}</Table.Head>
+							{/if}
+							{#if visibleColumns.to}
+								<Table.Head>{$t('app.search.to')}</Table.Head>
+							{/if}
+							{#if visibleColumns.date}
+								<Table.Head>{$t('app.archived_emails_page.date')}</Table.Head>
+							{/if}
 						</Table.Row>
 					</Table.Header>
 					<Table.Body class="text-sm">
@@ -237,23 +305,31 @@
 								class="hover:bg-muted/50 cursor-pointer"
 								onclick={() => goto(`/dashboard/archived-emails/${hit.id}`)}
 							>
-								<Table.Cell>
-									<div class="max-w-100 truncate">
-										<a
-											class="link"
-											href={`/dashboard/archived-emails/${hit.id}`}
-										>
-											{hit.subject}
-										</a>
-									</div>
-								</Table.Cell>
-								<Table.Cell>
-									<div class="max-w-60 truncate">{hit.from}</div>
-								</Table.Cell>
-								<Table.Cell>
-									<div class="max-w-60 truncate">{hit.to.join(', ')}</div>
-								</Table.Cell>
-								<Table.Cell>{new Date(hit.timestamp).toLocaleString()}</Table.Cell>
+								{#if visibleColumns.subject}
+									<Table.Cell>
+										<div class="max-w-100 truncate">
+											<a
+												class="link"
+												href={`/dashboard/archived-emails/${hit.id}`}
+											>
+												{hit.subject}
+											</a>
+										</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.from}
+									<Table.Cell>
+										<div class="max-w-60 truncate">{hit.from}</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.to}
+									<Table.Cell>
+										<div class="max-w-60 truncate">{hit.to.join(', ')}</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.date}
+									<Table.Cell>{new Date(hit.timestamp).toLocaleString()}</Table.Cell>
+								{/if}
 							</Table.Row>
 						{/each}
 					</Table.Body>

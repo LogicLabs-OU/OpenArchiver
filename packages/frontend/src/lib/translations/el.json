@@ -79,6 +79,7 @@
 			"view_label": "Προβολή",
 			"view_list": "Προβολή λίστας",
 			"view_detailed": "Λεπτομερής προβολή",
+			"columns_label": "Στήλες",
 			"error": "Σφάλμα",
 			"found_results_in": "Βρέθηκαν {{total}} αποτελέσματα σε {{seconds}}s",
 			"found_results": "Βρέθηκαν {{total}} αποτελέσματα",

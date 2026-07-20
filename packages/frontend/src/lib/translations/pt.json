@@ -79,6 +79,7 @@
 			"view_label": "Visualização",
 			"view_list": "Vista em lista",
 			"view_detailed": "Vista detalhada",
+			"columns_label": "Colunas",
 			"error": "Erro",
 			"found_results_in": "Encontrados {{total}} resultados em {{seconds}}s",
 			"found_results": "Encontrados {{total}} resultados",

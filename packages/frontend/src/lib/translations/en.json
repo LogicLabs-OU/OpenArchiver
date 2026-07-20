@@ -158,6 +158,7 @@
 			"view_label": "View",
 			"view_list": "List view",
 			"view_detailed": "Detailed view",
+			"columns_label": "Columns",
 			"error": "Error",
 			"found_results_in": "Found {{total}} results in {{seconds}}s",
 			"found_results": "Found {{total}} results",

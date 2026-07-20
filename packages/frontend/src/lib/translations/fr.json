@@ -115,6 +115,7 @@
 			"view_label": "Affichage",
 			"view_list": "Vue en liste",
 			"view_detailed": "Vue détaillée",
+			"columns_label": "Colonnes",
 			"error": "Erreur",
 			"found_results_in": "{{total}} résultats trouvés en {{seconds}}s",
 			"found_results": "{{total}} résultats trouvés",
