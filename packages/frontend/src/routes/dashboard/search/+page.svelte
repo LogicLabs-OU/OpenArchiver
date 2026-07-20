@@ -10,6 +10,8 @@
 		CardTitle,
 		CardDescription,
 	} from '$lib/components/ui/card';
+	import * as Table from '$lib/components/ui/table';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -30,6 +32,35 @@
 		(data.matchingStrategy as MatchingStrategy) || 'last'
 	);
 
+	type ViewMode = 'detailed' | 'list';
+	let viewMode: ViewMode = $state('list');
+
+	type ListColumn = 'subject' | 'from' | 'to' | 'cc' | 'date' | 'mailbox';
+	const listColumnStorageKey = 'openarchiver:search:list-columns';
+	const listColumnLabels: Record<ListColumn, () => string> = {
+		subject: () => $t('app.archived_emails_page.subject'),
+		from: () => $t('app.search.from'),
+		to: () => $t('app.search.to'),
+		cc: () => $t('app.search.cc'),
+		date: () => $t('app.archived_emails_page.date'),
+		mailbox: () => $t('app.archived_emails_page.inbox'),
+	};
+	let visibleColumns: Record<ListColumn, boolean> = $state({
+		subject: true,
+		from: true,
+		to: true,
+		cc: false,
+		date: true,
+		mailbox: false,
+	});
+
+	function toggleColumn(column: ListColumn, value: boolean) {
+		const visibleCount = Object.values(visibleColumns).filter(Boolean).length;
+		if (!value && visibleCount <= 1) return;
+		visibleColumns[column] = value;
+		localStorage.setItem(listColumnStorageKey, JSON.stringify(visibleColumns));
+	}
+
 	const strategies = [
 		{ value: 'last', label: $t('app.search.strategy_fuzzy') },
 		{ value: 'all', label: $t('app.search.strategy_verbatim') },
@@ -44,6 +75,16 @@
 	let isMounted = $state(false);
 	onMount(() => {
 		isMounted = true;
+
+		const stored = localStorage.getItem(listColumnStorageKey);
+		if (stored) {
+			try {
+				const parsed = JSON.parse(stored);
+				visibleColumns = { ...visibleColumns, ...parsed };
+			} catch {
+				// Ignore malformed stored preferences and keep the defaults.
+			}
+		}
 	});
 
 	function shadowRender(node: HTMLElement, html: string | undefined) {
@@ -177,123 +218,253 @@
 	{/if}
 
 	{#if searchResult}
-		<p class="text-muted-foreground mb-4">
-			{#if searchResult.total > 0}
-				{$t('app.search.found_results_in', {
-					total: searchResult.total,
-					seconds: searchResult.processingTimeMs / 1000,
-				} as any)}
-			{:else}
-				{$t('app.search.found_results', { total: searchResult.total } as any)}
-			{/if}
-		</p>
+		<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+			<p class="text-muted-foreground">
+				{#if searchResult.total > 0}
+					{$t('app.search.found_results_in', {
+						total: searchResult.total,
+						seconds: searchResult.processingTimeMs / 1000,
+					} as any)}
+				{:else}
+					{$t('app.search.found_results', { total: searchResult.total } as any)}
+				{/if}
+			</p>
 
-		<div class="grid gap-4">
-			{#each searchResult.hits as hit}
-				{@const _formatted = hit._formatted || {}}
-				<a href="/dashboard/archived-emails/{hit.id}" class="block">
-					<Card>
-						<CardHeader>
-							<CardTitle>
-								{#if !isMounted}
-									<Skeleton class="h-6 w-3/4" />
-								{:else}
-									<div use:shadowRender={_formatted.subject || hit.subject}></div>
-								{/if}
-							</CardTitle>
-							<CardDescription
-								class="divide-forground flex flex-wrap items-center space-x-2 divide-x"
-							>
-								<span class="pr-2">
-									<span>{$t('app.search.from')}:</span>
-									{#if !isMounted}
-										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-										></span>
-									{:else}
-										<span
-											class="inline-block"
-											use:shadowRender={_formatted.from || hit.from}
-										></span>
-									{/if}
-								</span>
-								<span class="pr-2">
-									<span>{$t('app.search.to')}:</span>
-									{#if !isMounted}
-										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-										></span>
-									{:else}
-										<span
-											class="inline-block"
-											use:shadowRender={_formatted.to?.join(', ') ||
-												hit.to.join(', ')}
-										></span>
-									{/if}
-								</span>
-								<span>
-									{#if !isMounted}
-										<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
-										></span>
-									{:else}
-										<span class="inline-block">
-											{new Date(hit.timestamp).toLocaleString()}
-										</span>
-									{/if}
-								</span>
-							</CardDescription>
-						</CardHeader>
-						<CardContent class="space-y-2">
-							<!-- Body matches -->
-							{#if _formatted.body}
-								{#each getHighlightedSnippets(_formatted.body) as snippet}
-									<div
-										class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
+			{#if searchResult.hits.length > 0}
+				<div class="flex items-center gap-2">
+					<span class="text-muted-foreground text-xs font-medium"
+						>{$t('app.search.view_label')}:</span
+					>
+					<div class="flex gap-1">
+						<Button
+							variant={viewMode === 'detailed' ? 'default' : 'outline'}
+							size="sm"
+							class="cursor-pointer"
+							onclick={() => (viewMode = 'detailed')}
+						>
+							{$t('app.search.view_detailed')}
+						</Button>
+						<Button
+							variant={viewMode === 'list' ? 'default' : 'outline'}
+							size="sm"
+							class="cursor-pointer"
+							onclick={() => (viewMode = 'list')}
+						>
+							{$t('app.search.view_list')}
+						</Button>
+					</div>
+
+					{#if viewMode === 'list'}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="outline"
+										size="sm"
+										class="cursor-pointer"
 									>
-										<p class="text-sm text-gray-500">
-											{$t('app.search.in_email_body')}:
-										</p>
-										{#if !isMounted}
-											<Skeleton class="my-2 h-5 w-full bg-gray-200" />
-										{:else}
-											<p
-												class="font-mono text-sm"
-												use:shadowRender={snippet}
-											></p>
-										{/if}
-									</div>
+										{$t('app.search.columns_label')}
+									</Button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end">
+								{#each Object.keys(visibleColumns) as ListColumn[] as column}
+									<DropdownMenu.CheckboxItem
+										checked={visibleColumns[column]}
+										onCheckedChange={(value) => toggleColumn(column, value)}
+									>
+										{listColumnLabels[column]()}
+									</DropdownMenu.CheckboxItem>
 								{/each}
-							{/if}
-
-							<!-- Attachment matches -->
-							{#if _formatted.attachments}
-								{#each _formatted.attachments as attachment, i}
-									{#if attachment && attachment.content}
-										{#each getHighlightedSnippets(attachment.content) as snippet}
-											<div
-												class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
-											>
-												<p class="text-sm text-gray-500">
-													{$t('app.search.in_attachment', {
-														filename: attachment.filename,
-													} as any)}
-												</p>
-												{#if !isMounted}
-													<Skeleton class="my-2 h-5 w-full bg-gray-200" />
-												{:else}
-													<p
-														class="font-mono text-sm"
-														use:shadowRender={snippet}
-													></p>
-												{/if}
-											</div>
-										{/each}
-									{/if}
-								{/each}
-							{/if}
-						</CardContent>
-					</Card>
-				</a>
-			{/each}
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					{/if}
+				</div>
+			{/if}
 		</div>
+
+		{#if viewMode === 'list'}
+			<div class="rounded-md border">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
+							{#if visibleColumns.subject}
+								<Table.Head>{$t('app.archived_emails_page.subject')}</Table.Head>
+							{/if}
+							{#if visibleColumns.from}
+								<Table.Head>{$t('app.search.from')}</Table.Head>
+							{/if}
+							{#if visibleColumns.to}
+								<Table.Head>{$t('app.search.to')}</Table.Head>
+							{/if}
+							{#if visibleColumns.cc}
+								<Table.Head>{$t('app.search.cc')}</Table.Head>
+							{/if}
+							{#if visibleColumns.date}
+								<Table.Head>{$t('app.archived_emails_page.date')}</Table.Head>
+							{/if}
+							{#if visibleColumns.mailbox}
+								<Table.Head>{$t('app.archived_emails_page.inbox')}</Table.Head>
+							{/if}
+						</Table.Row>
+					</Table.Header>
+					<Table.Body class="text-sm">
+						{#each searchResult.hits as hit}
+							<Table.Row
+								class="hover:bg-muted/50 cursor-pointer"
+								onclick={() => goto(`/dashboard/archived-emails/${hit.id}`)}
+							>
+								{#if visibleColumns.subject}
+									<Table.Cell>
+										<div class="max-w-100 truncate">
+											<a
+												class="link"
+												href={`/dashboard/archived-emails/${hit.id}`}
+											>
+												{hit.subject}
+											</a>
+										</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.from}
+									<Table.Cell>
+										<div class="max-w-60 truncate">{hit.from}</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.to}
+									<Table.Cell>
+										<div class="max-w-60 truncate">
+											{hit.to.filter(Boolean).join(', ')}
+										</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.cc}
+									<Table.Cell>
+										<div class="max-w-60 truncate">
+											{hit.cc.filter(Boolean).join(', ')}
+										</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.date}
+									<Table.Cell>{new Date(hit.timestamp).toLocaleString()}</Table.Cell>
+								{/if}
+								{#if visibleColumns.mailbox}
+									<Table.Cell>{hit.userEmail}</Table.Cell>
+								{/if}
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			</div>
+		{:else}
+			<div class="grid gap-4">
+				{#each searchResult.hits as hit}
+					{@const _formatted = hit._formatted || {}}
+					<a href="/dashboard/archived-emails/{hit.id}" class="block">
+						<Card>
+							<CardHeader>
+								<CardTitle>
+									{#if !isMounted}
+										<Skeleton class="h-6 w-3/4" />
+									{:else}
+										<div use:shadowRender={_formatted.subject || hit.subject}></div>
+									{/if}
+								</CardTitle>
+								<CardDescription
+									class="divide-forground flex flex-wrap items-center space-x-2 divide-x"
+								>
+									<span class="pr-2">
+										<span>{$t('app.search.from')}:</span>
+										{#if !isMounted}
+											<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+											></span>
+										{:else}
+											<span
+												class="inline-block"
+												use:shadowRender={_formatted.from || hit.from}
+											></span>
+										{/if}
+									</span>
+									<span class="pr-2">
+										<span>{$t('app.search.to')}:</span>
+										{#if !isMounted}
+											<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+											></span>
+										{:else}
+											<span
+												class="inline-block"
+												use:shadowRender={_formatted.to?.join(', ') ||
+													hit.to.join(', ')}
+											></span>
+										{/if}
+									</span>
+									<span>
+										{#if !isMounted}
+											<span class="bg-accent h-4 w-40 animate-pulse rounded-md"
+											></span>
+										{:else}
+											<span class="inline-block">
+												{new Date(hit.timestamp).toLocaleString()}
+											</span>
+										{/if}
+									</span>
+								</CardDescription>
+							</CardHeader>
+							<CardContent class="space-y-2">
+								<!-- Body matches -->
+								{#if _formatted.body}
+									{#each getHighlightedSnippets(_formatted.body) as snippet}
+										<div
+											class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
+										>
+											<p class="text-sm text-gray-500">
+												{$t('app.search.in_email_body')}:
+											</p>
+											{#if !isMounted}
+												<Skeleton class="my-2 h-5 w-full bg-gray-200" />
+											{:else}
+												<p
+													class="font-mono text-sm"
+													use:shadowRender={snippet}
+												></p>
+											{/if}
+										</div>
+									{/each}
+								{/if}
+
+								<!-- Attachment matches -->
+								{#if _formatted.attachments}
+									{#each _formatted.attachments as attachment, i}
+										{#if attachment && attachment.content}
+											{#each getHighlightedSnippets(attachment.content) as snippet}
+												<div
+													class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
+												>
+													<p class="text-sm text-gray-500">
+														{$t('app.search.in_attachment', {
+															filename: attachment.filename,
+														} as any)}
+													</p>
+													{#if !isMounted}
+														<Skeleton class="my-2 h-5 w-full bg-gray-200" />
+													{:else}
+														<p
+															class="font-mono text-sm"
+															use:shadowRender={snippet}
+														></p>
+													{/if}
+												</div>
+											{/each}
+										{/if}
+									{/each}
+								{/if}
+							</CardContent>
+						</Card>
+					</a>
+				{/each}
+			</div>
+		{/if}
 
 		{#if searchResult.total > searchResult.limit}
 			<div class="mt-8">
