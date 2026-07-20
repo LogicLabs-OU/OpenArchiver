@@ -85,6 +85,7 @@
 			"found_results": "{{total}} resultaten gevonden",
 			"from": "Van",
 			"to": "Aan",
+			"cc": "Cc",
 			"in_email_body": "In e-mailtekst",
 			"in_attachment": "In bijlage: {{filename}}",
 			"prev": "Vorige",

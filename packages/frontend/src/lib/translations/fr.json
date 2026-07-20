@@ -121,6 +121,7 @@
 			"found_results": "{{total}} résultats trouvés",
 			"from": "De",
 			"to": "À",
+			"cc": "Cc",
 			"in_email_body": "Dans le corps de l'email",
 			"in_attachment": "Dans la pièce jointe : {{filename}}",
 			"prev": "Préc",

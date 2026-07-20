@@ -85,6 +85,7 @@
 			"found_results": "Leiti {{total}} tulemust",
 			"from": "Kellelt",
 			"to": "Kellele",
+			"cc": "Cc",
 			"in_email_body": "E-kirja sisus",
 			"in_attachment": "Manuses: {{filename}}",
 			"prev": "Eelmine",

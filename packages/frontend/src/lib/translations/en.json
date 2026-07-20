@@ -164,6 +164,7 @@
 			"found_results": "Found {{total}} results",
 			"from": "From",
 			"to": "To",
+			"cc": "Cc",
 			"in_email_body": "In email body",
 			"in_attachment": "In attachment: {{filename}}",
 			"prev": "Prev",

@@ -85,6 +85,7 @@
 			"found_results": "Encontrados {{total}} resultados",
 			"from": "De",
 			"to": "Para",
+			"cc": "Cc",
 			"in_email_body": "No corpo do e-mail",
 			"in_attachment": "No anexo: {{filename}}",
 			"prev": "Anterior",

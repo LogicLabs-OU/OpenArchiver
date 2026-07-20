@@ -35,19 +35,23 @@
 	type ViewMode = 'detailed' | 'list';
 	let viewMode: ViewMode = $state('list');
 
-	type ListColumn = 'subject' | 'from' | 'to' | 'date';
+	type ListColumn = 'subject' | 'from' | 'to' | 'cc' | 'date' | 'mailbox';
 	const listColumnStorageKey = 'openarchiver:search:list-columns';
 	const listColumnLabels: Record<ListColumn, () => string> = {
 		subject: () => $t('app.archived_emails_page.subject'),
 		from: () => $t('app.search.from'),
 		to: () => $t('app.search.to'),
+		cc: () => $t('app.search.cc'),
 		date: () => $t('app.archived_emails_page.date'),
+		mailbox: () => $t('app.archived_emails_page.inbox'),
 	};
 	let visibleColumns: Record<ListColumn, boolean> = $state({
 		subject: true,
 		from: true,
 		to: true,
+		cc: false,
 		date: true,
+		mailbox: false,
 	});
 
 	function toggleColumn(column: ListColumn, value: boolean) {
@@ -294,8 +298,14 @@
 							{#if visibleColumns.to}
 								<Table.Head>{$t('app.search.to')}</Table.Head>
 							{/if}
+							{#if visibleColumns.cc}
+								<Table.Head>{$t('app.search.cc')}</Table.Head>
+							{/if}
 							{#if visibleColumns.date}
 								<Table.Head>{$t('app.archived_emails_page.date')}</Table.Head>
+							{/if}
+							{#if visibleColumns.mailbox}
+								<Table.Head>{$t('app.archived_emails_page.inbox')}</Table.Head>
 							{/if}
 						</Table.Row>
 					</Table.Header>
@@ -324,11 +334,23 @@
 								{/if}
 								{#if visibleColumns.to}
 									<Table.Cell>
-										<div class="max-w-60 truncate">{hit.to.join(', ')}</div>
+										<div class="max-w-60 truncate">
+											{hit.to.filter(Boolean).join(', ')}
+										</div>
+									</Table.Cell>
+								{/if}
+								{#if visibleColumns.cc}
+									<Table.Cell>
+										<div class="max-w-60 truncate">
+											{hit.cc.filter(Boolean).join(', ')}
+										</div>
 									</Table.Cell>
 								{/if}
 								{#if visibleColumns.date}
 									<Table.Cell>{new Date(hit.timestamp).toLocaleString()}</Table.Cell>
+								{/if}
+								{#if visibleColumns.mailbox}
+									<Table.Cell>{hit.userEmail}</Table.Cell>
 								{/if}
 							</Table.Row>
 						{/each}

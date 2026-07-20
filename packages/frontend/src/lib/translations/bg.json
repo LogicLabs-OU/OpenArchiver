@@ -85,6 +85,7 @@
 			"found_results": "Намерени {{total}} резултати",
 			"from": "От",
 			"to": "До",
+			"cc": "Cc",
 			"in_email_body": "В съдържанието на имейла",
 			"in_attachment": "В прикачения файл: {{filename}}",
 			"prev": "Предишен",

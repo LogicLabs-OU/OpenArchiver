@@ -85,6 +85,7 @@
 			"found_results": "Βρέθηκαν {{total}} αποτελέσματα",
 			"from": "Από",
 			"to": "Προς",
+			"cc": "Κοιν.",
 			"in_email_body": "Στο σώμα του email",
 			"in_attachment": "Στο συνημμένο: {{filename}}",
 			"prev": "Προηγούμενο",

@@ -121,6 +121,7 @@
 			"found_results": "Se encontraron {{total}} resultados",
 			"from": "De",
 			"to": "Para",
+			"cc": "Cc",
 			"in_email_body": "En el cuerpo del correo electrónico",
 			"in_attachment": "En el archivo adjunto: {{filename}}",
 			"prev": "Anterior",

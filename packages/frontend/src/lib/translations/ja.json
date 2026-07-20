@@ -85,6 +85,7 @@
 			"found_results": "{{total}}件の結果が見つかりました",
 			"from": "差出人",
 			"to": "宛先",
+			"cc": "Cc",
 			"in_email_body": "メール本文内",
 			"in_attachment": "添付ファイル内: {{filename}}",
 			"prev": "前へ",

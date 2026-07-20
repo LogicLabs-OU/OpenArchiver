@@ -93,6 +93,7 @@
 			"found_results": "Trovati {{total}} risultati",
 			"from": "Da",
 			"to": "A",
+			"cc": "Cc",
 			"in_email_body": "Nel corpo dell'email",
 			"in_attachment": "Nell'allegato: {{filename}}",
 			"prev": "Prec",
