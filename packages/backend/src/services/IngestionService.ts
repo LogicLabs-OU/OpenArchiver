@@ -140,7 +140,12 @@ export class IngestionService {
 			query = query.where(drizzleFilter);
 		}
 
-		const sources = await query.orderBy(desc(ingestionSources.createdAt));
+		// Sort alphabetically by name (case-insensitive) so large source lists and the source
+		// dropdowns are navigable; createdAt is a stable tiebreaker for duplicate names (#407).
+		const sources = await query.orderBy(
+			sql`lower(${ingestionSources.name})`,
+			desc(ingestionSources.createdAt)
+		);
 		return sources.flatMap((source) => {
 			const decrypted = this.decryptSource(source);
 			return decrypted ? [decrypted] : [];
@@ -441,9 +446,10 @@ export class IngestionService {
 		const [row] = await db
 			.select({
 				archivedCount: count(),
-				indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
-					Number
-				),
+				indexedCount:
+					sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+						Number
+					),
 			})
 			.from(archivedEmails)
 			.where(sourceFilter);
@@ -504,9 +510,10 @@ export class IngestionService {
 						),
 					// Exact, uncapped index coverage from the DB `is_indexed` flag (set only
 					// after Meilisearch confirms the write) — same source of truth reindex uses.
-					indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
-						Number
-					),
+					indexedCount:
+						sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+							Number
+						),
 				})
 				.from(archivedEmails)
 				.where(emailFilter),
@@ -523,9 +530,10 @@ export class IngestionService {
 			db
 				.select({
 					attachmentCount: count(),
-					attachmentBytes: sql<number>`coalesce(sum(${attachmentsSchema.sizeBytes}), 0)`.mapWith(
-						Number
-					),
+					attachmentBytes:
+						sql<number>`coalesce(sum(${attachmentsSchema.sizeBytes}), 0)`.mapWith(
+							Number
+						),
 				})
 				.from(attachmentsSchema)
 				.where(attachmentFilter),
