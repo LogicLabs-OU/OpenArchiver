@@ -20,11 +20,22 @@ class MboxSplitter extends Transform {
 	private delimiter: Buffer = Buffer.from('\nFrom ');
 	private firstChunk: boolean = true;
 
+	constructor() {
+		// The readable side must be object mode so each pushed per-message Buffer stays a
+		// discrete item. Without it, Node's readable buffering concatenates pushed buffers
+		// and the consumer receives runs of messages glued together — every run is then
+		// parsed and archived as ONE email (silent data loss, see issue #412). The writable
+		// side stays a byte stream, since the input is the raw mbox file.
+		super({ readableObjectMode: true });
+	}
+
 	_transform(chunk: Buffer, encoding: string, callback: Function) {
 		if (this.firstChunk) {
 			// Check if the file starts with "From ". If not, prepend it to the first email.
+			// Must be concatenated into the chunk, not push()ed: in object mode a push()
+			// would emit the 5-byte fragment as its own bogus "message".
 			if (chunk.subarray(0, 5).toString() !== 'From ') {
-				this.push(Buffer.from('From '));
+				chunk = Buffer.concat([Buffer.from('From '), chunk]);
 			}
 			this.firstChunk = false;
 		}
@@ -153,7 +164,11 @@ export class MboxConnector implements IEmailConnector {
 			emailStream.destroy(err instanceof Error ? err : new Error(String(err)));
 		});
 
+		// Count what the splitter yields so a source-vs-archived mismatch is visible in the
+		// job logs instead of failing silently (issue #412).
+		let messagesFound = 0;
 		for await (const emailBuffer of emailStream) {
+			messagesFound++;
 			try {
 				const emailObject = await this.parseMessage(emailBuffer as Buffer, '');
 				yield emailObject;
@@ -164,6 +179,10 @@ export class MboxConnector implements IEmailConnector {
 				);
 			}
 		}
+		logger.info(
+			{ file: filePath, messagesFound },
+			'Finished splitting mbox file into individual messages.'
+		);
 
 		if (this.credentials.uploadedFilePath && !this.credentials.localFilePath) {
 			try {
