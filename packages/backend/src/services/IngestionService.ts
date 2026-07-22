@@ -804,15 +804,82 @@ export class IngestionService {
 	 * Builds the filesystem-safe filename component for an email's .eml from its id.
 	 * The provider id / Message-ID becomes an actual filename, but Exchange-style ids can
 	 * exceed the 255-byte filename limit or contain '/', producing ENAMETOOLONG / bad-path
-	 * mkdir errors that drop the email. When the id is unsafe we substitute its sha256 hash;
-	 * the real Message-ID is still preserved in archived_emails.message_id_header. Short,
-	 * safe ids are left as-is so common filenames stay human-readable.
+	 * mkdir errors that drop the email (#405). When the id is unsafe we substitute its
+	 * sha256 hash; the real Message-ID is still preserved in
+	 * archived_emails.message_id_header. Short, safe ids are left as-is so common filenames
+	 * stay human-readable.
+	 *
+	 * Byte budget: the last folder segment of email.path is glued into the SAME path
+	 * component as this filename (`${sanitizedPath}${fileName}.eml` with no separator), so
+	 * the two share the 255-byte limit: folder segment ≤ PATH_SEGMENT_MAX_BYTES (100 + 9
+	 * hash suffix) + id ≤ EMAIL_ID_MAX_BYTES (140) + '.eml' (4) = 253 bytes worst case.
+	 * Lengths are measured in BYTES (Buffer.byteLength), not chars — a 140-char multibyte
+	 * id can be several times that in bytes.
 	 */
 	private buildEmailFileName(id: string): string {
-		if (id.length <= 200 && !/[/\\]/.test(id)) {
+		if (Buffer.byteLength(id) <= IngestionService.EMAIL_ID_MAX_BYTES && !/[/\\]/.test(id)) {
 			return id;
 		}
 		return createHash('sha256').update(id).digest('hex');
+	}
+
+	/** See buildEmailFileName's byte-budget comment for how these two limits interact. */
+	private static readonly EMAIL_ID_MAX_BYTES = 140;
+	private static readonly PATH_SEGMENT_MAX_BYTES = 100;
+
+	/** Byte-truncates a string without splitting a multibyte character. */
+	private static truncateToBytes(value: string, maxBytes: number): string {
+		while (Buffer.byteLength(value) > maxBytes) {
+			value = value.slice(0, -1);
+		}
+		return value;
+	}
+
+	/**
+	 * Clamps one folder segment of email.path for use in a storage path. Folder names come
+	 * from mail servers / PST files and can exceed the 255-byte per-component filesystem
+	 * limit (#405). Over-long segments are byte-truncated with a short sha256 suffix of the
+	 * original so distinct folders stay distinct. The original path is still stored
+	 * unmodified in archived_emails.path.
+	 */
+	private clampPathSegment(segment: string): string {
+		if (Buffer.byteLength(segment) <= IngestionService.PATH_SEGMENT_MAX_BYTES) {
+			return segment;
+		}
+		const truncated = IngestionService.truncateToBytes(
+			segment,
+			IngestionService.PATH_SEGMENT_MAX_BYTES
+		);
+		return `${truncated}-${createHash('sha256').update(segment).digest('hex').slice(0, 8)}`;
+	}
+
+	/**
+	 * Builds the filesystem-safe filename component for a stored attachment (#405).
+	 * attachment.filename comes straight from parsed MIME headers — sender-controlled — so
+	 * it can exceed the 255-byte filename limit (ENAMETOOLONG drops the whole email) or
+	 * contain '/', '\' or '..' segments that would create unintended directories or escape
+	 * the source's attachments folder entirely. Sanitizes separators/control chars, keeps
+	 * short names as-is for readability, and byte-truncates long ones with a short sha256
+	 * suffix of the original name, preserving the extension. The original filename is still
+	 * stored unmodified in the attachments.filename column.
+	 */
+	private buildAttachmentFileName(filename: string): string {
+		const sanitized = filename.replace(/[/\\\u0000-\u001f]/g, '_');
+		// 180-byte cap + the 8-byte `uniqueId-` prefix stays well under the 255-byte limit.
+		if (Buffer.byteLength(sanitized) <= 180) {
+			return sanitized;
+		}
+		// Split off a real extension (≤ 16 bytes); otherwise treat the name as extensionless.
+		const dotIndex = sanitized.lastIndexOf('.');
+		let base = sanitized;
+		let ext = '';
+		if (dotIndex > 0 && Buffer.byteLength(sanitized.slice(dotIndex)) <= 16) {
+			base = sanitized.slice(0, dotIndex);
+			ext = sanitized.slice(dotIndex);
+		}
+		const hashSuffix = createHash('sha256').update(filename).digest('hex').slice(0, 8);
+		const budget = 180 - Buffer.byteLength(`-${hashSuffix}${ext}`);
+		return `${IngestionService.truncateToBytes(base, budget)}-${hashSuffix}${ext}`;
 	}
 
 	/**
@@ -969,7 +1036,14 @@ export class IngestionService {
 			}
 
 			// Gate 3: Full new ingestion — first time this email is seen in the group.
-			const sanitizedPath = email.path ? email.path : '';
+			// Clamp each folder segment so server-provided folder names cannot exceed the
+			// per-component filesystem limit (#405). The original path is stored in the DB row.
+			const sanitizedPath = email.path
+				? email.path
+						.split('/')
+						.map((segment) => this.clampPathSegment(segment))
+						.join('/')
+				: '';
 			// Use effectiveSource (root) for storage path and DB ownership.
 			// Child sources are assistants; all content physically belongs to the root.
 			// Path uses the source ID only — not the name — so that renaming a source
@@ -1117,7 +1191,7 @@ export class IngestionService {
 						// Path uses the source ID only — not the name — so that renaming
 						// a source never causes a path mismatch.
 						const uniqueId = randomUUID().slice(0, 7);
-						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/attachments/${uniqueId}-${attachment.filename}`;
+						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/attachments/${uniqueId}-${this.buildAttachmentFileName(attachment.filename)}`;
 						await storage.put(storagePath, attachmentBuffer);
 
 						const [newRecord] = await db
