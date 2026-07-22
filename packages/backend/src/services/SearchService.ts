@@ -16,6 +16,9 @@ import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { IngestionService } from './IngestionService';
 import { logger } from '../config/logger';
+import { db } from '../database';
+import { archivedEmails } from '../database/schema';
+import { and, inArray, isNotNull } from 'drizzle-orm';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -162,9 +165,7 @@ export class SearchService {
 			from: query.from,
 			indexUids: ['emails'],
 			...(query.statuses && query.statuses.length ? { statuses: query.statuses } : {}),
-			...(query.types && query.types.length
-				? { types: query.types as TaskType[] }
-				: {}),
+			...(query.types && query.types.length ? { types: query.types as TaskType[] } : {}),
 		});
 
 		return {
@@ -318,7 +319,31 @@ export class SearchService {
 			.slice(0, limit)
 			.map(([sender, count]) => ({ sender, count }));
 
-		return sortedSenders;
+		// Enrich each address with its display name from Postgres so the widget shows
+		// resolved names (e.g. Exchange senders whose address is an X.500 DN) instead of
+		// the raw address. The COUNTS remain Meilisearch's; names are labels only, resolved
+		// from the DB so this works on already-indexed data with no reindex (#413).
+		const addresses = sortedSenders.map((s) => s.sender);
+		const nameRows = addresses.length
+			? await db
+					.selectDistinctOn([archivedEmails.senderEmail], {
+						senderEmail: archivedEmails.senderEmail,
+						senderName: archivedEmails.senderName,
+					})
+					.from(archivedEmails)
+					.where(
+						and(
+							inArray(archivedEmails.senderEmail, addresses),
+							isNotNull(archivedEmails.senderName)
+						)
+					)
+			: [];
+		const nameByAddress = new Map(nameRows.map((r) => [r.senderEmail, r.senderName]));
+
+		return sortedSenders.map((s) => ({
+			...s,
+			senderName: nameByAddress.get(s.sender) ?? null,
+		}));
 	}
 
 	public async configureEmailIndex() {
@@ -350,6 +375,7 @@ export class SearchService {
 				'subject',
 				'body',
 				'from',
+				'fromName',
 				'to',
 				'cc',
 				'bcc',

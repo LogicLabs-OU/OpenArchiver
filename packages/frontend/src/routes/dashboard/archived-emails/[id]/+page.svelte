@@ -280,9 +280,11 @@
 				<Card.Header>
 					<Card.Title>{email.subject || $t('app.archive.no_subject')}</Card.Title>
 					<Card.Description>
-						{$t('app.archive.from')}: {email.senderEmail || email.senderName} | {$t(
-							'app.archive.sent'
-						)}: {new Date(email.sentAt).toLocaleString()}
+						{$t('app.archive.from')}: {email.senderName && email.senderEmail
+							? `${email.senderName} <${email.senderEmail}>`
+							: email.senderName || email.senderEmail} | {$t('app.archive.sent')}: {new Date(
+							email.sentAt
+						).toLocaleString()}
 					</Card.Description>
 				</Card.Header>
 				<Card.Content>

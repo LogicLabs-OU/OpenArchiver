@@ -212,7 +212,10 @@
 									{:else}
 										<span
 											class="inline-block"
-											use:shadowRender={_formatted.from || hit.from}
+											use:shadowRender={_formatted.fromName ||
+												hit.fromName ||
+												_formatted.from ||
+												hit.from}
 										></span>
 									{/if}
 								</span>

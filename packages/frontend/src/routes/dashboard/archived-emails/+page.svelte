@@ -78,7 +78,7 @@
 							</div>
 						</Table.Cell>
 						<Table.Cell>
-							{email.senderEmail || email.senderName}
+							{email.senderName || email.senderEmail}
 						</Table.Cell>
 						<Table.Cell>{email.userEmail}</Table.Cell>
 						<Table.Cell>

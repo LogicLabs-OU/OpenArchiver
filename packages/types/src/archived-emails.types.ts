@@ -21,6 +21,7 @@ export interface ThreadEmail {
 	id: string; //the archivedemail id
 	subject: string | null;
 	sentAt: Date;
+	senderName: string | null;
 	senderEmail: string;
 }
 
