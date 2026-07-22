@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { StorageService } from '../../services/StorageService';
 import * as path from 'path';
 import { storage as storageConfig } from '../../config/storage';
+import { logger } from '../../config/logger';
 
 export class StorageController {
 	constructor(private storageService: StorageService) {}
@@ -40,10 +41,13 @@ export class StorageController {
 
 			const fileStream = await this.storageService.get(safePath);
 			const fileName = path.basename(safePath);
-			res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+			// Use res.attachment() so the filename is RFC 6266/5987-encoded (dual
+			// filename="..."; filename*=UTF-8''...). Setting the header with a raw non-ASCII
+			// filename throws ERR_INVALID_CHAR and returns 500 (#406).
+			res.attachment(fileName);
 			fileStream.pipe(res);
 		} catch (error) {
-			console.error('Error downloading file:', error);
+			logger.error({ error, path: safePath }, 'Error downloading file');
 			res.status(500).send(req.t('storage.downloadError'));
 		}
 	};
