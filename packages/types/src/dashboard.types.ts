@@ -29,7 +29,10 @@ export interface RecentSync {
 }
 
 export interface TopSender {
+	/** Sender email address — the stable identity the facet is grouped by. */
 	sender: string;
+	/** Resolved display name for the address, when one is known (label only). */
+	senderName?: string | null;
 	count: number;
 }
 

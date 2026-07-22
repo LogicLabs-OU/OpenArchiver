@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { User } from '@open-archiver/types';
+import { accessTokenCookieName } from '$lib/auth-cookie';
 
 interface AuthState {
 	accessToken: string | null;
@@ -20,13 +21,13 @@ const createAuthStore = () => {
 		subscribe,
 		login: (accessToken: string, user: Omit<User, 'passwordHash'>) => {
 			if (browser) {
-				document.cookie = `accessToken=${accessToken}; path=/; max-age=604800; samesite=strict`;
+				document.cookie = `${accessTokenCookieName(window.location.port)}=${accessToken}; path=/; max-age=604800; samesite=strict`;
 			}
 			set({ accessToken, user });
 		},
 		logout: () => {
 			if (browser) {
-				document.cookie = 'accessToken=; path=/; max-age=-1; samesite=strict';
+				document.cookie = `${accessTokenCookieName(window.location.port)}=; path=/; max-age=-1; samesite=strict`;
 			}
 			set(initialValue);
 		},

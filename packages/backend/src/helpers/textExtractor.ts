@@ -10,9 +10,23 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 		const pdfParser = new PDFParser(null, true);
 		let completed = false;
 
+		// Safety timeout: pdf2json can hang on malformed/complex PDFs and never emit
+		// either dataError or dataReady, leaving this promise unresolved forever. That
+		// wedges the whole indexing batch until BullMQ kills the job as "stalled" and
+		// the worker dies. Resolving with '' on timeout keeps the email indexable
+		// (without this attachment's text) and the worker alive. Configurable so large
+		// but valid PDFs on slow hosts aren't truncated prematurely.
+		const timeoutMs = Number(process.env.PDF_PARSE_TIMEOUT_MS) || 20000;
+		let timer: NodeJS.Timeout | null = null;
+
 		const finish = (text: string) => {
 			if (completed) return;
 			completed = true;
+
+			if (timer) {
+				clearTimeout(timer);
+				timer = null;
+			}
 
 			// explicit cleanup
 			try {
@@ -23,6 +37,11 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 
 			resolve(text);
 		};
+
+		timer = setTimeout(() => {
+			logger.warn(`PDF parsing timed out after ${timeoutMs}ms - skipping attachment text`);
+			finish('');
+		}, timeoutMs);
 
 		pdfParser.on('pdfParser_dataError', (err: any) => {
 			logger.warn('PDF parsing error:', err?.parserError || 'Unknown error');
@@ -45,12 +64,6 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 			logger.error('Error parsing PDF buffer:', err);
 			finish('');
 		}
-
-		// reduced Timeout for better performance
-		// setTimeout(() => {
-		// 	logger.warn('PDF parsing timed out');
-		// 	finish('');
-		// }, 5000);
 	});
 }
 

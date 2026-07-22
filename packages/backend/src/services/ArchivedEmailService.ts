@@ -159,6 +159,7 @@ export class ArchivedEmailService {
 					id: true,
 					subject: true,
 					sentAt: true,
+					senderName: true,
 					senderEmail: true,
 				},
 			});

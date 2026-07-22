@@ -7,6 +7,7 @@ import type {
 	IngestionCredentials,
 	IngestionProvider,
 	PendingEmail,
+	ProcessEmailError,
 } from '@open-archiver/types';
 import { and, count, countDistinct, desc, eq, gte, inArray, max, min, or, sql } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
@@ -35,6 +36,11 @@ import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
+
+/** Placeholder used when an email has no parseable From address. sender_email is NOT NULL,
+ * so inserting null (from a missing/unparseable sender, e.g. Exchange "Deleted Items"
+ * system messages) would fail with Postgres 23502 and drop the email entirely. */
+const UNKNOWN_SENDER = 'unknown@no-sender.invalid';
 
 export class IngestionService {
 	private static auditService = new AuditService();
@@ -135,7 +141,12 @@ export class IngestionService {
 			query = query.where(drizzleFilter);
 		}
 
-		const sources = await query.orderBy(desc(ingestionSources.createdAt));
+		// Sort alphabetically by name (case-insensitive) so large source lists and the source
+		// dropdowns are navigable; createdAt is a stable tiebreaker for duplicate names (#407).
+		const sources = await query.orderBy(
+			sql`lower(${ingestionSources.name})`,
+			desc(ingestionSources.createdAt)
+		);
 		return sources.flatMap((source) => {
 			const decrypted = this.decryptSource(source);
 			return decrypted ? [decrypted] : [];
@@ -436,9 +447,10 @@ export class IngestionService {
 		const [row] = await db
 			.select({
 				archivedCount: count(),
-				indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
-					Number
-				),
+				indexedCount:
+					sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+						Number
+					),
 			})
 			.from(archivedEmails)
 			.where(sourceFilter);
@@ -499,9 +511,10 @@ export class IngestionService {
 						),
 					// Exact, uncapped index coverage from the DB `is_indexed` flag (set only
 					// after Meilisearch confirms the write) — same source of truth reindex uses.
-					indexedCount: sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
-						Number
-					),
+					indexedCount:
+						sql<number>`count(*) filter (where ${archivedEmails.isIndexed})`.mapWith(
+							Number
+						),
 				})
 				.from(archivedEmails)
 				.where(emailFilter),
@@ -518,9 +531,10 @@ export class IngestionService {
 			db
 				.select({
 					attachmentCount: count(),
-					attachmentBytes: sql<number>`coalesce(sum(${attachmentsSchema.sizeBytes}), 0)`.mapWith(
-						Number
-					),
+					attachmentBytes:
+						sql<number>`coalesce(sum(${attachmentsSchema.sizeBytes}), 0)`.mapWith(
+							Number
+						),
 				})
 				.from(attachmentsSchema)
 				.where(attachmentFilter),
@@ -788,10 +802,96 @@ export class IngestionService {
 	}
 
 	/**
+	 * Builds the filesystem-safe filename component for an email's .eml from its id.
+	 * The provider id / Message-ID becomes an actual filename, but Exchange-style ids can
+	 * exceed the 255-byte filename limit or contain '/', producing ENAMETOOLONG / bad-path
+	 * mkdir errors that drop the email (#405). When the id is unsafe we substitute its
+	 * sha256 hash; the real Message-ID is still preserved in
+	 * archived_emails.message_id_header. Short, safe ids are left as-is so common filenames
+	 * stay human-readable.
+	 *
+	 * Byte budget: the last folder segment of email.path is glued into the SAME path
+	 * component as this filename (`${sanitizedPath}${fileName}.eml` with no separator), so
+	 * the two share the 255-byte limit: folder segment ≤ PATH_SEGMENT_MAX_BYTES (100 + 9
+	 * hash suffix) + id ≤ EMAIL_ID_MAX_BYTES (140) + '.eml' (4) = 253 bytes worst case.
+	 * Lengths are measured in BYTES (Buffer.byteLength), not chars — a 140-char multibyte
+	 * id can be several times that in bytes.
+	 */
+	private buildEmailFileName(id: string): string {
+		if (Buffer.byteLength(id) <= IngestionService.EMAIL_ID_MAX_BYTES && !/[/\\]/.test(id)) {
+			return id;
+		}
+		return createHash('sha256').update(id).digest('hex');
+	}
+
+	/** See buildEmailFileName's byte-budget comment for how these two limits interact. */
+	private static readonly EMAIL_ID_MAX_BYTES = 140;
+	private static readonly PATH_SEGMENT_MAX_BYTES = 100;
+
+	/** Byte-truncates a string without splitting a multibyte character. */
+	private static truncateToBytes(value: string, maxBytes: number): string {
+		while (Buffer.byteLength(value) > maxBytes) {
+			value = value.slice(0, -1);
+		}
+		return value;
+	}
+
+	/**
+	 * Clamps one folder segment of email.path for use in a storage path. Folder names come
+	 * from mail servers / PST files and can exceed the 255-byte per-component filesystem
+	 * limit (#405). Over-long segments are byte-truncated with a short sha256 suffix of the
+	 * original so distinct folders stay distinct. The original path is still stored
+	 * unmodified in archived_emails.path.
+	 */
+	private clampPathSegment(segment: string): string {
+		if (Buffer.byteLength(segment) <= IngestionService.PATH_SEGMENT_MAX_BYTES) {
+			return segment;
+		}
+		const truncated = IngestionService.truncateToBytes(
+			segment,
+			IngestionService.PATH_SEGMENT_MAX_BYTES
+		);
+		return `${truncated}-${createHash('sha256').update(segment).digest('hex').slice(0, 8)}`;
+	}
+
+	/**
+	 * Builds the filesystem-safe filename component for a stored attachment (#405).
+	 * attachment.filename comes straight from parsed MIME headers — sender-controlled — so
+	 * it can exceed the 255-byte filename limit (ENAMETOOLONG drops the whole email) or
+	 * contain '/', '\' or '..' segments that would create unintended directories or escape
+	 * the source's attachments folder entirely. Sanitizes separators/control chars, keeps
+	 * short names as-is for readability, and byte-truncates long ones with a short sha256
+	 * suffix of the original name, preserving the extension. The original filename is still
+	 * stored unmodified in the attachments.filename column.
+	 */
+	private buildAttachmentFileName(filename: string): string {
+		const sanitized = filename.replace(/[/\\\u0000-\u001f]/g, '_');
+		// 180-byte cap + the 8-byte `uniqueId-` prefix stays well under the 255-byte limit.
+		if (Buffer.byteLength(sanitized) <= 180) {
+			return sanitized;
+		}
+		// Split off a real extension (≤ 16 bytes); otherwise treat the name as extensionless.
+		const dotIndex = sanitized.lastIndexOf('.');
+		let base = sanitized;
+		let ext = '';
+		if (dotIndex > 0 && Buffer.byteLength(sanitized.slice(dotIndex)) <= 16) {
+			base = sanitized.slice(0, dotIndex);
+			ext = sanitized.slice(dotIndex);
+		}
+		const hashSuffix = createHash('sha256').update(filename).digest('hex').slice(0, 8);
+		const budget = 180 - Buffer.byteLength(`-${hashSuffix}${ext}`);
+		return `${IngestionService.truncateToBytes(base, budget)}-${hashSuffix}${ext}`;
+	}
+
+	/**
 	 * @param skipTempFileCleanup When true, the caller is responsible for deleting
 	 *   email.tempFilePath. Used by the journaling fan-out loop which calls
 	 *   processEmail() multiple times with the same EmailObject — only the last
 	 *   caller should clean up the temp file.
+	 * @returns The pending email on success, `null` when the email was deduplicated /
+	 *   intentionally skipped, or a ProcessEmailError when archiving failed. Callers must
+	 *   count error returns towards their failure totals — treating them as skips is what
+	 *   allowed silent data loss to report success (#403).
 	 */
 	public async processEmail(
 		email: EmailObject,
@@ -799,7 +899,7 @@ export class IngestionService {
 		storage: StorageService,
 		userEmail: string,
 		skipTempFileCleanup: boolean = false
-	): Promise<PendingEmail | null> {
+	): Promise<PendingEmail | ProcessEmailError | null> {
 		try {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
@@ -852,7 +952,7 @@ export class IngestionService {
 			});
 
 			if (perMailboxDuplicate) {
-				logger.info(
+				logger.debug(
 					{ messageId, userEmail, ingestionSourceId: source.id },
 					'Skipping duplicate email (same mailbox already has this email)'
 				);
@@ -864,6 +964,15 @@ export class IngestionService {
 			// the existing storagePath and storageHashSha256.
 			const existingGroupEmail = await db.query.archivedEmails.findFirst({
 				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
+				// Only the fields needed to build the shared-file reference row below —
+				// avoid fetching the entire wide row on every group dedup check.
+				columns: {
+					id: true,
+					storagePath: true,
+					storageHashSha256: true,
+					sizeBytes: true,
+					hasAttachments: true,
+				},
 			});
 
 			if (existingGroupEmail) {
@@ -880,7 +989,7 @@ export class IngestionService {
 						sentAt: email.receivedAt,
 						subject: email.subject,
 						senderName: email.from[0]?.name,
-						senderEmail: email.from[0]?.address,
+						senderEmail: email.from[0]?.address || UNKNOWN_SENDER,
 						recipients: {
 							to: email.to,
 							cc: email.cc,
@@ -916,7 +1025,7 @@ export class IngestionService {
 					}
 				}
 
-				logger.info(
+				logger.debug(
 					{
 						messageId,
 						userEmail,
@@ -932,12 +1041,19 @@ export class IngestionService {
 			}
 
 			// Gate 3: Full new ingestion — first time this email is seen in the group.
-			const sanitizedPath = email.path ? email.path : '';
+			// Clamp each folder segment so server-provided folder names cannot exceed the
+			// per-component filesystem limit (#405). The original path is stored in the DB row.
+			const sanitizedPath = email.path
+				? email.path
+						.split('/')
+						.map((segment) => this.clampPathSegment(segment))
+						.join('/')
+				: '';
 			// Use effectiveSource (root) for storage path and DB ownership.
 			// Child sources are assistants; all content physically belongs to the root.
 			// Path uses the source ID only — not the name — so that renaming a source
 			// never causes a path mismatch between old and newly stored files.
-			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/emails/${sanitizedPath}${email.id}.eml`;
+			const emailPath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/emails/${sanitizedPath}${this.buildEmailFileName(email.id)}.eml`;
 
 			// GoBD / Preserve Original File mode: store the unmodified raw EML as-is.
 			// No attachment stripping, no attachment table records — the full MIME body
@@ -958,7 +1074,7 @@ export class IngestionService {
 				});
 
 				if (hashDuplicate) {
-					logger.info(
+					logger.debug(
 						{ emailHash, userEmail, ingestionSourceId: effectiveSource.id },
 						'Skipping duplicate email (hash-level dedup, preserve original mode)'
 					);
@@ -994,7 +1110,7 @@ export class IngestionService {
 						sentAt: email.receivedAt,
 						subject: email.subject,
 						senderName: email.from[0]?.name,
-						senderEmail: email.from[0]?.address,
+						senderEmail: email.from[0]?.address || UNKNOWN_SENDER,
 						recipients: {
 							to: email.to,
 							cc: email.cc,
@@ -1032,7 +1148,7 @@ export class IngestionService {
 					sentAt: email.receivedAt,
 					subject: email.subject,
 					senderName: email.from[0]?.name,
-					senderEmail: email.from[0]?.address,
+					senderEmail: email.from[0]?.address || UNKNOWN_SENDER,
 					recipients: {
 						to: email.to,
 						cc: email.cc,
@@ -1067,7 +1183,7 @@ export class IngestionService {
 
 					if (existingAttachment) {
 						attachmentId = existingAttachment.id;
-						logger.info(
+						logger.debug(
 							{
 								attachmentHash,
 								ingestionSourceId: effectiveSource.id,
@@ -1080,7 +1196,7 @@ export class IngestionService {
 						// Path uses the source ID only — not the name — so that renaming
 						// a source never causes a path mismatch.
 						const uniqueId = randomUUID().slice(0, 7);
-						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/attachments/${uniqueId}-${attachment.filename}`;
+						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/attachments/${uniqueId}-${this.buildAttachmentFileName(attachment.filename)}`;
 						await storage.put(storagePath, attachmentBuffer);
 
 						const [newRecord] = await db
@@ -1119,7 +1235,12 @@ export class IngestionService {
 				emailId: email.id,
 				ingestionSourceId: source.id,
 			});
-			return null;
+			// Return a distinct error object rather than null so callers can count
+			// genuine failures separately from dedup skips (#403).
+			return {
+				error: true,
+				message: `Email ${email.id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+			};
 		} finally {
 			// Clean up the temp file unless the caller opted out (e.g. journaling
 			// fan-out loop that calls processEmail() multiple times with the same

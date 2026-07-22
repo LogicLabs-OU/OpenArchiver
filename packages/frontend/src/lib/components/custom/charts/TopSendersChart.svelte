@@ -7,6 +7,9 @@
 
 	export let data: TopSender[];
 
+	// Show the resolved display name when known, falling back to the address (#413).
+	$: chartData = data.map((d) => ({ ...d, sender: d.senderName || d.sender }));
+
 	const chartConfig = {
 		count: {
 			label: $t('app.components.charts.emails'),
@@ -16,11 +19,11 @@
 
 <Chart.Container config={chartConfig} class="min-h-[300px] w-full">
 	<BarChart
-		{data}
+		data={chartData}
 		x="count"
 		y="sender"
 		orientation="horizontal"
-		xDomain={[0, Math.max(...data.map((d) => d.count)) * 1.1]}
+		xDomain={[0, Math.max(...chartData.map((d) => d.count)) * 1.1]}
 		axis={'x'}
 		legend={false}
 		series={[

@@ -14,7 +14,33 @@ import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { createHash } from 'crypto';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import { createWriteStream, createReadStream, promises as fs } from 'fs';
+
+/** Prefix for the temp working copies of remote PSTs. */
+const PST_TEMP_PREFIX = 'pst-import-';
+/** Sentinel file recording the PID that owns a temp dir, so the sweep can tell a live
+ * import's dir from a leaked one instead of relying on age alone. */
+const PST_OWNER_FILE = 'owner.pid';
+/** Fallback age threshold (ms) for temp dirs with no readable owner sentinel (e.g. left by
+ * an older version, or killed before the pid file was written). Dirs with a live owner are
+ * never removed regardless of age — a large PST parse can legitimately run for hours while
+ * its temp copy's mtime never changes. */
+const PST_TEMP_STALE_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/** True if a process with this PID is currently running. */
+function isProcessAlive(pid: number): boolean {
+	if (!Number.isInteger(pid) || pid <= 0) return false;
+	try {
+		// Signal 0 performs error checking without sending a signal.
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		// ESRCH = no such process. EPERM = process exists but is owned by another user
+		// (still alive, so treat the dir as in-use and keep it).
+		return (error as NodeJS.ErrnoException).code === 'EPERM';
+	}
+}
 
 // We have to hardcode names for deleted and trash folders here as current lib doesn't support looking into PST properties.
 const DELETED_FOLDERS = new Set([
@@ -127,13 +153,91 @@ export class PSTConnector implements IEmailConnector {
 		return this.storage.getStream(this.getFilePath());
 	}
 
-	private async loadPstFile(): Promise<{ pstFile: PSTFile; tempDir: string }> {
+	/**
+	 * Best-effort removal of temp PST copies left behind by hard-killed prior imports.
+	 * A 22 GB PST copy per leak fills the disk quickly, so sweep before creating a new one.
+	 *
+	 * Ownership-aware: each temp dir records the PID that created it. A dir whose owner is
+	 * still alive is left untouched (a large parse can run for hours with an unchanging
+	 * mtime, so age alone would wrongly delete an in-use copy). Only dirs whose owner has
+	 * died — or that have no owner sentinel and are older than the fallback threshold — are
+	 * removed.
+	 */
+	private async sweepStalePstTempDirs(): Promise<void> {
+		const base = tmpdir();
+		let entries: string[];
+		try {
+			entries = await fs.readdir(base);
+		} catch {
+			return;
+		}
+		const now = Date.now();
+		for (const entry of entries) {
+			if (!entry.startsWith(PST_TEMP_PREFIX)) continue;
+			const full = join(base, entry);
+			try {
+				let removable: boolean;
+				const owner = await this.readOwnerPid(full);
+				if (owner !== null) {
+					// Known owner: remove only if that process is gone.
+					removable = !isProcessAlive(owner);
+				} else {
+					// No/unreadable owner sentinel: fall back to age.
+					const stat = await fs.stat(full);
+					removable = now - stat.mtimeMs > PST_TEMP_STALE_MS;
+				}
+
+				if (removable) {
+					await fs.rm(full, { recursive: true, force: true });
+					logger.info({ dir: full, owner }, 'Removed stale PST temp directory');
+				}
+			} catch (error) {
+				logger.warn({ error, dir: full }, 'Failed to sweep stale PST temp directory');
+			}
+		}
+	}
+
+	/** Reads the owning PID from a temp dir's sentinel, or null if absent/unreadable. */
+	private async readOwnerPid(dir: string): Promise<number | null> {
+		try {
+			const raw = await fs.readFile(join(dir, PST_OWNER_FILE), 'utf-8');
+			const pid = Number.parseInt(raw.trim(), 10);
+			return Number.isInteger(pid) && pid > 0 ? pid : null;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Opens the PST for reading. When the source is a local path, pst-extractor reads it
+	 * directly — no multi-GB copy into tmp (the previous behaviour, which filled the disk
+	 * on large PSTs, especially across retries). Only remote/object storage requires
+	 * materializing a seekable local copy; `tempDir` is null when none was created.
+	 */
+	private async loadPstFile(): Promise<{ pstFile: PSTFile; tempDir: string | null }> {
+		if (this.credentials.localFilePath) {
+			return { pstFile: new PSTFile(this.credentials.localFilePath), tempDir: null };
+		}
+
+		await this.sweepStalePstTempDirs();
+
 		const fileStream = await this.getFileStream();
-		const tempDir = await fs.mkdtemp(join('/tmp', `pst-import-${new Date().getTime()}`));
+		const tempDir = await fs.mkdtemp(join(tmpdir(), PST_TEMP_PREFIX));
+		// Record the owning PID so a concurrent import's sweep can tell this live dir from a
+		// leaked one. Best-effort: a failure here only makes the dir fall back to age-based
+		// cleanup, so don't fail the import over it.
+		await fs
+			.writeFile(join(tempDir, PST_OWNER_FILE), String(process.pid), 'utf-8')
+			.catch((error) => logger.warn({ error, tempDir }, 'Failed to write PST owner sentinel'));
 		const tempFilePath = join(tempDir, 'temp.pst');
 
 		await new Promise<void>((resolve, reject) => {
 			const dest = createWriteStream(tempFilePath);
+			// Surface source-stream errors (e.g. EACCES on a locked/unreadable PST) so they
+			// reject this promise and fail the job cleanly — pipe() does not forward source
+			// errors to the destination, so without this the 'error' event would be unhandled
+			// and crash the worker process.
+			fileStream.on('error', reject);
 			fileStream.pipe(dest);
 			dest.on('finish', resolve);
 			dest.on('error', reject);

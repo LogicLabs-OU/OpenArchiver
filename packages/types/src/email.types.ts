@@ -73,7 +73,8 @@ export interface PendingEmail {
 export interface EmailDocument {
 	id: string; // The unique ID of the email
 	userEmail: string;
-	from: string;
+	from: string; // Sender email address (kept as the address so search/filter/facet by address works)
+	fromName: string; // Sender display name, indexed separately so it is searchable and displayable
 	to: string[];
 	cc: string[];
 	bcc: string[];

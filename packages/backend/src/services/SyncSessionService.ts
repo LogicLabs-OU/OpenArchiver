@@ -161,7 +161,6 @@ export class SyncSessionService {
 	 */
 	public static async heartbeat(sessionId: string): Promise<void> {
 		try {
-			logger.info('heatbeat, ', sessionId);
 			await db
 				.update(syncSessions)
 				.set({ lastActivityAt: new Date() })

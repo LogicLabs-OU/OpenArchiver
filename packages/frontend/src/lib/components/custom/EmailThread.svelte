@@ -57,7 +57,10 @@
 						<div
 							class="flex flex-col space-y-2 text-sm font-normal leading-none text-gray-400"
 						>
-							<span>{$t('app.archive.from')}: {item.senderEmail}</span>
+							<span
+								>{$t('app.archive.from')}: {item.senderName ||
+									item.senderEmail}</span
+							>
 							<time class="">{new Date(item.sentAt).toLocaleString()}</time>
 						</div>
 					</div>

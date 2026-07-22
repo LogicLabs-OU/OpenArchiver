@@ -126,6 +126,10 @@ export class EMLConnector implements IEmailConnector {
 		try {
 			await new Promise<void>((resolve, reject) => {
 				const dest = createWriteStream(zipFilePath);
+				// Surface source-stream errors (e.g. EACCES on a locked/unreadable file) so
+				// they reject this promise instead of firing an unhandled 'error' event that
+				// crashes the worker — pipe() does not forward source errors to the dest.
+				(fileStream as Readable).on('error', reject);
 				(fileStream as Readable).pipe(dest);
 				dest.on('finish', () => resolve());
 				dest.on('error', reject);
