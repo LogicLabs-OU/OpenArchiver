@@ -7,7 +7,8 @@ import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 
 export default async (job: Job) => {
-	logger.info({}, 'Scheduler running: checking for stale sessions and active sources to sync.');
+	// Per-tick heartbeat: debug so idle installations don't emit an info line every minute (#401).
+	logger.debug({}, 'Scheduler running: checking for stale sessions and active sources to sync.');
 
 	// Step 1: Clean up any stale sync sessions from previous crashed runs.
 	// A session is stale when lastActivityAt hasn't been updated in 30 minutes —
@@ -36,7 +37,15 @@ export default async (job: Job) => {
 			)
 		);
 
-	logger.info({ count: sourcesToSync.length }, 'Dispatching continuous-sync jobs for sources');
+	// Only announce at info when there is actual work; an idle tick stays at debug (#401).
+	if (sourcesToSync.length > 0) {
+		logger.info(
+			{ count: sourcesToSync.length },
+			'Dispatching continuous-sync jobs for sources'
+		);
+	} else {
+		logger.debug({ count: 0 }, 'No active sources to sync');
+	}
 
 	for (const source of sourcesToSync) {
 		// The status field on the ingestion source prevents duplicate concurrent syncs.

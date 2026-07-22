@@ -952,7 +952,7 @@ export class IngestionService {
 			});
 
 			if (perMailboxDuplicate) {
-				logger.info(
+				logger.debug(
 					{ messageId, userEmail, ingestionSourceId: source.id },
 					'Skipping duplicate email (same mailbox already has this email)'
 				);
@@ -1025,7 +1025,7 @@ export class IngestionService {
 					}
 				}
 
-				logger.info(
+				logger.debug(
 					{
 						messageId,
 						userEmail,
@@ -1074,7 +1074,7 @@ export class IngestionService {
 				});
 
 				if (hashDuplicate) {
-					logger.info(
+					logger.debug(
 						{ emailHash, userEmail, ingestionSourceId: effectiveSource.id },
 						'Skipping duplicate email (hash-level dedup, preserve original mode)'
 					);
@@ -1183,7 +1183,7 @@ export class IngestionService {
 
 					if (existingAttachment) {
 						attachmentId = existingAttachment.id;
-						logger.info(
+						logger.debug(
 							{
 								attachmentHash,
 								ingestionSourceId: effectiveSource.id,
