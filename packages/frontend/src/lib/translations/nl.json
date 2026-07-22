@@ -210,7 +210,12 @@
 				"eml_file": "EML-bestand",
 				"heads_up": "Let op!",
 				"org_wide_warning": "Houd er rekening mee dat dit een organisatiebrede bewerking is. Dit type inname importeert en indexeert <b>alle</b> e-mailboxen in uw organisatie. Als u alleen specifieke e-mailboxen wilt importeren, gebruik dan de IMAP-connector.",
-				"upload_failed": "Uploaden mislukt, probeer het opnieuw"
+				"upload_failed": "Uploaden mislukt, probeer het opnieuw",
+				"upload_cancel": "Annuleren",
+				"upload_complete": "Upload voltooid",
+				"upload_file_label": "Bestand",
+				"upload_path_label": "Opslagpad",
+				"upload_replace": "Bestand vervangen"
 			},
 			"role_form": {
 				"policies_json": "Beleid (JSON)",

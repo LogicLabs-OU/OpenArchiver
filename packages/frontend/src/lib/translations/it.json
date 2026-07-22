@@ -216,7 +216,12 @@
 				"mbox_file": "File Mbox",
 				"heads_up": "Attenzione!",
 				"org_wide_warning": "Tieni presente che questa è un'operazione a livello di organizzazione. Questo tipo di acquisizione importerà e indicizzerà <b>tutte</b> le caselle di posta nella tua organizzazione. Se vuoi importare solo caselle di posta specifiche, usa il connettore IMAP.",
-				"upload_failed": "Caricamento non riuscito, riprova"
+				"upload_failed": "Caricamento non riuscito, riprova",
+				"upload_cancel": "Annulla",
+				"upload_complete": "Caricamento completato",
+				"upload_file_label": "File",
+				"upload_path_label": "Percorso di archiviazione",
+				"upload_replace": "Sostituisci file"
 			},
 			"role_form": {
 				"policies_json": "Policy (JSON)",
@@ -358,7 +363,6 @@
 			"id": "ID",
 			"name": "Nome",
 			"state": "Stato",
-
 			"created_at": "Creato il",
 			"processed_at": "Elaborato il",
 			"finished_at": "Terminato il",

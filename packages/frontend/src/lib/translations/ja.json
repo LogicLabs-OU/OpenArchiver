@@ -210,7 +210,12 @@
 				"eml_file": "EMLファイル",
 				"heads_up": "ご注意ください！",
 				"org_wide_warning": "これは組織全体の操作であることに注意してください。この種の取り込みは、組織内の<b>すべて</b>のメールボックスをインポートしてインデックスを作成します。特定のメールボックスのみをインポートする場合は、IMAPコネクタを使用してください。",
-				"upload_failed": "アップロードに失敗しました。もう一度お試しください"
+				"upload_failed": "アップロードに失敗しました。もう一度お試しください",
+				"upload_cancel": "キャンセル",
+				"upload_complete": "アップロード完了",
+				"upload_file_label": "ファイル",
+				"upload_path_label": "保存パス",
+				"upload_replace": "ファイルを置き換える"
 			},
 			"role_form": {
 				"policies_json": "ポリシー (JSON)",
