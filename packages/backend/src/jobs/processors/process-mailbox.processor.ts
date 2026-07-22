@@ -42,19 +42,36 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			return await IngestionService.doesEmailExist(messageId, ingestionSourceId, userEmail);
 		};
 
+		// Per-message accounting: processEmail returns a ProcessEmailError object on
+		// genuine failures (parse/storage/DB) and null only for dedup skips. Failures
+		// must count towards the mailbox result — treating them as skips let imports
+		// drop messages while still reporting success (#403).
+		let messagesSeen = 0;
+		let messagesArchived = 0;
+		let messagesFailed = 0;
+		const failureSamples: string[] = [];
+		const MAX_FAILURE_SAMPLES = 5;
+
 		for await (const email of connector.fetchEmails(
 			userEmail,
 			source.syncState,
 			checkDuplicate
 		)) {
 			if (email) {
+				messagesSeen++;
 				const processedEmail = await ingestionService.processEmail(
 					email,
 					source,
 					storageService,
 					userEmail
 				);
-				if (processedEmail) {
+				if (processedEmail && 'error' in processedEmail) {
+					messagesFailed++;
+					if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+						failureSamples.push(processedEmail.message);
+					}
+				} else if (processedEmail) {
+					messagesArchived++;
 					emailBatch.push(processedEmail);
 					if (emailBatch.length >= BATCH_SIZE) {
 						await indexingQueue.add('index-email-batch', { emails: emailBatch });
@@ -76,12 +93,24 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		}
 
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
-		logger.info({ ingestionSourceId, userEmail }, `Finished processing mailbox for user`);
+		logger.info(
+			{ ingestionSourceId, userEmail, messagesSeen, messagesArchived, messagesFailed },
+			`Finished processing mailbox for user`
+		);
 
-		// Report success to the session and check if this is the last job
+		// Report the result to the session and check if this is the last job.
+		// Any per-message failure marks the mailbox as failed so the source ends the
+		// cycle in 'error' status with the counts visible, instead of a silent success.
+		// The sync state for this run is discarded on failure; the next sync re-scans
+		// and dedup skips what was already archived.
 		const { isLast, totalFailed } = await SyncSessionService.recordMailboxResult(
 			sessionId,
-			newSyncState
+			messagesFailed > 0
+				? {
+						error: true,
+						message: `${userEmail}: ${messagesFailed} of ${messagesSeen} messages failed to archive. First errors: ${failureSamples.join('; ')}`,
+					}
+				: newSyncState
 		);
 
 		if (isLast) {

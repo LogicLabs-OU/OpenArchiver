@@ -236,3 +236,13 @@ export type ProcessMailboxError = {
 	error: boolean;
 	message: string;
 };
+
+/**
+ * Returned by IngestionService.processEmail when archiving a single email fails.
+ * Distinguishes genuine per-message errors from `null`, which strictly means the
+ * email was deduplicated / intentionally skipped.
+ */
+export type ProcessEmailError = {
+	error: true;
+	message: string;
+};

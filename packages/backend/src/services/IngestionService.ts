@@ -7,6 +7,7 @@ import type {
 	IngestionCredentials,
 	IngestionProvider,
 	PendingEmail,
+	ProcessEmailError,
 } from '@open-archiver/types';
 import { and, count, countDistinct, desc, eq, gte, inArray, max, min, or, sql } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
@@ -887,6 +888,10 @@ export class IngestionService {
 	 *   email.tempFilePath. Used by the journaling fan-out loop which calls
 	 *   processEmail() multiple times with the same EmailObject — only the last
 	 *   caller should clean up the temp file.
+	 * @returns The pending email on success, `null` when the email was deduplicated /
+	 *   intentionally skipped, or a ProcessEmailError when archiving failed. Callers must
+	 *   count error returns towards their failure totals — treating them as skips is what
+	 *   allowed silent data loss to report success (#403).
 	 */
 	public async processEmail(
 		email: EmailObject,
@@ -894,7 +899,7 @@ export class IngestionService {
 		storage: StorageService,
 		userEmail: string,
 		skipTempFileCleanup: boolean = false
-	): Promise<PendingEmail | null> {
+	): Promise<PendingEmail | ProcessEmailError | null> {
 		try {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
@@ -1230,7 +1235,12 @@ export class IngestionService {
 				emailId: email.id,
 				ingestionSourceId: source.id,
 			});
-			return null;
+			// Return a distinct error object rather than null so callers can count
+			// genuine failures separately from dedup skips (#403).
+			return {
+				error: true,
+				message: `Email ${email.id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+			};
 		} finally {
 			// Clean up the temp file unless the caller opted out (e.g. journaling
 			// fan-out loop that calls processEmail() multiple times with the same
