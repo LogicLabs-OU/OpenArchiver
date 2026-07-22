@@ -53,6 +53,12 @@ export const archivedEmails = pgTable(
 		// messageIdHeader lookups sequential-scan archived_emails on every ingested email,
 		// pinning multiple CPU cores during re-syncs of large archives.
 		index('msgid_header_source_idx').on(table.messageIdHeader, table.ingestionSourceId),
+		// Supports the preserve-original / GoBD byte-hash dedup (hashDuplicate and
+		// hashExistingOther in IngestionService.processEmail), which filter on
+		// storage_hash_sha256 + ingestion_source_id. Without this, every email ingested by
+		// a preserve-original source sequential-scans archived_emails, the same
+		// full-scan-per-email pathology msgid_header_source_idx fixed for the default path.
+		index('storage_hash_source_idx').on(table.storageHashSha256, table.ingestionSourceId),
 		// Partial index for the reconcile/reindex scan. Keyed on id (the keyset
 		// pagination order) and filtered to unindexed rows, so once the archive is
 		// mostly indexed the index stays tiny and the "find unindexed, ordered by id"

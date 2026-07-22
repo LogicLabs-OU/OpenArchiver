@@ -281,6 +281,13 @@
       "when": 1783690604384,
       "tag": "0039_dear_naoko",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784721992999,
+      "tag": "0040_lively_wolf_cub",
+      "breakpoints": true
     }
   ]
 }
