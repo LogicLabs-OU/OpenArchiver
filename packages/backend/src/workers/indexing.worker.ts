@@ -46,5 +46,17 @@ process.on('uncaughtException', (err) => {
 	logger.error({ err }, 'Uncaught exception in indexing worker - continuing');
 });
 
-process.on('SIGINT', () => worker.close());
-process.on('SIGTERM', () => worker.close());
+const shutdown = async (signal: string) => {
+	console.log(`${signal} received, shutting down indexing worker...`);
+	try {
+		await worker.close(); // waits for worker to stop (and active job to finish)
+		console.log('Indexing worker closed');
+		process.exit(0);
+	} catch (err) {
+		console.error('Failed to close indexing worker', err);
+		process.exit(1);
+	}
+};
+
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
