@@ -2,9 +2,50 @@ import type { EmailDocument } from './email.types';
 
 export type MatchingStrategy = 'last' | 'all' | 'frequency';
 
+/** Which parts of an email the keyword query is matched against. */
+export type SearchScope =
+	| 'subject'
+	| 'body'
+	| 'attachment_name'
+	| 'attachment_content'
+	| 'from'
+	| 'to';
+
+/** Result ordering. `relevance` uses Meilisearch ranking; the date options sort by sentAt. */
+export type SearchSortOption = 'relevance' | 'date_desc' | 'date_asc';
+
+/**
+ * Structured advanced-search filters. List fields are OR within the field
+ * (any listed value matches) and AND across fields.
+ */
+export interface SearchFilters {
+	/** Ingestion source IDs to include (each expanded to its merge group). */
+	sources?: string[];
+	/** Ingestion source IDs to exclude (each expanded to its merge group). */
+	excludeSources?: string[];
+	/** Sender addresses to include. */
+	from?: string[];
+	/** Sender addresses to exclude. */
+	notFrom?: string[];
+	/** Recipient addresses to include — matches to, cc, or bcc. */
+	to?: string[];
+	/** Recipient addresses to exclude from to, cc, and bcc. */
+	notTo?: string[];
+	/** Mailbox owner addresses (the account the email was archived from). */
+	mailboxes?: string[];
+	/** Inclusive start date, yyyy-mm-dd (UTC). */
+	dateFrom?: string;
+	/** Inclusive end date, yyyy-mm-dd (UTC). */
+	dateTo?: string;
+	/** true = only emails with attachments; false = only emails without. */
+	hasAttachments?: boolean;
+}
+
 export interface SearchQuery {
 	query: string;
-	filters?: Record<string, any>;
+	filters?: SearchFilters;
+	searchIn?: SearchScope[];
+	sort?: SearchSortOption;
 	page?: number;
 	limit?: number;
 	matchingStrategy?: MatchingStrategy;
@@ -24,6 +65,11 @@ export interface SearchResult {
 	limit: number;
 	totalPages: number;
 	processingTimeMs: number;
+}
+
+/** Typeahead suggestions for a facet field (e.g. mailbox addresses). */
+export interface SearchFacetResult {
+	values: string[];
 }
 
 // --- Search engine (Meilisearch) admin observability ---

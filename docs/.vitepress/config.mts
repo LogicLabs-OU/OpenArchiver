@@ -36,6 +36,7 @@ export default defineConfig({
 					{ text: 'Get Started', link: '/' },
 					{ text: 'Installation', link: '/user-guides/installation' },
 					{ text: 'Email Integrity Check', link: '/user-guides/integrity-check' },
+					{ text: 'Searching the Archive', link: '/user-guides/searching' },
 					{ text: 'Search Indexing & Reindexing', link: '/user-guides/search-indexing' },
 					{
 						text: 'Email Providers',

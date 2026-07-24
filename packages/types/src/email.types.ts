@@ -86,5 +86,8 @@ export interface EmailDocument {
 	}[];
 	timestamp: number;
 	ingestionSourceId: string;
+	/** Whether the email carries attachments. Optional because documents indexed before
+	 * this field existed lack it until a reindex backfills them. */
+	hasAttachments?: boolean;
 	// other metadata
 }

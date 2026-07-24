@@ -35,6 +35,10 @@ It is controlled by environment variables:
 | `MAX_INDEX_ATTEMPTS` | `5` | Stop retrying an email after this many failed indexing attempts (prevents a single bad email from looping forever). |
 | `MEILI_WAIT_FOR_TASK_TIMEOUT` | `300000` | Milliseconds to wait for a Meilisearch task before treating the batch as failed. |
 
+::: tip Looking for search filters?
+How to actually search the archive — keywords, advanced filters, date ranges, field-scoped search — is covered in [Searching the Archive](/user-guides/searching). One filter depends on this page: the **with/without attachments** filter needs a one-time reindex before emails archived on older versions are counted as "with attachments".
+:::
+
 ## Reindexing
 
 Reindexing rebuilds search documents from the archive. It never re-downloads mail and never duplicates data. There are two modes:

@@ -436,6 +436,7 @@ export class IndexingService {
 			attachments: extractedAttachments,
 			timestamp: new Date(email.receivedAt).getTime(),
 			ingestionSourceId: ingestionSourceId,
+			hasAttachments: email.attachments.length > 0,
 		};
 	}
 
@@ -482,6 +483,7 @@ export class IndexingService {
 			attachments: attachmentContents,
 			timestamp: new Date(email.sentAt).getTime(),
 			ingestionSourceId: email.ingestionSourceId,
+			hasAttachments: !!email.hasAttachments,
 		};
 	}
 
@@ -607,6 +609,7 @@ export class IndexingService {
 			attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
 			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
 			ingestionSourceId: doc.ingestionSourceId || 'unknown',
+			hasAttachments: doc.hasAttachments ?? (doc.attachments?.length ?? 0) > 0,
 		};
 	}
 
