@@ -113,6 +113,7 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `POSTGRES_USER`        | The username for the PostgreSQL database.            | `admin`                                                  |
 | `POSTGRES_PASSWORD`    | The password for the PostgreSQL database.            | `password`                                               |
 | `DATABASE_URL`         | The connection URL for the PostgreSQL database.      | `postgresql://admin:password@postgres:5432/open_archive` |
+| `DATABASE_SOCKET`      | UNIX socket to connect to the PostgreSQL database.   |                                                          |
 | `MEILI_MASTER_KEY`     | The master key for Meilisearch.                      | `aSampleMasterKey`                                       |
 | `MEILI_HOST`           | The host for the Meilisearch service.                | `http://meilisearch:7700`                                |
 | `MEILI_INDEXING_BATCH` | The number of emails to batch together for indexing. | `500`                                                    |
@@ -121,6 +122,8 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `REDIS_USER`           | Optional Redis username if ACLs are used.            |                                                          |
 | `REDIS_PASSWORD`       | The password for the Valkey (Redis) service.         | `defaultredispassword`                                   |
 | `REDIS_TLS_ENABLED`    | Enable or disable TLS for Redis.                     | `false`                                                  |
+
+You need to specify either `DATABASE_URL` or `DATABASE_SOCKET`, the former is preferred over the latter.
 
 #### Storage Settings
 
