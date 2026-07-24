@@ -93,7 +93,11 @@
 
 			try {
 				let buffer: Uint8Array;
-				if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'Buffer') {
+				if (typeof raw === 'string') {
+					const binary = atob(raw);
+					buffer = new Uint8Array(binary.length);
+					for (let i = 0; i < binary.length; i++) buffer[i] = binary.charCodeAt(i);
+				} else if (typeof raw === 'object' && 'type' in raw && raw.type === 'Buffer') {
 					buffer = new Uint8Array(
 						(raw as unknown as { type: 'Buffer'; data: number[] }).data
 					);
