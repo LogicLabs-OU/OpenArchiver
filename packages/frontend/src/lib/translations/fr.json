@@ -340,7 +340,14 @@
 			"view": "Voir",
 			"no_emails_found": "Aucun e-mail archivé trouvé.",
 			"prev": "Préc",
-			"next": "Suiv"
+			"next": "Suiv",
+			"delete_error_title": "Impossible de supprimer l'e-mail",
+			"delete_selected": "Supprimer la sélection",
+			"bulk_delete_confirmation_title": "Voulez-vous vraiment supprimer {{count}} e-mails sélectionnés ?",
+			"bulk_delete_confirmation_description": "Cette action est irréversible et supprimera définitivement les e-mails sélectionnés et leurs pièces jointes.",
+			"deleting": "Suppression en cours",
+			"confirm": "Confirmer",
+			"cancel": "Annuler"
 		},
 		"dashboard_page": {
 			"title": "Tableau de bord",

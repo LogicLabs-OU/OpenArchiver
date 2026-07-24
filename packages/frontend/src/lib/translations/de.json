@@ -340,7 +340,14 @@
 			"view": "Ansehen",
 			"no_emails_found": "Keine archivierten E-Mails gefunden.",
 			"prev": "Zurück",
-			"next": "Weiter"
+			"next": "Weiter",
+			"delete_error_title": "E-Mail konnte nicht gelöscht werden",
+			"delete_selected": "Ausgewählte löschen",
+			"bulk_delete_confirmation_title": "Möchten Sie wirklich {{count}} ausgewählte E-Mails löschen?",
+			"bulk_delete_confirmation_description": "Diese Aktion kann nicht rückgängig gemacht werden und entfernt die ausgewählten E-Mails und ihre Anhänge dauerhaft.",
+			"deleting": "Wird gelöscht",
+			"confirm": "Bestätigen",
+			"cancel": "Abbrechen"
 		},
 		"dashboard_page": {
 			"title": "Dashboard",

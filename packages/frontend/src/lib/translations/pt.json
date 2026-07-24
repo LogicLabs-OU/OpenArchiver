@@ -259,7 +259,14 @@
 			"view": "Visualizar",
 			"no_emails_found": "Nenhum e-mail arquivado encontrado.",
 			"prev": "Anterior",
-			"next": "Próximo"
+			"next": "Próximo",
+			"delete_error_title": "Falha ao excluir e-mail",
+			"delete_selected": "Excluir selecionados",
+			"bulk_delete_confirmation_title": "Tem certeza que deseja excluir {{count}} e-mails selecionados?",
+			"bulk_delete_confirmation_description": "Esta ação não pode ser desfeita e removerá permanentemente os e-mails selecionados e seus anexos.",
+			"deleting": "Excluindo",
+			"confirm": "Confirmar",
+			"cancel": "Cancelar"
 		}
 	}
 }

@@ -340,7 +340,14 @@
 			"view": "Ver",
 			"no_emails_found": "No se encontraron correos electrónicos archivados.",
 			"prev": "Anterior",
-			"next": "Siguiente"
+			"next": "Siguiente",
+			"delete_error_title": "Error al eliminar el correo",
+			"delete_selected": "Eliminar seleccionados",
+			"bulk_delete_confirmation_title": "¿Está seguro de que desea eliminar {{count}} correos seleccionados?",
+			"bulk_delete_confirmation_description": "Esta acción no se puede deshacer y eliminará permanentemente los correos seleccionados y sus archivos adjuntos.",
+			"deleting": "Eliminando",
+			"confirm": "Confirmar",
+			"cancel": "Cancelar"
 		},
 		"dashboard_page": {
 			"title": "Tablero",

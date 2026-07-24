@@ -241,7 +241,14 @@
 			"view": "Προβολή",
 			"no_emails_found": "Δεν βρέθηκαν αρχειοθετημένα email.",
 			"prev": "Προηγούμενο",
-			"next": "Επόμενο"
+			"next": "Επόμενο",
+			"delete_error_title": "Αποτυχία διαγραφής email",
+			"delete_selected": "Διαγραφή επιλεγμένων",
+			"bulk_delete_confirmation_title": "Είστε βέβαιοι ότι θέλετε να διαγράψετε {{count}} επιλεγμένο(-α) email;",
+			"bulk_delete_confirmation_description": "Αυτή η ενέργεια δεν μπορεί να αναιρεθεί και θα αφαιρέσει οριστικά τα επιλεγμένα email και τα συνημμένα τους.",
+			"deleting": "Διαγραφή",
+			"confirm": "Επιβεβαίωση",
+			"cancel": "Ακύρωση"
 		},
 		"dashboard_page": {
 			"title": "Πίνακας ελέγχου",

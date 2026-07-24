@@ -300,7 +300,14 @@
 			"view": "Visualizza",
 			"no_emails_found": "Nessuna email archiviata trovata.",
 			"prev": "Prec",
-			"next": "Succ"
+			"next": "Succ",
+			"delete_error_title": "Impossibile eliminare l'email",
+			"delete_selected": "Elimina selezionati",
+			"bulk_delete_confirmation_title": "Sei sicuro di voler eliminare {{count}} email selezionate?",
+			"bulk_delete_confirmation_description": "Questa azione non può essere annullata e rimuoverà definitivamente le email selezionate e i loro allegati.",
+			"deleting": "Eliminazione in corso",
+			"confirm": "Conferma",
+			"cancel": "Annulla"
 		},
 		"dashboard_page": {
 			"title": "Dashboard",

@@ -259,7 +259,14 @@
 			"view": "Vaade",
 			"no_emails_found": "Arhiveeritud e-kirju ei leitud.",
 			"prev": "Eelmine",
-			"next": "Järgmine"
+			"next": "Järgmine",
+			"delete_error_title": "Meili kustutamine ebaõnnestus",
+			"delete_selected": "Kustuta valitud",
+			"bulk_delete_confirmation_title": "Kas olete kindel, et soovite kustutada {{count}} valitud meili?",
+			"bulk_delete_confirmation_description": "Seda toimingut ei saa tagasi võtta ja see eemaldab valitud meilid ja nende manused jäädavalt.",
+			"deleting": "Kustutamine",
+			"confirm": "Kinnita",
+			"cancel": "Tühista"
 		}
 	}
 }
