@@ -250,6 +250,11 @@
 				"org_wide_warning": "Veuillez noter qu'il s'agit d'une opération à l'échelle de l'organisation. Ce type d'ingestion importera et indexera <b>toutes</b> les boîtes de réception de votre organisation. Si vous souhaitez importer uniquement des boîtes de réception spécifiques, utilisez le connecteur IMAP.",
 				"upload_failed": "Échec du téléversement, veuillez réessayer",
 				"upload_network_error": "Le serveur n'a pas pu traiter le téléversement. Le fichier dépasse peut-être la limite de taille configurée (BODY_SIZE_LIMIT). Pour les fichiers très volumineux, utilisez l'option Chemin local.",
+				"upload_cancel": "Annuler",
+				"upload_complete": "Téléversement terminé",
+				"upload_file_label": "Fichier",
+				"upload_path_label": "Chemin de stockage",
+				"upload_replace": "Remplacer le fichier",
 				"merge_into": "Fusionner avec une ingestion existante",
 				"merge_into_description": "Les emails de cette source seront regroupés avec l'ingestion sélectionnée. Les deux sources se synchronisent indépendamment mais les emails apparaissent ensemble.",
 				"merge_into_tooltip": "Lors de la fusion, cette nouvelle source devient une source secondaire de l'ingestion racine sélectionnée. Tous les emails récupérés par cette source seront physiquement stockés sous l'ingestion racine, pas sous celle-ci.<br><br>Le paramètre <b>Conserver le fichier original</b> (conformité GoBD) de l'ingestion racine s'applique à l'ensemble du groupe. Le paramètre de ce formulaire est ignoré si la fusion est activée.<br><br>Les deux sources se synchronisent indépendamment selon leur propre calendrier.",
@@ -335,7 +340,14 @@
 			"view": "Voir",
 			"no_emails_found": "Aucun e-mail archivé trouvé.",
 			"prev": "Préc",
-			"next": "Suiv"
+			"next": "Suiv",
+			"delete_error_title": "Impossible de supprimer l'e-mail",
+			"delete_selected": "Supprimer la sélection",
+			"bulk_delete_confirmation_title": "Voulez-vous vraiment supprimer {{count}} e-mails sélectionnés ?",
+			"bulk_delete_confirmation_description": "Cette action est irréversible et supprimera définitivement les e-mails sélectionnés et leurs pièces jointes.",
+			"deleting": "Suppression en cours",
+			"confirm": "Confirmer",
+			"cancel": "Annuler"
 		},
 		"dashboard_page": {
 			"title": "Tableau de bord",

@@ -171,6 +171,11 @@ export class ArchivedEmailService {
 
 		const mappedEmail = {
 			...email,
+			// Trim the joined ingestion source to just id + name; the full row carries
+			// encrypted credentials that must never be sent to the client.
+			ingestionSource: email.ingestionSource
+				? { id: email.ingestionSource.id, name: email.ingestionSource.name }
+				: null,
 			recipients: this.mapRecipients(email.recipients),
 			raw,
 			thread: threadEmails,

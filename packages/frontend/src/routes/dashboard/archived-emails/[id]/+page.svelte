@@ -259,12 +259,12 @@
 				});
 				return;
 			}
+			isDeleteDialogOpen = false;
 			await goto('/dashboard/archived-emails', { invalidateAll: true });
 		} catch (error) {
 			console.error('Delete failed:', error);
 		} finally {
 			isDeleting = false;
-			isDeleteDialogOpen = false;
 		}
 	}
 </script>
@@ -300,6 +300,23 @@
 						<div class="space-y-1">
 							<h3 class="font-semibold">{$t('app.archive.meta_data')}</h3>
 							<div class="text-muted-foreground space-y-2 text-sm">
+								<div class="flex flex-wrap items-center gap-2">
+									<span>{$t('app.archive.mailbox')}:</span>
+									<span class="bg-muted truncate rounded p-1.5 text-xs"
+										>{email.userEmail}</span
+									>
+								</div>
+								{#if email.ingestionSource}
+									<div class="flex flex-wrap items-center gap-2">
+										<span>{$t('app.archive.ingestion_source')}:</span>
+										<a
+											href="/dashboard/archived-emails?ingestionSourceId={email
+												.ingestionSource.id}"
+											class="bg-muted hover:bg-muted/80 truncate rounded p-1.5 text-xs underline-offset-2 hover:underline"
+											>{email.ingestionSource.name}</a
+										>
+									</div>
+								{/if}
 								{#if email.path}
 									<div class="flex flex-wrap items-center gap-2">
 										<span>{$t('app.archive.folder')}:</span>

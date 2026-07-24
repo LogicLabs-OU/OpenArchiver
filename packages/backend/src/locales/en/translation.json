@@ -54,7 +54,11 @@
 		"notFound": "Archived email not found"
 	},
 	"search": {
-		"keywordsRequired": "Keywords are required"
+		"keywordsRequired": "Keywords are required when no filter is provided",
+		"invalidSourceId": "One or more ingestion source IDs are not valid",
+		"invalidDate": "Dates must use the yyyy-mm-dd format",
+		"invalidDateRange": "The start date must not be after the end date",
+		"invalidParam": "One or more search parameters have an invalid value"
 	},
 	"storage": {
 		"filePathRequired": "File path is required",

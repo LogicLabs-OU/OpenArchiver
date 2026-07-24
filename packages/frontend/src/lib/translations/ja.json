@@ -210,7 +210,12 @@
 				"eml_file": "EMLファイル",
 				"heads_up": "ご注意ください！",
 				"org_wide_warning": "これは組織全体の操作であることに注意してください。この種の取り込みは、組織内の<b>すべて</b>のメールボックスをインポートしてインデックスを作成します。特定のメールボックスのみをインポートする場合は、IMAPコネクタを使用してください。",
-				"upload_failed": "アップロードに失敗しました。もう一度お試しください"
+				"upload_failed": "アップロードに失敗しました。もう一度お試しください",
+				"upload_cancel": "キャンセル",
+				"upload_complete": "アップロード完了",
+				"upload_file_label": "ファイル",
+				"upload_path_label": "保存パス",
+				"upload_replace": "ファイルを置き換える"
 			},
 			"role_form": {
 				"policies_json": "ポリシー (JSON)",
@@ -254,7 +259,14 @@
 			"view": "表示",
 			"no_emails_found": "アーカイブされたメールは見つかりませんでした。",
 			"prev": "前へ",
-			"next": "次へ"
+			"next": "次へ",
+			"delete_error_title": "メールの削除に失敗しました",
+			"delete_selected": "選択したものを削除",
+			"bulk_delete_confirmation_title": "選択した{{count}}件のメールを削除してもよろしいですか？",
+			"bulk_delete_confirmation_description": "この操作は取り消せません。選択したメールと添付ファイルは完全に削除されます。",
+			"deleting": "削除中",
+			"confirm": "確認",
+			"cancel": "キャンセル"
 		}
 	}
 }

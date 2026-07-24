@@ -9,9 +9,11 @@
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import * as RadioGroup from '$lib/components/ui/radio-group/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
+	import { Progress } from '$lib/components/ui/progress';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
-	import { api } from '$lib/api.client';
-	import { Loader2, Info, ChevronDown } from 'lucide-svelte';
+	import { authStore } from '$lib/stores/auth.store';
+	import { get } from 'svelte/store';
+	import { Info, ChevronDown, CircleCheck, CircleX, X } from 'lucide-svelte';
 	import tippy from 'tippy.js';
 	import 'tippy.js/dist/tippy.css';
 	import { t } from '$lib/translations';
@@ -92,9 +94,24 @@
 	);
 
 	let isSubmitting = $state(false);
-	let fileUploading = $state(false);
 	let showAdvanced = $state(false);
 	let mergeEnabled = $state(false);
+
+	// Upload state for the file-based providers (PST/EML/Mbox). Only one provider block
+	// is rendered at a time, so a single shared set of state is sufficient.
+	type UploadState = 'idle' | 'uploading' | 'success' | 'error';
+	let uploadState = $state<UploadState>('idle');
+	let uploadProgress = $state(0);
+	let uploadError = $state('');
+	let activeXhr: XMLHttpRequest | null = null;
+	// providerConfig is a union across provider types; the uploaded* fields only exist on the
+	// file-based variants, so read them through a cast for the success display.
+	const uploadedFileName = $derived(
+		(formData.providerConfig as { uploadedFileName?: string }).uploadedFileName ?? ''
+	);
+	const uploadedFilePath = $derived(
+		(formData.providerConfig as { uploadedFilePath?: string }).uploadedFilePath ?? ''
+	);
 
 	/** When merge is toggled off, clear the mergedIntoId */
 	$effect(() => {
@@ -117,8 +134,30 @@
 			if ('uploadedFileName' in formData.providerConfig) {
 				delete formData.providerConfig.uploadedFileName;
 			}
+			// Switching to local path abandons any in-flight/finished upload.
+			resetUpload();
 		}
 	});
+
+	/** Clears upload state and aborts any in-flight upload. */
+	const resetUpload = () => {
+		activeXhr?.abort();
+		activeXhr = null;
+		uploadState = 'idle';
+		uploadProgress = 0;
+		uploadError = '';
+		if ('uploadedFilePath' in formData.providerConfig) {
+			delete formData.providerConfig.uploadedFilePath;
+		}
+		if ('uploadedFileName' in formData.providerConfig) {
+			delete formData.providerConfig.uploadedFileName;
+		}
+	};
+
+	/** Cancels an in-flight upload (triggered by the user's Cancel button). */
+	const cancelUpload = () => {
+		activeXhr?.abort();
+	};
 
 	const handleSubmit = async (event: Event) => {
 		event.preventDefault();
@@ -130,43 +169,37 @@
 		}
 	};
 
-	const handleFileChange = async (event: Event) => {
+	const handleFileChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
 		const file = target.files?.[0];
-		fileUploading = true;
 		if (!file) {
-			fileUploading = false;
 			return;
 		}
+		// Reset the input immediately so the same file can be re-selected after a cancel/error.
+		target.value = '';
+		uploadFile(file);
+	};
 
+	/**
+	 * Uploads a chosen file via XMLHttpRequest so we can report progress and support cancel —
+	 * fetch() exposes neither. Mirrors the auth/URL of the api() helper (Bearer token, the
+	 * /api/v1 proxy). Any failure is surfaced both inline (persistent) and as a toast so the
+	 * user is never left thinking a failed upload succeeded.
+	 */
+	const uploadFile = (file: File) => {
 		const uploadFormData = new FormData();
 		uploadFormData.append('file', file);
 
-		try {
-			const response = await api('/upload', {
-				method: 'POST',
-				body: uploadFormData,
-			});
+		const xhr = new XMLHttpRequest();
+		activeXhr = xhr;
+		uploadState = 'uploading';
+		uploadProgress = 0;
+		uploadError = '';
 
-			// Safely parse the response body — it may not be valid JSON
-			// (e.g. if the proxy rejected the request with an HTML error page)
-			let result: Record<string, string>;
-			try {
-				result = await response.json();
-			} catch {
-				throw new Error($t('app.components.ingestion_source_form.upload_network_error'));
-			}
-
-			if (!response.ok) {
-				throw new Error(
-					result.message || $t('app.components.ingestion_source_form.upload_failed')
-				);
-			}
-
-			formData.providerConfig.uploadedFilePath = result.filePath;
-			formData.providerConfig.uploadedFileName = file.name;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+		const failUpload = (message: string) => {
+			activeXhr = null;
+			uploadState = 'error';
+			uploadError = message;
 			setAlert({
 				type: 'error',
 				title: $t('app.components.ingestion_source_form.upload_failed'),
@@ -174,11 +207,62 @@
 				duration: 5000,
 				show: true,
 			});
-			// Reset file input so the user can retry with the same file
-			target.value = '';
-		} finally {
-			fileUploading = false;
+		};
+
+		xhr.upload.addEventListener('progress', (e) => {
+			if (e.lengthComputable) {
+				uploadProgress = Math.round((e.loaded / e.total) * 100);
+			}
+		});
+
+		xhr.addEventListener('load', () => {
+			activeXhr = null;
+			// The response may not be valid JSON (e.g. the proxy returned an HTML error page).
+			let result: Record<string, string> = {};
+			try {
+				result = JSON.parse(xhr.responseText);
+			} catch {
+				if (xhr.status < 200 || xhr.status >= 300) {
+					failUpload($t('app.components.ingestion_source_form.upload_network_error'));
+					return;
+				}
+			}
+
+			if (xhr.status < 200 || xhr.status >= 300) {
+				failUpload(
+					result.message ||
+						result.error ||
+						$t('app.components.ingestion_source_form.upload_failed')
+				);
+				return;
+			}
+
+			formData.providerConfig.uploadedFilePath = result.filePath;
+			formData.providerConfig.uploadedFileName = file.name;
+			uploadState = 'success';
+			uploadProgress = 100;
+		});
+
+		xhr.addEventListener('error', () => {
+			failUpload($t('app.components.ingestion_source_form.upload_network_error'));
+		});
+		xhr.addEventListener('timeout', () => {
+			failUpload($t('app.components.ingestion_source_form.upload_network_error'));
+		});
+		xhr.addEventListener('abort', () => {
+			// User-initiated cancel: return to the idle picker with no partial state.
+			activeXhr = null;
+			uploadState = 'idle';
+			uploadProgress = 0;
+			uploadError = '';
+		});
+
+		const { accessToken } = get(authStore);
+		xhr.open('POST', '/api/v1/upload');
+		if (accessToken) {
+			xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
 		}
+		xhr.send(uploadFormData);
 	};
 
 	const mergeTriggerContent = $derived(
@@ -188,6 +272,75 @@
 			: $t('app.components.ingestion_source_form.merge_into_select')
 	);
 </script>
+
+<!--
+	Shared upload field for the file-based providers (PST/EML/Mbox): file picker with live
+	progress + cancel, a persistent success panel (file name + storage path), and a persistent
+	error panel with the failure reason. Only one provider block renders at a time, so the
+	shared upload state drives whichever field is visible.
+-->
+{#snippet uploadField(id: string, accept: string, labelKey: string)}
+	<div class="grid grid-cols-4 items-start gap-4">
+		<Label for={id} class="pt-2 text-left">{$t(labelKey)}</Label>
+		<div class="col-span-3 space-y-2">
+			{#if uploadState === 'uploading'}
+				<div class="flex items-center gap-3">
+					<Progress value={uploadProgress} class="flex-1" />
+					<span class="text-muted-foreground w-10 text-right text-sm tabular-nums">
+						{uploadProgress}%
+					</span>
+					<Button type="button" variant="outline" size="sm" onclick={cancelUpload}>
+						<X class="mr-1 size-4" />
+						{$t('app.components.ingestion_source_form.upload_cancel')}
+					</Button>
+				</div>
+			{:else if uploadState === 'success'}
+				<Alert.Root>
+					<CircleCheck class="size-4 text-green-600" />
+					<Alert.Title>
+						{$t('app.components.ingestion_source_form.upload_complete')}
+					</Alert.Title>
+					<Alert.Description>
+						<div class="space-y-1">
+							<div>
+								<span class="text-muted-foreground">
+									{$t('app.components.ingestion_source_form.upload_file_label')}:
+								</span>
+								{uploadedFileName}
+							</div>
+							<div class="break-all">
+								<span class="text-muted-foreground">
+									{$t('app.components.ingestion_source_form.upload_path_label')}:
+								</span>
+								<span class="font-mono text-xs">{uploadedFilePath}</span>
+							</div>
+						</div>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							class="mt-2 h-7 px-2"
+							onclick={resetUpload}
+						>
+							{$t('app.components.ingestion_source_form.upload_replace')}
+						</Button>
+					</Alert.Description>
+				</Alert.Root>
+			{:else}
+				{#if uploadState === 'error'}
+					<Alert.Root variant="destructive">
+						<CircleX class="size-4" />
+						<Alert.Title>
+							{$t('app.components.ingestion_source_form.upload_failed')}
+						</Alert.Title>
+						<Alert.Description>{uploadError}</Alert.Description>
+					</Alert.Root>
+				{/if}
+				<Input {id} type="file" {accept} onchange={handleFileChange} />
+			{/if}
+		</div>
+	</div>
+{/snippet}
 
 <form onsubmit={handleSubmit} class="grid gap-4 py-4">
 	<div class="grid grid-cols-4 items-center gap-4">
@@ -329,23 +482,11 @@
 		</div>
 
 		{#if importMethod === 'upload'}
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label for="pst-file" class="text-left"
-					>{$t('app.components.ingestion_source_form.pst_file')}</Label
-				>
-				<div class="col-span-3 flex flex-row items-center space-x-2">
-					<Input
-						id="pst-file"
-						type="file"
-						class=""
-						accept=".pst"
-						onchange={handleFileChange}
-					/>
-					{#if fileUploading}
-						<span class=" text-primary animate-spin"><Loader2 /></span>
-					{/if}
-				</div>
-			</div>
+			{@render uploadField(
+				'pst-file',
+				'.pst',
+				'app.components.ingestion_source_form.pst_file'
+			)}
 		{:else}
 			<div class="grid grid-cols-4 items-center gap-4">
 				<Label for="pst-local-path" class="text-left"
@@ -381,23 +522,11 @@
 		</div>
 
 		{#if importMethod === 'upload'}
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label for="eml-file" class="text-left"
-					>{$t('app.components.ingestion_source_form.eml_file')}</Label
-				>
-				<div class="col-span-3 flex flex-row items-center space-x-2">
-					<Input
-						id="eml-file"
-						type="file"
-						class=""
-						accept=".zip"
-						onchange={handleFileChange}
-					/>
-					{#if fileUploading}
-						<span class=" text-primary animate-spin"><Loader2 /></span>
-					{/if}
-				</div>
-			</div>
+			{@render uploadField(
+				'eml-file',
+				'.zip',
+				'app.components.ingestion_source_form.eml_file'
+			)}
 		{:else}
 			<div class="grid grid-cols-4 items-center gap-4">
 				<Label for="eml-local-path" class="text-left"
@@ -433,23 +562,11 @@
 		</div>
 
 		{#if importMethod === 'upload'}
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label for="mbox-file" class="text-left"
-					>{$t('app.components.ingestion_source_form.mbox_file')}</Label
-				>
-				<div class="col-span-3 flex flex-row items-center space-x-2">
-					<Input
-						id="mbox-file"
-						type="file"
-						class=""
-						accept=".mbox"
-						onchange={handleFileChange}
-					/>
-					{#if fileUploading}
-						<span class=" text-primary animate-spin"><Loader2 /></span>
-					{/if}
-				</div>
-			</div>
+			{@render uploadField(
+				'mbox-file',
+				'.mbox',
+				'app.components.ingestion_source_form.mbox_file'
+			)}
 		{:else}
 			<div class="grid grid-cols-4 items-center gap-4">
 				<Label for="mbox-local-path" class="text-left"
@@ -570,7 +687,7 @@
 	</div>
 
 	<Dialog.Footer>
-		<Button type="submit" disabled={isSubmitting || fileUploading}>
+		<Button type="submit" disabled={isSubmitting || uploadState === 'uploading'}>
 			{#if isSubmitting}
 				{$t('app.components.common.submitting')}
 			{:else}

@@ -52,6 +52,10 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		const failureSamples: string[] = [];
 		const MAX_FAILURE_SAMPLES = 5;
 
+		// Must stay well under cleanStaleSessions()'s 30-minute inactivity threshold.
+		const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+		let lastHeartbeatAt = Date.now();
+
 		for await (const email of connector.fetchEmails(
 			userEmail,
 			source.syncState,
@@ -76,14 +80,19 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 					if (emailBatch.length >= BATCH_SIZE) {
 						await indexingQueue.add('index-email-batch', { emails: emailBatch });
 						emailBatch = [];
-						// Heartbeat: a single large mailbox can take hours to process.
-						// Without this, cleanStaleSessions() would see no activity on the
-						// session and incorrectly mark it as stale after 30 minutes.
-						// We piggyback on the existing batch flush cadence — no extra DB
-						// writes beyond what we'd do anyway.
-						await SyncSessionService.heartbeat(sessionId);
 					}
 				}
+			}
+			// Heartbeat on wall-clock time, unconditionally. A single large mailbox can
+			// take hours, and long stretches legitimately archive nothing (dedup-skip
+			// streaks on re-sync, slow folders with large attachments), so a heartbeat
+			// tied to batch flushes starves in exactly those stretches —
+			// cleanStaleSessions() then marks the live import stale after 30 minutes,
+			// flips the source to 'error', and the next scheduler tick launches a SECOND
+			// concurrent import that races this one and duplicates the archive.
+			if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
+				await SyncSessionService.heartbeat(sessionId);
+				lastHeartbeatAt = Date.now();
 			}
 		}
 

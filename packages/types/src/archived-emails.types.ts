@@ -31,6 +31,8 @@ export interface ThreadEmail {
 export interface ArchivedEmail {
 	id: string;
 	ingestionSourceId: string;
+	/** The ingestion source this email belongs to, when loaded (e.g. the detail view). */
+	ingestionSource?: { id: string; name: string } | null;
 	userEmail: string;
 	messageIdHeader: string | null;
 	sentAt: Date;

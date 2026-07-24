@@ -210,7 +210,12 @@
 				"eml_file": "EML-fail",
 				"heads_up": "Tähelepanu!",
 				"org_wide_warning": "Pange tähele, et see on kogu organisatsiooni hõlmav toiming. Seda tüüpi sissevõtud impordivad ja indekseerivad <b>kõik</b> teie organisatsiooni e-posti postkastid. Kui soovite importida ainult konkreetseid e-posti postkaste, kasutage IMAP-konnektorit.",
-				"upload_failed": "Üleslaadimine ebaõnnestus, proovige uuesti"
+				"upload_failed": "Üleslaadimine ebaõnnestus, proovige uuesti",
+				"upload_cancel": "Tühista",
+				"upload_complete": "Üleslaadimine lõpetatud",
+				"upload_file_label": "Fail",
+				"upload_path_label": "Salvestustee",
+				"upload_replace": "Asenda fail"
 			},
 			"role_form": {
 				"policies_json": "Poliitikad (JSON)",
@@ -254,7 +259,14 @@
 			"view": "Vaade",
 			"no_emails_found": "Arhiveeritud e-kirju ei leitud.",
 			"prev": "Eelmine",
-			"next": "Järgmine"
+			"next": "Järgmine",
+			"delete_error_title": "Meili kustutamine ebaõnnestus",
+			"delete_selected": "Kustuta valitud",
+			"bulk_delete_confirmation_title": "Kas olete kindel, et soovite kustutada {{count}} valitud meili?",
+			"bulk_delete_confirmation_description": "Seda toimingut ei saa tagasi võtta ja see eemaldab valitud meilid ja nende manused jäädavalt.",
+			"deleting": "Kustutamine",
+			"confirm": "Kinnita",
+			"cancel": "Tühista"
 		}
 	}
 }

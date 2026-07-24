@@ -3,6 +3,8 @@ import { config } from '../config';
 import type {
 	SearchQuery,
 	SearchResult,
+	SearchFilters,
+	SearchScope,
 	EmailDocument,
 	TopSender,
 	User,
@@ -12,6 +14,7 @@ import type {
 	SearchTaskStatus,
 	SearchTaskType,
 } from '@open-archiver/types';
+import { buildEmailSearchFilter } from '../helpers/meiliFilter';
 import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { IngestionService } from './IngestionService';
@@ -221,12 +224,49 @@ export class SearchService {
 		return index.deleteDocuments({ filter });
 	}
 
+	/** Maps a SearchScope to the index attributes it covers. */
+	private static readonly SEARCH_SCOPE_ATTRIBUTES: Record<SearchScope, string[]> = {
+		subject: ['subject'],
+		body: ['body'],
+		attachment_name: ['attachments.filename'],
+		attachment_content: ['attachments.content'],
+		from: ['from', 'fromName'],
+		to: ['to', 'cc', 'bcc'],
+	};
+
+	/**
+	 * Expands each ingestion source ID to its full merge group and dedupes the union,
+	 * so including or excluding any member of a merged group covers the whole group.
+	 */
+	private async expandSourceGroups(sourceIds: string[]): Promise<string[]> {
+		const groups = await Promise.all(
+			sourceIds.map(async (id) => {
+				try {
+					return await IngestionService.findGroupSourceIds(id);
+				} catch {
+					// Unknown id (findGroupSourceIds throws): keep it as-is so an include
+					// matches nothing and an exclude has no effect, instead of 500-ing.
+					return [id];
+				}
+			})
+		);
+		return Array.from(new Set(groups.flat()));
+	}
+
 	public async searchEmails(
 		dto: SearchQuery,
 		userId: string,
 		actorIp: string
 	): Promise<SearchResult> {
-		const { query, filters, page = 1, limit = 10, matchingStrategy = 'last' } = dto;
+		const {
+			query,
+			filters,
+			searchIn,
+			sort,
+			page = 1,
+			limit = 10,
+			matchingStrategy = 'last',
+		} = dto;
 		const index = await this.getIndex<EmailDocument>('emails');
 
 		const searchParams: SearchParams = {
@@ -234,45 +274,50 @@ export class SearchService {
 			offset: (page - 1) * limit,
 			attributesToHighlight: ['*'],
 			showMatchesPosition: true,
-			sort: ['timestamp:desc'],
 			matchingStrategy,
 		};
 
-		if (filters) {
-			const filterParts: string[] = [];
-			for (const [key, value] of Object.entries(filters)) {
-				// Expand ingestionSourceId to the full merge group
-				if (key === 'ingestionSourceId' && typeof value === 'string') {
-					const groupIds = await IngestionService.findGroupSourceIds(value);
-					if (groupIds.length === 1) {
-						filterParts.push(`ingestionSourceId = '${groupIds[0]}'`);
-					} else {
-						const inList = groupIds.map((id) => `'${id}'`).join(', ');
-						filterParts.push(`ingestionSourceId IN [${inList}]`);
-					}
-				} else if (typeof value === 'string') {
-					filterParts.push(`${key} = '${value}'`);
-				} else {
-					filterParts.push(`${key} = ${value}`);
-				}
-			}
-			searchParams.filter = filterParts.join(' AND ');
+		// Sorting: default stays newest-first; 'relevance' omits sort so Meilisearch ranking applies.
+		if (sort === 'date_asc') {
+			searchParams.sort = ['timestamp:asc'];
+		} else if (sort !== 'relevance') {
+			searchParams.sort = ['timestamp:desc'];
 		}
 
-		// Create a filter based on the user's permissions.
-		// This ensures that the user can only search for emails they are allowed to see.
-		const { searchFilter } = await FilterBuilder.create(userId, 'archive', 'read');
-		if (searchFilter) {
-			// Convert the MongoDB-style filter from CASL to a MeiliSearch filter string.
-			if (searchParams.filter) {
-				// If there are existing filters, append the access control filter.
-				searchParams.filter = `${searchParams.filter} AND ${searchFilter}`;
-			} else {
-				// Otherwise, just use the access control filter.
-				searchParams.filter = searchFilter;
-			}
+		// Field-scoped keyword search (e.g. only subject, or only attachments).
+		if (searchIn && searchIn.length > 0) {
+			searchParams.attributesToSearchOn = Array.from(
+				new Set(searchIn.flatMap((scope) => SearchService.SEARCH_SCOPE_ATTRIBUTES[scope]))
+			);
 		}
-		// console.log('searchParams', searchParams);
+
+		// Structured user filters, built injection-safe. Source include/exclude lists are
+		// expanded to their merge groups first (a DB lookup the pure builder cannot do).
+		let userFilter: string | undefined;
+		if (filters) {
+			const expanded: SearchFilters = { ...filters };
+			if (filters.sources?.length) {
+				expanded.sources = await this.expandSourceGroups(filters.sources);
+			}
+			if (filters.excludeSources?.length) {
+				expanded.excludeSources = await this.expandSourceGroups(filters.excludeSources);
+			}
+			userFilter = buildEmailSearchFilter(expanded);
+		}
+
+		// Access-control filter: the user may only search emails they are allowed to see.
+		// Both sides are parenthesized — the permission filter can contain top-level OR,
+		// and unparenthesized concatenation would corrupt precedence.
+		const { searchFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+		// undefined = full access (admin); '' = a permission query that compiled to
+		// nothing (e.g. an unsupported operator) → fail closed, deny everything.
+		const accessFilter = searchFilter === '' ? 'ingestionSourceId = "-1"' : searchFilter;
+		if (userFilter && accessFilter) {
+			searchParams.filter = `(${userFilter}) AND (${accessFilter})`;
+		} else {
+			searchParams.filter = userFilter ?? accessFilter;
+		}
+
 		const searchResults = await index.search(query, searchParams);
 
 		await this.auditService.createAuditLog({
@@ -284,6 +329,8 @@ export class SearchService {
 			details: {
 				query,
 				filters,
+				searchIn,
+				sort,
 				page,
 				limit,
 				matchingStrategy,
@@ -346,6 +393,49 @@ export class SearchService {
 		}));
 	}
 
+	/** Maps a public facet field name to the filterable index attribute it queries. */
+	private static readonly FACET_FIELDS: Record<string, string> = {
+		mailboxes: 'userEmail',
+		from: 'from',
+	};
+
+	/**
+	 * Typo-tolerant suggestions for a facet field, used for typeahead inputs (e.g. the
+	 * Mailboxes filter). Scoped to the caller's permission filter so a user never sees
+	 * values they aren't allowed to search. Returns distinct field values ranked by
+	 * frequency; `[]` for an unknown field.
+	 *
+	 * Uses a normal search restricted to the field (not `searchForFacetValues`, which only
+	 * prefix-matches the whole value) so that any token matches — e.g. typing "gmail"
+	 * matches "abc@gmail.com" because Meilisearch tokenizes the address on `@`/`.`. The
+	 * facet distribution over the matching documents yields the distinct values.
+	 */
+	public async searchFacetValues(
+		field: string,
+		query: string,
+		userId: string
+	): Promise<string[]> {
+		const facetName = SearchService.FACET_FIELDS[field];
+		if (!facetName) {
+			return [];
+		}
+		const index = await this.getIndex<EmailDocument>('emails');
+		const { searchFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+		// undefined = full access; '' = a permission query that compiled to nothing → deny.
+		const accessFilter = searchFilter === '' ? 'ingestionSourceId = "-1"' : searchFilter;
+		const result = await index.search(query || '', {
+			attributesToSearchOn: [facetName],
+			facets: [facetName],
+			limit: 0,
+			...(accessFilter ? { filter: accessFilter } : {}),
+		});
+		const distribution = result.facetDistribution?.[facetName] ?? {};
+		return Object.entries(distribution)
+			.sort(([, a], [, b]) => (b as number) - (a as number))
+			.slice(0, 10)
+			.map(([value]) => value);
+	}
+
 	public async configureEmailIndex() {
 		// Ensure the index exists with the correct primary key. Doing this once at
 		// startup (instead of on every addDocuments call) avoids a fire-and-forget
@@ -391,6 +481,7 @@ export class SearchService {
 				'timestamp',
 				'ingestionSourceId',
 				'userEmail',
+				'hasAttachments',
 			],
 			sortableAttributes: ['timestamp'],
 		});
