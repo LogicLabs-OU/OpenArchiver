@@ -30,6 +30,17 @@ const worker = new Worker('ingestion', processor, {
 	concurrency: process.env.INGESTION_WORKER_CONCURRENCY
 		? parseInt(process.env.INGESTION_WORKER_CONCURRENCY, 10)
 		: 5,
+	// Connector work (pst-extractor parsing, attachment reads, EML construction) is
+	// largely synchronous, and one huge message can block the event loop long enough
+	// that the automatic lock renewal (every lockDuration/2) misses its window. With
+	// the default 30s lock, BullMQ then declares the still-running job stalled and
+	// hands a second invocation of the SAME job to another worker slot — the two
+	// invocations race the check-then-insert dedup and duplicate the archive.
+	// A 10-minute lock tolerates long synchronous stretches, and maxStalledCount: 0
+	// turns any residual stall into a failed job (recovered sequentially by the
+	// scheduler, where dedup holds) instead of a silent concurrent double-run.
+	lockDuration: 10 * 60 * 1000,
+	maxStalledCount: 0,
 	removeOnComplete: {
 		count: 100, // keep last 100 jobs
 	},

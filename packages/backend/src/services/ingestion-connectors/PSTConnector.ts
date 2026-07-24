@@ -13,7 +13,7 @@ import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { createHash } from 'crypto';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { tmpdir } from 'os';
 import { createWriteStream, createReadStream, promises as fs } from 'fs';
 
@@ -133,6 +133,13 @@ const JUNK_FOLDERS = new Set([
 export class PSTConnector implements IEmailConnector {
 	private storage: StorageService;
 	private options: ConnectorOptions;
+	/**
+	 * X.500 DN → SMTP address pairs learned while walking the PST (recipient rows
+	 * carry both forms; resolved senders contribute too). Used as a last resort for
+	 * senders — typically Sent Items — whose messages carry no SMTP form at all.
+	 * Best-effort by nature: a DN can only be resolved after it has been seen once.
+	 */
+	private dnToSmtp = new Map<string, string>();
 
 	constructor(
 		private credentials: PSTImportCredentials,
@@ -228,7 +235,9 @@ export class PSTConnector implements IEmailConnector {
 		// cleanup, so don't fail the import over it.
 		await fs
 			.writeFile(join(tempDir, PST_OWNER_FILE), String(process.pid), 'utf-8')
-			.catch((error) => logger.warn({ error, tempDir }, 'Failed to write PST owner sentinel'));
+			.catch((error) =>
+				logger.warn({ error, tempDir }, 'Failed to write PST owner sentinel')
+			);
 		const tempFilePath = join(tempDir, 'temp.pst');
 
 		await new Promise<void>((resolve, reject) => {
@@ -298,13 +307,32 @@ export class PSTConnector implements IEmailConnector {
 			pstFile = loadResult.pstFile;
 			tempDir = loadResult.tempDir;
 			const root = pstFile.getRootFolder();
+			// The identity constructed here becomes archived_emails.userEmail, which the
+			// per-mailbox dedup gate keys on — so it must be STABLE across import runs of
+			// the same source. pstFile.pstFilename is the path of the per-run temp copy
+			// (random mkdtemp dir) and a timestamp changes every run; both made every
+			// re-sync re-archive the entire PST as duplicates. Derive the fallback from
+			// the source's own file path instead, which never changes.
 			const displayName: string =
-				root.displayName || pstFile.pstFilename || String(new Date().getTime());
+				root.displayName ||
+				basename(
+					this.credentials.localFilePath || this.credentials.uploadedFilePath || ''
+				) ||
+				'pst-import';
 			logger.info(`Found potential mailbox: ${displayName}`);
-			const constructedPrimaryEmail = `${displayName.replace(/ /g, '.').toLowerCase()}@pst.local`;
+			// Strip the .pst extension, then: if the result is already an email address —
+			// e.g. the file is named after the mailbox it was exported from
+			// ("user@example.com.pst") — use it as the identity directly. Only names
+			// with no address get the synthetic @pst.local domain appended.
+			const normalizedName = displayName
+				.replace(/\.pst$/i, '')
+				.replace(/\s+/g, '.')
+				.toLowerCase();
+			const constructedPrimaryEmail = normalizedName.includes('@')
+				? normalizedName
+				: `${normalizedName}@pst.local`;
 			yield {
 				id: constructedPrimaryEmail,
-				// We will address the primaryEmail problem in the next section.
 				primaryEmail: constructedPrimaryEmail,
 				displayName: displayName,
 			};
@@ -459,91 +487,311 @@ export class PSTConnector implements IEmailConnector {
 	}
 
 	private async constructEml(msg: PSTMessage): Promise<string> {
-		let eml = '';
+		const CRLF = '\r\n';
 		const boundary = '----boundary-openarchiver';
 		const altBoundary = '----boundary-openarchiver_alt';
 
-		let headers = '';
+		/**
+		 * Wraps already-built MIME parts (each "headers + blank line + content") in a
+		 * multipart entity. Returns a header fragment starting at Content-Type so it can
+		 * serve as the top-level body or be nested as a part itself.
+		 */
+		const wrapMultipart = (
+			contentType: string,
+			wrapBoundary: string,
+			parts: string[]
+		): string => {
+			let out = `Content-Type: ${contentType}; boundary="${wrapBoundary}"` + CRLF + CRLF;
+			for (const part of parts) {
+				out += `--${wrapBoundary}` + CRLF + part + CRLF + CRLF;
+			}
+			out += `--${wrapBoundary}--` + CRLF;
+			return out;
+		};
+
+		const headerLines: string[] = [];
 
 		if (msg.senderName || msg.senderEmailAddress) {
-			headers += `From: ${msg.senderName} <${msg.senderEmailAddress}>\n`;
+			// For Exchange-internal senders, senderEmailAddress is an X.500 legacy DN
+			// ("/O=EXCHANGELABS/..."); resolve the real SMTP address where possible and
+			// keep the DN only as a last resort.
+			const senderAddress = this.resolveSenderSmtpAddress(msg) || msg.senderEmailAddress;
+			headerLines.push(`From: ${this.formatAddress(msg.senderName, senderAddress)}`);
 		}
-		if (msg.displayTo) {
-			headers += `To: ${msg.displayTo}\n`;
+
+		const { to, cc, bcc } = this.collectRecipients(msg);
+		// The recipient table can be missing in exported PSTs; fall back to the
+		// display strings ("; "-separated names) Outlook stores on the message.
+		if (to.length === 0 && msg.displayTo) {
+			to.push(...this.splitDisplayNames(msg.displayTo));
 		}
-		if (msg.displayCC) {
-			headers += `Cc: ${msg.displayCC}\n`;
+		if (cc.length === 0 && msg.displayCC) {
+			cc.push(...this.splitDisplayNames(msg.displayCC));
 		}
-		if (msg.displayBCC) {
-			headers += `Bcc: ${msg.displayBCC}\n`;
+		if (bcc.length === 0 && msg.displayBCC) {
+			bcc.push(...this.splitDisplayNames(msg.displayBCC));
+		}
+		if (to.length > 0) {
+			headerLines.push(`To: ${to.join(', ')}`);
+		}
+		if (cc.length > 0) {
+			headerLines.push(`Cc: ${cc.join(', ')}`);
+		}
+		if (bcc.length > 0) {
+			headerLines.push(`Bcc: ${bcc.join(', ')}`);
 		}
 		if (msg.subject) {
-			headers += `Subject: ${msg.subject}\n`;
+			headerLines.push(`Subject: ${this.encodeHeaderText(msg.subject)}`);
 		}
 		if (msg.clientSubmitTime) {
-			headers += `Date: ${new Date(msg.clientSubmitTime).toUTCString()}\n`;
+			headerLines.push(`Date: ${new Date(msg.clientSubmitTime).toUTCString()}`);
 		}
 		if (msg.internetMessageId) {
-			headers += `Message-ID: <${msg.internetMessageId}>\n`;
+			headerLines.push(`Message-ID: <${this.stripAngleBrackets(msg.internetMessageId)}>`);
 		}
 		if (msg.inReplyToId) {
-			headers += `In-Reply-To: ${msg.inReplyToId}`;
+			headerLines.push(`In-Reply-To: <${this.stripAngleBrackets(msg.inReplyToId)}>`);
 		}
-		if (msg.conversationId) {
-			headers += `Conversation-Id: ${msg.conversationId}`;
+		// PidTagConversationId is raw binary — hex-encode it, otherwise arbitrary bytes
+		// (including CR/LF) end up inside the header block and corrupt the message.
+		// getThreadId() consumes this header as a threading fallback.
+		if (msg.conversationId?.length) {
+			headerLines.push(`Conversation-Id: ${msg.conversationId.toString('hex')}`);
 		}
-		headers += 'MIME-Version: 1.0\n';
+		headerLines.push('MIME-Version: 1.0');
 
-		//add new headers
-		if (!/Content-Type:/i.test(headers)) {
-			if (msg.hasAttachments) {
-				headers += `Content-Type: multipart/mixed; boundary="${boundary}"\n`;
-				headers += `Content-Type: multipart/alternative; boundary="${altBoundary}"\n\n`;
-				eml += headers;
-				eml += `--${boundary}\n\n`;
-			} else {
-				eml += headers;
-				eml += `Content-Type: multipart/alternative; boundary="${altBoundary}"\n\n`;
-			}
+		// Body: text and/or HTML versions, base64-encoded so that raw Outlook HTML
+		// (unlimited line lengths, arbitrary content) cannot break the MIME framing.
+		const bodyParts: string[] = [];
+		if (msg.body) {
+			bodyParts.push(
+				'Content-Type: text/plain; charset="utf-8"' +
+					CRLF +
+					'Content-Transfer-Encoding: base64' +
+					CRLF +
+					CRLF +
+					this.toBase64Lines(Buffer.from(msg.body, 'utf-8'))
+			);
 		}
-		// Body
-		const hasBody = !!msg.body;
-		const hasHtml = !!msg.bodyHTML;
-
-		if (hasBody) {
-			eml += `--${altBoundary}\n`;
-			eml += 'Content-Type: text/plain; charset="utf-8"\n\n';
-			eml += `${msg.body}\n\n`;
+		if (msg.bodyHTML) {
+			bodyParts.push(
+				'Content-Type: text/html; charset="utf-8"' +
+					CRLF +
+					'Content-Transfer-Encoding: base64' +
+					CRLF +
+					CRLF +
+					this.toBase64Lines(Buffer.from(msg.bodyHTML, 'utf-8'))
+			);
 		}
-
-		if (hasHtml) {
-			eml += `--${altBoundary}\n`;
-			eml += 'Content-Type: text/html; charset="utf-8"\n\n';
-			eml += `${msg.bodyHTML}\n\n`;
-		}
-
-		if (hasBody || hasHtml) {
-			eml += `--${altBoundary}--\n`;
+		if (bodyParts.length === 0) {
+			bodyParts.push('Content-Type: text/plain; charset="utf-8"' + CRLF + CRLF);
 		}
 
+		const bodySection =
+			bodyParts.length > 1
+				? wrapMultipart('multipart/alternative', altBoundary, bodyParts)
+				: bodyParts[0];
+
+		const attachmentParts: string[] = [];
 		if (msg.hasAttachments) {
 			for (let i = 0; i < msg.numberOfAttachments; i++) {
-				const attachment = msg.getAttachment(i);
-				const attachmentStream = attachment.fileInputStream;
-				if (attachmentStream) {
+				try {
+					const attachment = msg.getAttachment(i);
+					const attachmentStream = attachment.fileInputStream;
+					if (!attachmentStream) {
+						continue;
+					}
 					const attachmentBuffer = Buffer.alloc(attachment.filesize);
 					attachmentStream.readCompletely(attachmentBuffer);
-					eml += `\n--${boundary}\n`;
-					eml += `Content-Type: ${attachment.mimeTag}; name="${attachment.longFilename}"\n`;
-					eml += `Content-Disposition: attachment; filename="${attachment.longFilename}"\n`;
-					eml += 'Content-Transfer-Encoding: base64\n\n';
-					eml += `${attachmentBuffer.toString('base64')}\n`;
+					const filename = this.encodeHeaderText(
+						attachment.longFilename || attachment.filename || `attachment-${i + 1}`
+					).replace(/"/g, "'");
+					const mimeType =
+						this.sanitizeHeaderValue(attachment.mimeTag) || 'application/octet-stream';
+					const contentId = this.stripAngleBrackets(attachment.contentId);
+					let part = `Content-Type: ${mimeType}; name="${filename}"` + CRLF;
+					// Parts referenced from the HTML via cid: need a Content-ID and inline
+					// disposition, or previews cannot resolve embedded images.
+					part +=
+						`Content-Disposition: ${contentId ? 'inline' : 'attachment'}; filename="${filename}"` +
+						CRLF;
+					if (contentId) {
+						part += `Content-ID: <${contentId}>` + CRLF;
+					}
+					part += 'Content-Transfer-Encoding: base64' + CRLF + CRLF;
+					part += this.toBase64Lines(attachmentBuffer);
+					attachmentParts.push(part);
+				} catch (error) {
+					// A single corrupt attachment should not lose the whole email.
+					logger.warn({ error }, 'Skipping unreadable PST attachment');
 				}
 			}
-			eml += `\n--${boundary}--`;
 		}
 
+		let eml = headerLines.join(CRLF) + CRLF;
+		if (attachmentParts.length > 0) {
+			eml += wrapMultipart('multipart/mixed', boundary, [bodySection, ...attachmentParts]);
+		} else {
+			eml += bodySection;
+		}
 		return eml;
+	}
+
+	/**
+	 * Resolves the sender's SMTP address for messages whose PR_SENDER_EMAIL_ADDRESS
+	 * holds an Exchange X.500 legacy DN (internal senders and Sent Items). Returns ''
+	 * when no SMTP form exists in the message.
+	 */
+	private resolveSenderSmtpAddress(msg: PSTMessage): string {
+		const senderEmail = msg.senderEmailAddress || '';
+		// Already SMTP ("EX" DNs never contain '@').
+		if (senderEmail.includes('@')) {
+			return senderEmail;
+		}
+
+		// PidTagSenderSmtpAddress / PidTagSentRepresentingSmtpAddress carry the SMTP
+		// form for EX senders in modern exports. pst-extractor has no public getter for
+		// them, so read the properties through the (TypeScript-only) protected reader.
+		const readProperty = (id: number): string => {
+			try {
+				return (
+					(msg as unknown as { getStringItem(identifier: number): string }).getStringItem(
+						id
+					) || ''
+				);
+			} catch {
+				return '';
+			}
+		};
+
+		// Received mail often retains the original internet headers — take the From:
+		// addr-spec from there. Unfold folded header lines first.
+		const fromTransportHeaders = (): string => {
+			const transportHeaders = (msg.transportMessageHeaders || '').replace(
+				/\r?\n[ \t]+/g,
+				' '
+			);
+			const fromLine = transportHeaders.match(/^From:[^\r\n]*$/im)?.[0] ?? '';
+			return (
+				fromLine.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ??
+				fromLine.match(/^From:\s*([^<>\s]+@[^<>\s]+)\s*$/i)?.[1] ??
+				''
+			);
+		};
+
+		const smtpProperty = readProperty(0x5d01) || readProperty(0x5d02);
+		const sentRepresenting = msg.sentRepresentingEmailAddress || '';
+
+		let resolved = '';
+		if (smtpProperty.includes('@')) {
+			resolved = smtpProperty;
+		} else if (sentRepresenting.includes('@')) {
+			resolved = sentRepresenting;
+		} else {
+			resolved = fromTransportHeaders();
+		}
+
+		const dnKey = senderEmail.toLowerCase();
+		if (resolved) {
+			if (dnKey) {
+				this.dnToSmtp.set(dnKey, resolved);
+			}
+			return resolved;
+		}
+		// Sent Items usually carry neither transport headers nor the SMTP properties;
+		// fall back to what this walk has already learned about this DN.
+		return this.dnToSmtp.get(dnKey) ?? '';
+	}
+
+	/** Strips CR/LF/NUL so a header value cannot terminate or corrupt the header block. */
+	private sanitizeHeaderValue(value: string | undefined): string {
+		return (value ?? '').replace(/[\r\n\0]+/g, ' ').trim();
+	}
+
+	/** RFC 2047 B-encodes a header value when it contains non-ASCII characters. */
+	private encodeHeaderText(value: string): string {
+		const sanitized = this.sanitizeHeaderValue(value);
+		if (!/[^\x20-\x7e]/.test(sanitized)) {
+			return sanitized;
+		}
+		return `=?utf-8?B?${Buffer.from(sanitized, 'utf-8').toString('base64')}?=`;
+	}
+
+	/** Sanitizes an identifier for use inside <...> in Message-ID-style headers. */
+	private stripAngleBrackets(value: string | undefined): string {
+		return this.sanitizeHeaderValue(value).replace(/^<+|>+$/g, '');
+	}
+
+	/** Formats a single mailbox for an address header. Either argument may be empty. */
+	private formatAddress(name: string | undefined, email: string | undefined): string {
+		const safeName = name ? this.encodeHeaderText(name) : '';
+		const safeEmail = this.sanitizeHeaderValue(email).replace(/[<>]/g, '');
+		if (safeName && safeEmail) {
+			return `"${safeName.replace(/"/g, "'")}" <${safeEmail}>`;
+		}
+		return safeEmail || safeName;
+	}
+
+	/** Splits an Outlook display string ("Name A; Name B") into header-safe tokens. */
+	private splitDisplayNames(display: string): string[] {
+		return display
+			.split(';')
+			.map((name) => this.encodeHeaderText(name))
+			.filter(Boolean);
+	}
+
+	/**
+	 * Reads the MAPI recipient table and formats each entry for To/Cc/Bcc headers.
+	 * Unlike the display strings, table entries carry real SMTP addresses.
+	 */
+	private collectRecipients(msg: PSTMessage): { to: string[]; cc: string[]; bcc: string[] } {
+		const to: string[] = [];
+		const cc: string[] = [];
+		const bcc: string[] = [];
+		let recipientCount = 0;
+		try {
+			recipientCount = msg.numberOfRecipients;
+		} catch {
+			return { to, cc, bcc };
+		}
+		for (let i = 0; i < recipientCount; i++) {
+			try {
+				const recipient = msg.getRecipient(i);
+				if (!recipient) {
+					continue;
+				}
+				// Recipient rows carry both the X.500 DN and the SMTP form — learn the
+				// pairing so unresolvable DN senders (Sent Items) can be mapped later.
+				const recipientDn = (recipient.emailAddress || '').toLowerCase();
+				const recipientSmtp = recipient.smtpAddress || '';
+				if (recipientDn.startsWith('/') && recipientSmtp.includes('@')) {
+					this.dnToSmtp.set(recipientDn, recipientSmtp);
+				}
+				const formatted = this.formatAddress(
+					recipient.displayName,
+					recipient.smtpAddress || recipient.emailAddress
+				);
+				if (!formatted) {
+					continue;
+				}
+				// PR_RECIPIENT_TYPE: 1 = To, 2 = Cc, 3 = Bcc.
+				if (recipient.recipientType === 2) {
+					cc.push(formatted);
+				} else if (recipient.recipientType === 3) {
+					bcc.push(formatted);
+				} else {
+					to.push(formatted);
+				}
+			} catch {
+				// Individually corrupt recipient rows are skipped; the rest are kept.
+			}
+		}
+		return { to, cc, bcc };
+	}
+
+	/** Base64-encodes content wrapped at 76 columns, per RFC 2045 line-length limits. */
+	private toBase64Lines(content: Buffer): string {
+		return content.toString('base64').replace(/(.{76})(?=.)/g, '$1\r\n');
 	}
 
 	public getUpdatedSyncState(): SyncState {
