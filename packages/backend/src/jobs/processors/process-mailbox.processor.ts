@@ -34,12 +34,23 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		const connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
+		// Resolve the merge-group source IDs ONCE per mailbox job. This value is
+		// stable for the whole run, so passing it into the per-email duplicate
+		// check and processEmail avoids re-running findGroupSourceIds (a DB query
+		// + credential decrypt + children query) on every single message.
+		const groupIds = await IngestionService.findGroupSourceIds(ingestionSourceId);
+
 		// Pre-check for duplicates without fetching full email content.
 		// Scoped to this specific mailbox (userEmail) so that different recipients
 		// of the same email each get their own archived row — only skipping when
 		// THIS mailbox already has the email (re-sync idempotency).
 		const checkDuplicate = async (messageId: string) => {
-			return await IngestionService.doesEmailExist(messageId, ingestionSourceId, userEmail);
+			return await IngestionService.doesEmailExist(
+				messageId,
+				ingestionSourceId,
+				userEmail,
+				groupIds
+			);
 		};
 
 		// Per-message accounting: processEmail returns a ProcessEmailError object on
@@ -67,7 +78,9 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 					email,
 					source,
 					storageService,
-					userEmail
+					userEmail,
+					false,
+					groupIds
 				);
 				if (processedEmail && 'error' in processedEmail) {
 					messagesFailed++;

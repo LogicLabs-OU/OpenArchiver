@@ -18,16 +18,25 @@ export class ImapConnector implements IEmailConnector {
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
 	private options: ConnectorOptions;
+	// Test seam: when provided, client creation is delegated to this factory
+	// instead of constructing a real ImapFlow. Also used by connect()'s
+	// rebuild path, so retries get a fresh injected client. Undefined in prod.
+	private clientFactory?: () => ImapFlow;
 
 	constructor(
 		private credentials: GenericImapCredentials,
-		options?: ConnectorOptions
+		options?: ConnectorOptions,
+		clientFactory?: () => ImapFlow
 	) {
 		this.options = options ?? { preserveOriginalFile: false };
+		this.clientFactory = clientFactory;
 		this.client = this.createClient();
 	}
 
 	private createClient(): ImapFlow {
+		if (this.clientFactory) {
+			return this.clientFactory();
+		}
 		const client = new ImapFlow({
 			host: this.credentials.host,
 			port: this.credentials.port,
@@ -251,37 +260,103 @@ export class ImapConnector implements IEmailConnector {
 								}
 							}
 
-							// --- Pass 2: fetch full source one message at a time for non-duplicate UIDs.
-							for (const uid of uidsToFetch) {
-								logger.debug(
-									{ mailboxPath, uid },
-									'Fetching full source for message'
-								);
+							// --- Pass 2: bulk-fetch full source for all non-duplicate UIDs in a
+							// SINGLE ranged IMAP FETCH (pipelined by the server) instead of one
+							// FETCH command per message — the previous per-message round-trip was
+							// the dominant ingest bottleneck. Stream + yield as each arrives so the
+							// heap stays bounded to one message (matches the temp-file design). On
+							// a mid-stream disconnect, reconnect and re-fetch only the UIDs not yet
+							// yielded, preserving the previous per-message retry robustness.
+							if (uidsToFetch.length > 0) {
+								const yielded = new Set<number>();
+								const maxRetries = 5;
+								let attempt = 0;
 
-								try {
-									const fullMsg = await this.withRetry(
-										async () =>
-											await this.client.fetchOne(
-												String(uid),
-												{
-													envelope: true,
-													source: true,
-													bodyStructure: true,
-													uid: true,
-												},
-												{ uid: true }
-											)
-									);
-
-									if (fullMsg && fullMsg.envelope && fullMsg.source) {
-										yield await this.parseMessage(fullMsg, mailboxPath);
+								while (true) {
+									const remaining = uidsToFetch.filter((u) => !yielded.has(u));
+									if (remaining.length === 0) {
+										break;
 									}
-								} catch (err: any) {
-									logger.error(
-										{ err, mailboxPath, uid },
-										'Failed to fetch or parse message'
-									);
-									throw err;
+
+									// Set only when parseMessage (not the network) throws, so a bad
+									// message aborts the mailbox instead of being retried as if it
+									// were a transient fetch failure.
+									let parseError: unknown = null;
+
+									try {
+										await this.connect();
+										logger.debug(
+											{ mailboxPath, count: remaining.length },
+											'Bulk-fetching full source for non-duplicate messages'
+										);
+
+										for await (const fullMsg of this.client.fetch(
+											{ uid: remaining.join(',') },
+											{
+												envelope: true,
+												source: true,
+												bodyStructure: true,
+												uid: true,
+											}
+										)) {
+											// Mark received BEFORE parsing so a reconnect never
+											// re-fetches or double-yields this message.
+											if (fullMsg?.uid) {
+												yielded.add(fullMsg.uid);
+											}
+
+											if (fullMsg && fullMsg.envelope && fullMsg.source) {
+												let parsed: EmailObject;
+												try {
+													parsed = await this.parseMessage(
+														fullMsg,
+														mailboxPath
+													);
+												} catch (err) {
+													parseError = err;
+													break;
+												}
+												yield parsed;
+											}
+										}
+									} catch (err: any) {
+										// Network/stream error → reconnect and retry only the
+										// still-unyielded UIDs with exponential backoff + jitter.
+										attempt++;
+										logger.error(
+											{ err, mailboxPath, attempt },
+											`Bulk source fetch failed on attempt ${attempt}`
+										);
+										if (attempt >= maxRetries) {
+											logger.error(
+												{ err, mailboxPath },
+												'Bulk source fetch failed after all retries.'
+											);
+											throw err;
+										}
+										const delay = Math.pow(2, attempt) * 1000;
+										const jitter = Math.random() * 1000;
+										logger.info(
+											`Retrying bulk fetch in ${Math.round(
+												(delay + jitter) / 1000
+											)}s`
+										);
+										await new Promise((resolve) =>
+											setTimeout(resolve, delay + jitter)
+										);
+										continue;
+									}
+
+									// Stream drained without a network error. A parseMessage
+									// failure is fatal for the mailbox (matches prior behavior).
+									if (parseError) {
+										logger.error(
+											{ err: parseError, mailboxPath },
+											'Failed to parse message'
+										);
+										throw parseError;
+									}
+									break;
 								}
 							}
 

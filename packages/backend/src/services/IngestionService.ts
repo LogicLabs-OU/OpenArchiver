@@ -779,13 +779,16 @@ export class IngestionService {
 	public static async doesEmailExist(
 		messageId: string,
 		ingestionSourceId: string,
-		userEmail: string
+		userEmail: string,
+		groupIds?: string[]
 	): Promise<boolean> {
-		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
+		// Callers processing many messages for one source can pass a precomputed
+		// merge-group id list to avoid re-resolving it (DB + decrypt) per message.
+		const resolvedGroupIds = groupIds ?? (await this.findGroupSourceIds(ingestionSourceId));
 		const sourceFilter =
-			groupIds.length === 1
-				? eq(archivedEmails.ingestionSourceId, groupIds[0])
-				: inArray(archivedEmails.ingestionSourceId, groupIds);
+			resolvedGroupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, resolvedGroupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, resolvedGroupIds);
 
 		const existingEmail = await db.query.archivedEmails.findFirst({
 			where: and(
@@ -888,6 +891,10 @@ export class IngestionService {
 	 *   email.tempFilePath. Used by the journaling fan-out loop which calls
 	 *   processEmail() multiple times with the same EmailObject — only the last
 	 *   caller should clean up the temp file.
+	 * @param precomputedGroupIds Optional merge-group source IDs resolved once by the
+	 *   caller (e.g. the process-mailbox loop) so this method doesn't re-run
+	 *   findGroupSourceIds (a DB query + credential decrypt + children query) on
+	 *   every message. Must be the group of `source.id`.
 	 * @returns The pending email on success, `null` when the email was deduplicated /
 	 *   intentionally skipped, or a ProcessEmailError when archiving failed. Callers must
 	 *   count error returns towards their failure totals — treating them as skips is what
@@ -898,7 +905,8 @@ export class IngestionService {
 		source: IngestionSource,
 		storage: StorageService,
 		userEmail: string,
-		skipTempFileCleanup: boolean = false
+		skipTempFileCleanup: boolean = false,
+		precomputedGroupIds?: string[]
 	): Promise<PendingEmail | ProcessEmailError | null> {
 		try {
 			// Read the raw bytes from the temp file written by the connector
@@ -935,7 +943,8 @@ export class IngestionService {
 			//         in the group. Write file + create row.
 			// ─────────────────────────────────────────────────────────────────
 
-			const groupIds = await IngestionService.findGroupSourceIds(source.id);
+			const groupIds =
+				precomputedGroupIds ?? (await IngestionService.findGroupSourceIds(source.id));
 			const groupSourceFilter =
 				groupIds.length === 1
 					? eq(archivedEmails.ingestionSourceId, groupIds[0])
