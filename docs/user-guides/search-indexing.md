@@ -39,6 +39,10 @@ It is controlled by environment variables:
 How to search the archive — keywords, advanced filters, date ranges, field-scoped search — is covered in [Searching the Archive](/user-guides/searching). Two things depend on this page and need a one-time reindex for mail archived on older versions: the **with/without attachments** filter (older mail is counted as "without attachments" until reindexed), and **resolved sender names in search results** (older mail shows the raw sender address instead of the display name until reindexed).
 :::
 
+::: tip Looking for search filters?
+How to actually search the archive — keywords, advanced filters, date ranges, field-scoped search — is covered in [Searching the Archive](/user-guides/searching). One filter depends on this page: the **with/without attachments** filter needs a one-time reindex before emails archived on older versions are counted as "with attachments".
+:::
+
 ## Reindexing
 
 Reindexing rebuilds search documents from the archive. It never re-downloads mail and never duplicates data. There are two modes:
