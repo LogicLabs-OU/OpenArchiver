@@ -173,6 +173,20 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			// flips the source to 'error', and the next scheduler tick launches a SECOND
 			// concurrent import that races this one and duplicates the archive.
 			if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
+				// Checkpoint progress so a mid-mailbox interruption (throttle/hang/
+				// restart) doesn't discard everything and force a re-scan from UID 1.
+				// Drain the in-flight pool FIRST so the checkpointed maxUid only covers
+				// durably-archived messages — acquiring every permit is only possible
+				// once all dispatched processEmail calls have released theirs.
+				for (let i = 0; i < CONCURRENCY; i++) await sem.acquire();
+				try {
+					await SyncSessionService.checkpointSyncState(
+						ingestionSourceId,
+						connector.getUpdatedSyncState(userEmail)
+					);
+				} finally {
+					for (let i = 0; i < CONCURRENCY; i++) sem.release();
+				}
 				await SyncSessionService.heartbeat(sessionId);
 				lastHeartbeatAt = Date.now();
 			}

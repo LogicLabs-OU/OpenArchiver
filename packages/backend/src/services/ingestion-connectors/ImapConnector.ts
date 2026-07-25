@@ -238,10 +238,11 @@ export class ImapConnector implements IEmailConnector {
 									continue;
 								}
 
-								if (msg.uid > this.newMaxUids[mailboxPath]) {
-									this.newMaxUids[mailboxPath] = msg.uid;
-								}
-
+								// NB: the checkpointable maxUid is advanced at batch-end
+								// (below), NOT here per-envelope — advancing it during the
+								// Pass 1 scan would let a mid-job checkpoint report a UID
+								// whose body hasn't been fetched/archived yet, causing the
+								// next resume to skip it.
 								if (msg.envelope) {
 									candidates.push({
 										uid: msg.uid,
@@ -385,6 +386,14 @@ export class ImapConnector implements IEmailConnector {
 									break;
 								}
 							}
+
+							// This batch is fully scanned and its non-duplicate bodies have
+							// all been yielded: advance the checkpointable high-water mark to
+							// the batch's upper bound. Every UID <= endUid is now either
+							// yielded for archival or a confirmed duplicate, so a mid-job
+							// checkpoint of this value is safe (once the consumer has drained
+							// its in-flight archival work).
+							this.newMaxUids[mailboxPath] = endUid;
 
 							// Move to the next batch
 							startUid = endUid + 1;

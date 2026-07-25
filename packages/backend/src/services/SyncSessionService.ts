@@ -137,6 +137,37 @@ export class SyncSessionService {
 	}
 
 	/**
+	 * Mid-job checkpoint: merge a partial SyncState (e.g. the current maxUid) into
+	 * the ingestion source's sync_state column, using the same jsonb || merge as
+	 * recordMailboxResult but without touching session counters. Lets a long
+	 * mailbox persist progress incrementally, so an interruption (throttle/hang)
+	 * before completion doesn't discard everything and force a re-scan from UID 1.
+	 *
+	 * The caller MUST ensure the checkpointed state only covers durably-archived
+	 * messages (see process-mailbox.processor: it drains in-flight work first).
+	 */
+	public static async checkpointSyncState(
+		ingestionSourceId: string,
+		syncState: SyncState
+	): Promise<void> {
+		if (!syncState || Object.keys(syncState).length === 0) {
+			return;
+		}
+		try {
+			await db
+				.update(ingestionSources)
+				.set({
+					syncState: sql`COALESCE(${ingestionSources.syncState}, '{}'::jsonb) || ${JSON.stringify(syncState)}::jsonb`,
+				})
+				.where(eq(ingestionSources.id, ingestionSourceId));
+		} catch (error) {
+			// Non-fatal: a missed checkpoint just means the next one (or job
+			// completion) persists progress. Don't let it fail the mailbox.
+			logger.warn({ err: error, ingestionSourceId }, 'Failed to checkpoint sync state');
+		}
+	}
+
+	/**
 	 * Fetches a sync session by its ID.
 	 */
 	public static async findById(sessionId: string): Promise<SyncSessionRecord> {
