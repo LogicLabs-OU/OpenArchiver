@@ -59,6 +59,17 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			);
 		};
 
+		// Batched form of the above: connectors scanning large mailboxes dedup a
+		// whole envelope batch in ONE query instead of one per message.
+		const checkDuplicatesBatch = async (messageIds: string[]) => {
+			return await IngestionService.filterExistingMessageIds(
+				messageIds,
+				ingestionSourceId,
+				userEmail,
+				groupIds
+			);
+		};
+
 		// Per-message accounting: processEmail returns a ProcessEmailError object on
 		// genuine failures (parse/storage/DB) and null only for dedup skips. Failures
 		// must count towards the mailbox result — treating them as skips let imports
@@ -120,7 +131,8 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		for await (const email of connector.fetchEmails(
 			userEmail,
 			source.syncState,
-			checkDuplicate
+			checkDuplicate,
+			checkDuplicatesBatch
 		)) {
 			if (email) {
 				messagesSeen++;

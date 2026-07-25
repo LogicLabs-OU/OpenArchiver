@@ -805,6 +805,65 @@ export class IngestionService {
 	}
 
 	/**
+	 * Batched form of doesEmailExist for the ingestion pre-check: given many
+	 * candidate message-ids, return the subset that already exists for this
+	 * mailbox in a SINGLE query, instead of one findFirst per id. This collapses
+	 * the per-message dedup round-trips during the envelope scan (the dominant
+	 * cost of re-scanning an already-archived mailbox) into one query per batch.
+	 * A message-id matches on either providerMessageId or messageIdHeader,
+	 * scoped to the merge group + userEmail — identical predicate to
+	 * doesEmailExist, just set-based.
+	 */
+	public static async filterExistingMessageIds(
+		messageIds: string[],
+		ingestionSourceId: string,
+		userEmail: string,
+		groupIds?: string[]
+	): Promise<Set<string>> {
+		const existing = new Set<string>();
+		if (messageIds.length === 0) {
+			return existing;
+		}
+
+		const resolvedGroupIds = groupIds ?? (await this.findGroupSourceIds(ingestionSourceId));
+		const sourceFilter =
+			resolvedGroupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, resolvedGroupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, resolvedGroupIds);
+
+		const rows = await db
+			.select({
+				providerMessageId: archivedEmails.providerMessageId,
+				messageIdHeader: archivedEmails.messageIdHeader,
+			})
+			.from(archivedEmails)
+			.where(
+				and(
+					sourceFilter,
+					eq(archivedEmails.userEmail, userEmail),
+					or(
+						inArray(archivedEmails.providerMessageId, messageIds),
+						inArray(archivedEmails.messageIdHeader, messageIds)
+					)
+				)
+			);
+
+		// A matched row carries both columns; only one necessarily matched the IN
+		// clause, so intersect with the requested ids to return exactly the input
+		// message-ids that exist.
+		const requested = new Set(messageIds);
+		for (const row of rows) {
+			if (row.providerMessageId && requested.has(row.providerMessageId)) {
+				existing.add(row.providerMessageId);
+			}
+			if (row.messageIdHeader && requested.has(row.messageIdHeader)) {
+				existing.add(row.messageIdHeader);
+			}
+		}
+		return existing;
+	}
+
+	/**
 	 * Builds the filesystem-safe filename component for an email's .eml from its id.
 	 * The provider id / Message-ID becomes an actual filename, but Exchange-style ids can
 	 * exceed the 255-byte filename limit or contain '/', producing ENAMETOOLONG / bad-path

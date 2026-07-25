@@ -35,7 +35,11 @@ export interface IEmailConnector {
 	fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string) => Promise<boolean>,
+		// Optional batched pre-check: given many candidate message-ids, returns the
+		// subset already archived. Connectors that scan large mailboxes (IMAP) use
+		// this to dedup a whole batch in one DB query; others keep checkDuplicate.
+		checkDuplicatesBatch?: (messageIds: string[]) => Promise<Set<string>>
 	): AsyncGenerator<EmailObject | null>;
 	getUpdatedSyncState(userEmail?: string): SyncState;
 	listAllUsers(): AsyncGenerator<MailboxUser>;

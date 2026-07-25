@@ -148,4 +148,50 @@ describe('ImapConnector.fetchEmails batching', () => {
 		// Envelopes were still scanned and max UID still advances.
 		expect(connector.getUpdatedSyncState().imap?.['INBOX']?.maxUid).toBe(103);
 	});
+
+	it('dedups the whole batch in ONE call when a batch checker is provided', async () => {
+		const recorder: Recorder = {
+			fetchOneCalls: [],
+			envelopeFetchRanges: [],
+			sourceFetchRanges: [],
+		};
+		const connector = new ImapConnector(credentials, { preserveOriginalFile: false }, () =>
+			makeFakeClient(recorder)
+		);
+
+		// Per-message checker must NOT be used when a batch checker is present.
+		const checkDuplicate = vi.fn(async () => false);
+		const checkDuplicatesBatch = vi.fn(
+			async (_ids: string[]) => new Set<string>(['<m2@example.com>'])
+		);
+
+		const collected = [];
+		for await (const email of connector.fetchEmails(
+			'user@example.com',
+			null,
+			checkDuplicate,
+			checkDuplicatesBatch
+		)) {
+			if (email) collected.push(email);
+		}
+
+		try {
+			// Dedup is a SINGLE call for the batch, given every message-id.
+			expect(checkDuplicatesBatch).toHaveBeenCalledTimes(1);
+			expect(checkDuplicatesBatch.mock.calls[0][0].sort()).toEqual([
+				'<m1@example.com>',
+				'<m2@example.com>',
+				'<m3@example.com>',
+			]);
+			// The per-message checker is bypassed entirely.
+			expect(checkDuplicate).not.toHaveBeenCalled();
+
+			// Batch-flagged duplicate (<m2>) skipped; the other two fetched in one
+			// ranged source FETCH.
+			expect(recorder.sourceFetchRanges).toEqual(['101,103']);
+			expect(collected.map((e) => e.subject).sort()).toEqual(['Test 1', 'Test 3']);
+		} finally {
+			await Promise.all(collected.map((e) => unlink(e.tempFilePath).catch(() => {})));
+		}
+	});
 });

@@ -158,7 +158,8 @@ export class ImapConnector implements IEmailConnector {
 	public async *fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string) => Promise<boolean>,
+		checkDuplicatesBatch?: (messageIds: string[]) => Promise<Set<string>>
 	): AsyncGenerator<EmailObject | null> {
 		try {
 			// list all mailboxes first
@@ -220,8 +221,14 @@ export class ImapConnector implements IEmailConnector {
 							const endUid = Math.min(startUid + BATCH_SIZE - 1, maxUidToFetch);
 							const searchCriteria = { uid: `${startUid}:${endUid}` };
 
-							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
+							// --- Pass 1: fetch only envelope + uid (no source) for the entire
+							// batch, collecting candidates first so duplicates can be checked
+							// in ONE query (checkDuplicatesBatch) rather than one per message
+							// — the per-message round-trip dominated re-scans of an
+							// already-archived mailbox. Falls back to the per-message
+							// checkDuplicate when no batch checker is supplied.
 							const uidsToFetch: number[] = [];
+							const candidates: Array<{ uid: number; messageId?: string }> = [];
 
 							for await (const msg of this.client.fetch(searchCriteria, {
 								envelope: true,
@@ -235,29 +242,48 @@ export class ImapConnector implements IEmailConnector {
 									this.newMaxUids[mailboxPath] = msg.uid;
 								}
 
-								// Duplicate check against the Message-ID from the envelope.
-								// If a duplicate is found we skip fetching the full source entirely,
-								// avoiding loading attachment binary data into memory for known emails.
-								if (checkDuplicate && msg.envelope?.messageId) {
-									const isDuplicate = await checkDuplicate(
-										msg.envelope.messageId
-									);
+								if (msg.envelope) {
+									candidates.push({
+										uid: msg.uid,
+										messageId: msg.envelope.messageId ?? undefined,
+									});
+								}
+							}
+
+							// One batched dedup lookup for the whole envelope batch, when
+							// available. A duplicate is skipped so its full source (and any
+							// attachment binary) is never fetched.
+							let existingIds: Set<string> | null = null;
+							if (checkDuplicatesBatch) {
+								const ids = candidates
+									.map((c) => c.messageId)
+									.filter((id): id is string => !!id);
+								existingIds =
+									ids.length > 0
+										? await checkDuplicatesBatch(ids)
+										: new Set<string>();
+							}
+
+							for (const candidate of candidates) {
+								if (candidate.messageId) {
+									const isDuplicate = existingIds
+										? existingIds.has(candidate.messageId)
+										: checkDuplicate
+											? await checkDuplicate(candidate.messageId)
+											: false;
 									if (isDuplicate) {
 										logger.debug(
 											{
 												mailboxPath,
-												uid: msg.uid,
-												messageId: msg.envelope.messageId,
+												uid: candidate.uid,
+												messageId: candidate.messageId,
 											},
 											'Skipping duplicate email (pre-check)'
 										);
 										continue;
 									}
 								}
-
-								if (msg.envelope) {
-									uidsToFetch.push(msg.uid);
-								}
+								uidsToFetch.push(candidate.uid);
 							}
 
 							// --- Pass 2: bulk-fetch full source for all non-duplicate UIDs in a
