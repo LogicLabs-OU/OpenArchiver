@@ -12,6 +12,8 @@ The integrity check feature recalculates these signatures for the stored files a
 
 When you view an email in the Open Archiver interface, an integrity report is automatically generated and displayed. This report provides a clear, at-a-glance status for the email file and each of its attachments.
 
+![Archived email detail showing the integrity report panel](/screenshots/email-view.png)
+
 ### Statuses
 
 - **Valid (Green Badge):** A "Valid" status means that the current signature of the file matches the original signature stored in the database. This is the expected status and indicates that the file's integrity is intact.

@@ -8,6 +8,8 @@ Welcome to Open Archiver! This guide will help you get started with setting up a
 
 Open Archiver provides a robust, self-hosted solution for archiving, storing, indexing, and searching emails from major platforms, including Google Workspace (Gmail), Microsoft 365, as well as generic IMAP-enabled email inboxes. Use Open Archiver to keep a permanent, tamper-proof record of your communication history, free from vendor lock-in.
 
+![Open Archiver dashboard](/screenshots/dashboard.png)
+
 ## Key Features
 
 - **Universal Ingestion**: Connect to Google Workspace, Microsoft 365, and standard IMAP servers to perform initial bulk imports and maintain continuous, real-time synchronization.
@@ -16,6 +18,10 @@ Open Archiver provides a robust, self-hosted solution for archiving, storing, in
 - **Powerful Search & eDiscovery**: A high-performance search engine indexes the full text of emails and attachments (PDF, DOCX, etc.).
 - **Compliance & Retention**: Define granular retention policies to automatically manage the lifecycle of your data. Place legal holds on communications to prevent deletion during litigation (TBD).
 - **Comprehensive Auditing**: An immutable audit trail logs all system activities, ensuring you have a clear record of who accessed what and when (TBD).
+
+Advanced search lets you combine keywords with structured filters — ingestion source, sender, recipient, mailbox, date range, and attachments — and scope matching to specific parts of each email.
+
+![Advanced search with filters and highlighted results](/screenshots/advanced-search.png)
 
 ## Installation
 

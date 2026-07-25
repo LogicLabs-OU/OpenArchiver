@@ -26,4 +26,8 @@ To ensure a successful import, you should prepare your PST file according to the
 
 6.  Click the **Submit** button.
 
+> **Upload feedback:** When you use the **Upload File** method, a progress bar shows the upload percentage while the file transfers, and a **Cancel** button lets you stop an in-progress upload. Once the upload finishes, a success panel confirms the stored file name and its path; if the upload fails, an error panel shows the reason so you can fix it and try again.
+
+![Uploading a file with a progress bar and cancel button](/screenshots/upload-progress.png)
+
 OpenArchiver will then start importing the emails from the PST file. The ingestion process may take some time, depending on the size of the file.

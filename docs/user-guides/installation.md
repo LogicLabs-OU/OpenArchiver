@@ -102,6 +102,7 @@ Here is a complete list of environment variables available for configuration:
 | `SYNC_FREQUENCY`        | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details.                                                        | `* * * * *`             |
 | `ALL_INCLUSIVE_ARCHIVE` | Set to `true` to include all emails, including Junk and Trash folders, in the email archive.                                                                 | `false`                 |
 | `PDF_PARSE_TIMEOUT_MS`  | Timeout (in ms) for the built-in PDF text extractor during indexing. A malformed PDF is given up on after this so it can't stall the indexing worker. Only applies when `TIKA_URL` is not set. | `20000`                 |
+| `LOG_LEVEL`             | Minimum severity of logs to emit. Set to `debug` for verbose per-tick scheduler and per-message ingestion logs; routine logs are quiet at `info`.            | `info`                  |
 
 #### Docker Compose Service Configuration
 
@@ -209,6 +210,10 @@ Once the services are running, you can access the Open Archiver web interface by
 Upon first visit, you will be redirected to the `/setup` page where you can set up your admin account. Make sure you are the first person who accesses the instance.
 
 If you are not redirected to the `/setup` page but instead see the login page, there might be something wrong with the database. Restart the service and try again.
+
+Once you have signed in, you land on the dashboard, which summarizes the archive — total emails, storage used, recent ingestion activity, and top senders.
+
+![Open Archiver dashboard](/screenshots/dashboard.png)
 
 ## 6. Next Steps
 

@@ -8,11 +8,11 @@ This guide explains how indexing stays reliable, how to see index coverage, and 
 
 - When emails are ingested (initial import or continuous sync), they are written to the archive and then queued for indexing on the **`indexing`** job queue.
 - Each batch is only marked as indexed **after Meilisearch confirms** the write succeeded. If Meilisearch rejects or drops a batch, the job fails and is retried automatically — it is never silently reported as done.
-- Because the index is a *secondary* store, it can always be rebuilt from the archive. Rebuilding is safe and idempotent: Meilisearch documents are keyed by the email ID, so re-indexing an email **updates** its document rather than creating a duplicate.
+- Because the index is a _secondary_ store, it can always be rebuilt from the archive. Rebuilding is safe and idempotent: Meilisearch documents are keyed by the email ID, so re-indexing an email **updates** its document rather than creating a duplicate.
 
 ## Index health
 
-Every ingestion source shows an **index-health** figure — "*X of Y emails indexed*" — comparing the number of archived emails (database) against the number of documents in the search index (Meilisearch). You can see it:
+Every ingestion source shows an **index-health** figure — "_X of Y emails indexed_" — comparing the number of archived emails (database) against the number of documents in the search index (Meilisearch). You can see it:
 
 - On the **Ingestion Sources** list (in the status hover card).
 - On a source's **Statistics** page (see below), as an index-coverage bar.
@@ -26,17 +26,17 @@ A background **reconcile** job runs on a schedule and re-queues any emails that 
 
 It is controlled by environment variables:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `INDEX_RECONCILE_ENABLED` | `true` | Enable/disable the periodic reconcile job. |
-| `INDEX_RECONCILE_CRON` | `*/30 * * * *` | How often reconcile runs (cron pattern). |
-| `INDEX_RECONCILE_PAGE_CAP` | `20` | Max batches enqueued per run, so a large backlog drains over several runs. |
-| `INDEX_RECONCILE_BACKPRESSURE` | `100` | If the indexing queue already has this many jobs, the run defers. |
-| `MAX_INDEX_ATTEMPTS` | `5` | Stop retrying an email after this many failed indexing attempts (prevents a single bad email from looping forever). |
-| `MEILI_WAIT_FOR_TASK_TIMEOUT` | `300000` | Milliseconds to wait for a Meilisearch task before treating the batch as failed. |
+| Variable                       | Default        | Purpose                                                                                                             |
+| ------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `INDEX_RECONCILE_ENABLED`      | `true`         | Enable/disable the periodic reconcile job.                                                                          |
+| `INDEX_RECONCILE_CRON`         | `*/30 * * * *` | How often reconcile runs (cron pattern).                                                                            |
+| `INDEX_RECONCILE_PAGE_CAP`     | `20`           | Max batches enqueued per run, so a large backlog drains over several runs.                                          |
+| `INDEX_RECONCILE_BACKPRESSURE` | `100`          | If the indexing queue already has this many jobs, the run defers.                                                   |
+| `MAX_INDEX_ATTEMPTS`           | `5`            | Stop retrying an email after this many failed indexing attempts (prevents a single bad email from looping forever). |
+| `MEILI_WAIT_FOR_TASK_TIMEOUT`  | `300000`       | Milliseconds to wait for a Meilisearch task before treating the batch as failed.                                    |
 
 ::: tip Looking for search filters?
-How to actually search the archive — keywords, advanced filters, date ranges, field-scoped search — is covered in [Searching the Archive](/user-guides/searching). One filter depends on this page: the **with/without attachments** filter needs a one-time reindex before emails archived on older versions are counted as "with attachments".
+How to search the archive — keywords, advanced filters, date ranges, field-scoped search — is covered in [Searching the Archive](/user-guides/searching). Two things depend on this page and need a one-time reindex for mail archived on older versions: the **with/without attachments** filter (older mail is counted as "without attachments" until reindexed), and **resolved sender names in search results** (older mail shows the raw sender address instead of the display name until reindexed).
 :::
 
 ## Reindexing
@@ -55,16 +55,18 @@ On the **Ingestion Sources** page, open a source's actions menu and choose **Rei
 Use the **Reindex All** button at the top of the Ingestion Sources page and pick **Reindex missing** or **Full rebuild**. This covers every source. See [Reindex All Sources](/api/ingestion#reindex-all-sources).
 
 ::: tip Upgrading from an older version
-On upgrade, existing emails are marked as indexed to avoid re-indexing the whole archive automatically. If the index-health figure shows a genuine gap for older data, run a **Full rebuild** (or a per-source full reindex) once to bring the index up to date.
+On upgrade, existing emails are marked as indexed to avoid re-indexing the whole archive automatically. If the index-health figure shows a genuine gap for older data, run a **Full rebuild** (or a per-source full reindex) once to bring the index up to date. A **Full rebuild** is also what backfills newer search fields for existing mail — for example the **with/without attachments** filter and **resolved sender names** in results, both added in v0.5.2.
 :::
 
 ### Watching progress
 
-Reindexing enqueues batches onto the `indexing` queue. You can watch them drain in **Admin → Jobs** (the `indexing` queue), and the index-health figure will climb as batches complete. If jobs pile up in *waiting* and never move, make sure the **indexing worker** process is running.
+Reindexing enqueues batches onto the `indexing` queue. You can watch them drain in **Admin → Jobs** (the `indexing` queue), and the index-health figure will climb as batches complete. If jobs pile up in _waiting_ and never move, make sure the **indexing worker** process is running.
 
 ## Per-source statistics
 
 Each ingestion source has a **View statistics** action (in the row menu) that opens a read-only page with total emails, mailboxes, storage usage (email + attachment), attachments, threads, date range, index coverage, a per-mailbox breakdown, merge-group children, and a recent-activity chart. See the [statistics endpoint](/api/ingestion#get-statistics).
+
+![Per-source statistics page with counts, storage, and index coverage](/screenshots/source-statistics.png)
 
 ## Search-index administration
 
@@ -76,3 +78,5 @@ For deeper troubleshooting, **Admin → Index** (Super Administrator only) mirro
 - **Tasks** — the Meilisearch task list (additions, settings updates, etc.) with status, received/indexed document counts, duration, timestamps, and error details for failed tasks, plus status filtering and pagination.
 
 These screens are backed by the read-only [Index Admin API](/api/index-admin).
+
+![Admin Index page with instance overview, index metadata, and per-source document counts](/screenshots/index-admin.png)

@@ -1,12 +1,15 @@
 <script lang="ts">
+	import type { ComponentType } from 'svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 
 	let {
+		icon: Icon,
 		header,
 		text,
 		buttonText,
 		click,
 	}: {
+		icon: ComponentType;
 		header: string;
 		text: string;
 		buttonText?: string;
@@ -16,21 +19,7 @@
 
 <div class="space-y-4 rounded-lg border-2 border-dashed border-gray-300 p-6 text-center">
 	<div>
-		<svg
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			aria-hidden="true"
-			class="mx-auto size-12 text-gray-400"
-		>
-			<path
-				d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-				stroke-width="2"
-				vector-effect="non-scaling-stroke"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			/>
-		</svg>
+		<Icon class="mx-auto size-12 text-gray-400" />
 	</div>
 
 	<h3 class="0 mt-2 text-sm font-semibold">{header}</h3>

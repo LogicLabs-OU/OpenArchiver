@@ -8,6 +8,8 @@ Search results always respect your permissions: you only ever see emails your ro
 
 Type keywords into the search bar on **Dashboard → Search** and press Enter. Matching terms are highlighted in the results, including matches inside attachments.
 
+![Search results with highlighted matches](/screenshots/search-results.png)
+
 Three matching strategies are available next to the search bar:
 
 - **Fuzzy** (default) — results contain at least one of your keywords; more matches rank higher.
@@ -19,6 +21,8 @@ Three matching strategies are available next to the search bar:
 Click **Advanced search** below the search bar to open the filter panel. Filters combine with your keywords — and with each other — using AND logic: an email must satisfy every active filter. Within a single filter, multiple values are OR-combined (any of them matches).
 
 Keywords become optional once at least one filter is active, so filters can also be used to browse the archive without a search term.
+
+![Advanced search panel with a sender filter applied](/screenshots/advanced-search.png)
 
 ### Ingestion sources
 
@@ -64,6 +68,12 @@ Emails archived before this feature existed need a one-time reindex before they 
 - **Newest first** (default) / **Oldest first** — sort by sent date.
 - **Relevance** — sort by search-ranking quality instead of date.
 
+## Opening a result
+
+Click any result to open the full email. The detail view shows the message body, its recipients, and a metadata panel with the mailbox it was archived from and a link to its ingestion source, alongside the integrity report and the rest of the email thread.
+
+![Archived email detail with metadata, integrity report, and thread](/screenshots/email-view.png)
+
 ## Shareable searches
 
 The full search state — keywords, strategy, and every filter — lives in the page URL. Bookmark it, share it, or keep it in a browser tab: reloading reproduces the identical search, and pagination preserves all active filters.
@@ -71,6 +81,8 @@ The full search state — keywords, strategy, and every filter — lives in the 
 ## Searching via the API
 
 Everything above is available programmatically through `GET /v1/search`, using the same parameters the UI produces (`sources`, `excludeSources`, `from`, `notFrom`, `to`, `notTo`, `mailboxes`, `dateFrom`, `dateTo`, `searchIn`, `hasAttachments`, `sort`). See the [Search API reference](/api/search) for the full parameter documentation.
+
+The mailbox and sender autocomplete is backed by `GET /v1/search/facets`, which returns permission-scoped, prefix-matched suggestions for a facet field — see [Suggest Facet Values](/api/search#suggest-facet-values-typeahead).
 
 Example — invoices from a specific sender in Q1 2025, searching only attachments:
 

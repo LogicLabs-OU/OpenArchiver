@@ -8,7 +8,8 @@ export type SupportedLanguage =
 	| 'nl' // Dutch
 	| 'ja' // Japanese
 	| 'et' // Estonian
-	| 'el'; // Greek
+	| 'el' // Greek
+	| 'bg'; // Bulgarian
 
 export type Theme = 'light' | 'dark' | 'system';
 

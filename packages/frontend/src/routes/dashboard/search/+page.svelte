@@ -22,6 +22,9 @@
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
 	import Paperclip from 'lucide-svelte/icons/paperclip';
 	import AdvancedSearchPanel from '$lib/components/search/AdvancedSearchPanel.svelte';
+	import EmptyStateIcon from '$lib/components/custom/EmptyStateIcon.svelte';
+	import Search from 'lucide-svelte/icons/search';
+	import SearchX from 'lucide-svelte/icons/search-x';
 
 	let { data }: { data: PageData } = $props();
 	let searchResult = $derived(data.searchResult);
@@ -133,6 +136,26 @@
 	function handleSearch(e: SubmitEvent) {
 		e.preventDefault();
 		goto(buildPageUrl(1), { keepFocus: true });
+	}
+
+	/** Resets keywords, matching strategy, and every advanced filter, then returns to the
+	 *  empty search page. Wired to the no-results empty state. */
+	function clearSearch() {
+		keywords = '';
+		matchingStrategy = 'last';
+		selectedSources = [];
+		excludedSources = [];
+		fromAddresses = [];
+		notFromAddresses = [];
+		toAddresses = [];
+		notToAddresses = [];
+		mailboxes = [];
+		dateFrom = '';
+		dateTo = '';
+		searchIn = [];
+		hasAttachments = 'any';
+		sort = 'date_desc';
+		goto('/dashboard/search');
 	}
 
 	function getHighlightedSnippets(text: string | undefined, snippetLength = 80): string[] {
@@ -270,222 +293,241 @@
 				{/if}
 
 				{#if searchResult}
-					<p class="text-muted-foreground mb-4">
-						{#if searchResult.total > 0}
+					{#if searchResult.total > 0}
+						<p class="text-muted-foreground mb-4">
 							{$t('app.search.found_results_in', {
 								total: searchResult.total,
 								seconds: searchResult.processingTimeMs / 1000,
 							} as any)}
-						{:else}
-							{$t('app.search.found_results', { total: searchResult.total } as any)}
-						{/if}
-					</p>
+						</p>
 
-					<div class="grid gap-4">
-						{#each searchResult.hits as hit}
-							{@const _formatted = hit._formatted || {}}
-							<a href="/dashboard/archived-emails/{hit.id}" class="block">
-								<Card>
-									<CardHeader>
-										<CardTitle>
-											{#if !isMounted}
-												<Skeleton class="h-6 w-3/4" />
-											{:else}
-												<div
-													use:shadowRender={_formatted.subject ||
-														hit.subject}
-												></div>
-											{/if}
-										</CardTitle>
-										<CardDescription
-											class="divide-forground flex flex-wrap items-center space-x-2 divide-x"
-										>
-											<span class="pr-2">
-												<span>{$t('app.search.from')}:</span>
+						<div class="grid gap-4">
+							{#each searchResult.hits as hit}
+								{@const _formatted = hit._formatted || {}}
+								<a href="/dashboard/archived-emails/{hit.id}" class="block">
+									<Card>
+										<CardHeader>
+											<CardTitle>
 												{#if !isMounted}
-													<span
-														class="bg-accent h-4 w-40 animate-pulse rounded-md"
-													></span>
+													<Skeleton class="h-6 w-3/4" />
 												{:else}
-													<span
-														class="inline-block"
-														use:shadowRender={_formatted.fromName ||
-															hit.fromName ||
-															_formatted.from ||
-															hit.from}
-													></span>
+													<div
+														use:shadowRender={_formatted.subject ||
+															hit.subject}
+													></div>
 												{/if}
-											</span>
-											<span class="pr-2">
-												<span>{$t('app.search.to')}:</span>
-												{#if !isMounted}
-													<span
-														class="bg-accent h-4 w-40 animate-pulse rounded-md"
-													></span>
-												{:else}
-													<span
-														class="inline-block"
-														use:shadowRender={_formatted.to?.join(
-															', '
-														) || hit.to.join(', ')}
-													></span>
-												{/if}
-											</span>
-											<span class="pr-2">
-												<span>{$t('app.search.mailbox')}:</span>
-												{#if !isMounted}
-													<span
-														class="bg-accent h-4 w-40 animate-pulse rounded-md"
-													></span>
-												{:else}
-													<span class="inline-block">{hit.userEmail}</span
-													>
-												{/if}
-											</span>
-											<span>
-												{#if !isMounted}
-													<span
-														class="bg-accent h-4 w-40 animate-pulse rounded-md"
-													></span>
-												{:else}
-													<span class="inline-block">
-														{new Date(hit.timestamp).toLocaleString()}
-													</span>
-												{/if}
-											</span>
-										</CardDescription>
-									</CardHeader>
-									<CardContent class="space-y-2">
-										<!-- Body matches -->
-										{#if _formatted.body}
-											{#each getHighlightedSnippets(_formatted.body) as snippet}
-												<div
-													class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
-												>
-													<p class="text-sm text-gray-500">
-														{$t('app.search.in_email_body')}:
-													</p>
+											</CardTitle>
+											<CardDescription
+												class="divide-forground flex flex-wrap items-center space-x-2 divide-x"
+											>
+												<span class="pr-2">
+													<span>{$t('app.search.from')}:</span>
 													{#if !isMounted}
-														<Skeleton
-															class="my-2 h-5 w-full bg-gray-200"
-														/>
+														<span
+															class="bg-accent h-4 w-40 animate-pulse rounded-md"
+														></span>
 													{:else}
-														<p
-															class="font-mono text-sm"
-															use:shadowRender={snippet}
-														></p>
+														<span
+															class="inline-block"
+															use:shadowRender={_formatted.fromName ||
+																hit.fromName ||
+																_formatted.from ||
+																hit.from}
+														></span>
 													{/if}
-												</div>
-											{/each}
-										{/if}
-
-										<!-- Attachment matches: show the (highlighted) file name whenever the
-							     attachment's name OR its content matched, plus any content snippets. -->
-										{#if _formatted.attachments}
-											{#each _formatted.attachments as attachment, i (i)}
-												{@const filenameHtml = attachment?.filename ?? ''}
-												{@const nameHit = filenameHtml.includes('<em>')}
-												{@const contentSnippets = attachment?.content
-													? getHighlightedSnippets(attachment.content)
-													: []}
-												{#if attachment && (nameHit || contentSnippets.length > 0)}
+												</span>
+												<span class="pr-2">
+													<span>{$t('app.search.to')}:</span>
+													{#if !isMounted}
+														<span
+															class="bg-accent h-4 w-40 animate-pulse rounded-md"
+														></span>
+													{:else}
+														<span
+															class="inline-block"
+															use:shadowRender={_formatted.to?.join(
+																', '
+															) || hit.to.join(', ')}
+														></span>
+													{/if}
+												</span>
+												<span class="pr-2">
+													<span>{$t('app.search.mailbox')}:</span>
+													{#if !isMounted}
+														<span
+															class="bg-accent h-4 w-40 animate-pulse rounded-md"
+														></span>
+													{:else}
+														<span class="inline-block"
+															>{hit.userEmail}</span
+														>
+													{/if}
+												</span>
+												<span>
+													{#if !isMounted}
+														<span
+															class="bg-accent h-4 w-40 animate-pulse rounded-md"
+														></span>
+													{:else}
+														<span class="inline-block">
+															{new Date(
+																hit.timestamp
+															).toLocaleString()}
+														</span>
+													{/if}
+												</span>
+											</CardDescription>
+										</CardHeader>
+										<CardContent class="space-y-2">
+											<!-- Body matches -->
+											{#if _formatted.body}
+												{#each getHighlightedSnippets(_formatted.body) as snippet}
 													<div
 														class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
 													>
-														<p
-															class="flex flex-wrap items-center gap-1 text-sm text-gray-500"
-														>
-															<Paperclip class="size-3.5 shrink-0" />
-															<span
-																>{$t(
-																	'app.search.in_attachment_label'
-																)}:</span
-															>
-															{#if !isMounted}
-																<Skeleton
-																	class="h-4 w-40 bg-gray-200"
-																/>
-															{:else}
-																<span
-																	class="text-foreground break-all font-medium"
-																	use:shadowRender={filenameHtml}
-																></span>
-															{/if}
+														<p class="text-sm text-gray-500">
+															{$t('app.search.in_email_body')}:
 														</p>
-														{#each contentSnippets as snippet}
-															{#if !isMounted}
-																<Skeleton
-																	class="my-2 h-5 w-full bg-gray-200"
-																/>
-															{:else}
-																<p
-																	class="font-mono text-sm"
-																	use:shadowRender={snippet}
-																></p>
-															{/if}
-														{/each}
+														{#if !isMounted}
+															<Skeleton
+																class="my-2 h-5 w-full bg-gray-200"
+															/>
+														{:else}
+															<p
+																class="font-mono text-sm"
+																use:shadowRender={snippet}
+															></p>
+														{/if}
 													</div>
+												{/each}
+											{/if}
+
+											<!-- Attachment matches: show the (highlighted) file name whenever the
+							     attachment's name OR its content matched, plus any content snippets. -->
+											{#if _formatted.attachments}
+												{#each _formatted.attachments as attachment, i (i)}
+													{@const filenameHtml =
+														attachment?.filename ?? ''}
+													{@const nameHit = filenameHtml.includes('<em>')}
+													{@const contentSnippets = attachment?.content
+														? getHighlightedSnippets(attachment.content)
+														: []}
+													{#if attachment && (nameHit || contentSnippets.length > 0)}
+														<div
+															class="space-y-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800"
+														>
+															<p
+																class="flex flex-wrap items-center gap-1 text-sm text-gray-500"
+															>
+																<Paperclip
+																	class="size-3.5 shrink-0"
+																/>
+																<span
+																	>{$t(
+																		'app.search.in_attachment_label'
+																	)}:</span
+																>
+																{#if !isMounted}
+																	<Skeleton
+																		class="h-4 w-40 bg-gray-200"
+																	/>
+																{:else}
+																	<span
+																		class="text-foreground break-all font-medium"
+																		use:shadowRender={filenameHtml}
+																	></span>
+																{/if}
+															</p>
+															{#each contentSnippets as snippet}
+																{#if !isMounted}
+																	<Skeleton
+																		class="my-2 h-5 w-full bg-gray-200"
+																	/>
+																{:else}
+																	<p
+																		class="font-mono text-sm"
+																		use:shadowRender={snippet}
+																	></p>
+																{/if}
+															{/each}
+														</div>
+													{/if}
+												{/each}
+											{/if}
+										</CardContent>
+									</Card>
+								</a>
+							{/each}
+						</div>
+
+						{#if searchResult.total > searchResult.limit}
+							<div class="mt-8">
+								<Pagination.Root
+									count={searchResult.total}
+									perPage={searchResult.limit}
+									{page}
+								>
+									{#snippet children({ pages, currentPage })}
+										<Pagination.Content>
+											<Pagination.Item>
+												<a href={buildPageUrl(currentPage - 1)}>
+													<Pagination.PrevButton>
+														<ChevronLeft class="h-4 w-4" />
+														<span class="hidden sm:block"
+															>{$t('app.search.prev')}</span
+														>
+													</Pagination.PrevButton>
+												</a>
+											</Pagination.Item>
+											{#each pages as page (page.key)}
+												{#if page.type === 'ellipsis'}
+													<Pagination.Item>
+														<Pagination.Ellipsis />
+													</Pagination.Item>
+												{:else}
+													<Pagination.Item>
+														<a href={buildPageUrl(page.value)}>
+															<Pagination.Link
+																{page}
+																isActive={currentPage ===
+																	page.value}
+															>
+																{page.value}
+															</Pagination.Link>
+														</a>
+													</Pagination.Item>
 												{/if}
 											{/each}
-										{/if}
-									</CardContent>
-								</Card>
-							</a>
-						{/each}
-					</div>
-
-					{#if searchResult.total > searchResult.limit}
-						<div class="mt-8">
-							<Pagination.Root
-								count={searchResult.total}
-								perPage={searchResult.limit}
-								{page}
-							>
-								{#snippet children({ pages, currentPage })}
-									<Pagination.Content>
-										<Pagination.Item>
-											<a href={buildPageUrl(currentPage - 1)}>
-												<Pagination.PrevButton>
-													<ChevronLeft class="h-4 w-4" />
-													<span class="hidden sm:block"
-														>{$t('app.search.prev')}</span
-													>
-												</Pagination.PrevButton>
-											</a>
-										</Pagination.Item>
-										{#each pages as page (page.key)}
-											{#if page.type === 'ellipsis'}
-												<Pagination.Item>
-													<Pagination.Ellipsis />
-												</Pagination.Item>
-											{:else}
-												<Pagination.Item>
-													<a href={buildPageUrl(page.value)}>
-														<Pagination.Link
-															{page}
-															isActive={currentPage === page.value}
+											<Pagination.Item>
+												<a href={buildPageUrl(currentPage + 1)}>
+													<Pagination.NextButton>
+														<span class="hidden sm:block"
+															>{$t('app.search.next')}</span
 														>
-															{page.value}
-														</Pagination.Link>
-													</a>
-												</Pagination.Item>
-											{/if}
-										{/each}
-										<Pagination.Item>
-											<a href={buildPageUrl(currentPage + 1)}>
-												<Pagination.NextButton>
-													<span class="hidden sm:block"
-														>{$t('app.search.next')}</span
-													>
-													<ChevronRight class="h-4 w-4" />
-												</Pagination.NextButton>
-											</a>
-										</Pagination.Item>
-									</Pagination.Content>
-								{/snippet}
-							</Pagination.Root>
-						</div>
+														<ChevronRight class="h-4 w-4" />
+													</Pagination.NextButton>
+												</a>
+											</Pagination.Item>
+										</Pagination.Content>
+									{/snippet}
+								</Pagination.Root>
+							</div>
+						{/if}
+					{:else}
+						<EmptyStateIcon
+							icon={SearchX}
+							header={$t('app.search.no_results_title')}
+							text={$t('app.search.no_results_text')}
+							buttonText={$t('app.search.clear_search')}
+							click={clearSearch}
+						/>
 					{/if}
+				{:else if !error}
+					<EmptyStateIcon
+						icon={Search}
+						header={$t('app.search.search_prompt_title')}
+						text={$t('app.search.search_prompt_text')}
+					/>
 				{/if}
 			</div>
 		</div>

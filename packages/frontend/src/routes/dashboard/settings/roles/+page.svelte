@@ -215,6 +215,15 @@
 				{selectedRole
 					? $t('app.roles.edit_description')
 					: $t('app.roles.create_description')}
+				<span
+					>{$t('app.roles.read')}{' '}
+					<a
+						class="text-primary underline underline-offset-2"
+						target="_blank"
+						href="https://docs.openarchiver.com/services/iam-service/iam-policy.html"
+						>{$t('app.roles.docs_here')}</a
+					>.</span
+				>
 			</Dialog.Description>
 		</Dialog.Header>
 		<RoleForm role={selectedRole} onSubmit={handleFormSubmit} />

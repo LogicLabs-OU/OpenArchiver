@@ -26,6 +26,10 @@ Once you have your `.mbox` file, you can upload it to OpenArchiver through the w
     > - **Recommended:** Place your mbox file in a `temp` folder inside your configured storage directory (`STORAGE_LOCAL_ROOT_PATH`). This path is already mounted. For example, if your storage path is `/data`, put the file in `/data/temp/emails.mbox` and enter `/data/temp/emails.mbox` as the path.
     > - **Alternative:** Mount a separate volume in `docker-compose.yml` (e.g., `- /host/path:/container/path`) and use the container path.
 
+> **Upload feedback:** When you use the **Upload File** method, a progress bar shows the upload percentage while the file transfers, and a **Cancel** button lets you stop an in-progress upload. Once the upload finishes, a success panel confirms the stored file name and its path; if the upload fails, an error panel shows the reason so you can fix it and try again.
+
+![Uploading a file with a progress bar and cancel button](/screenshots/upload-progress.png)
+
 ## 3. Folder Structure
 
 OpenArchiver will attempt to preserve the original folder structure of your emails. This is done by inspecting the following email headers:
