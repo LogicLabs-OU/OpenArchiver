@@ -1,10 +1,12 @@
 import { and, asc, gt, inArray, type SQL } from 'drizzle-orm';
 import { db } from '../../database';
 import { archivedEmails } from '../../database/schema';
+import { config } from '../../config';
 
 /** Keyset page size for the reset scan. Bounds each UPDATE so no single statement
- *  locks the whole table on a full-archive reindex. */
-const RESET_BATCH_SIZE = 5000;
+ *  locks the whole table on a full-archive reindex. Override via
+ *  REINDEX_RESET_BATCH_SIZE. */
+const RESET_BATCH_SIZE = config.ingestion.reindexResetBatchSize;
 
 interface ResetOptions {
 	/** Scope filter (e.g. an ingestion-source group). Undefined = every archived email. */

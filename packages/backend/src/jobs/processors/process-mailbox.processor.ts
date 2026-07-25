@@ -88,10 +88,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		// index). This is rare — Pass 1 already filters already-archived dupes, so
 		// only brand-new messages reach here — and CONCURRENCY=1 restores the old
 		// strictly-serial behavior if it ever matters.
-		const CONCURRENCY = Math.max(
-			1,
-			parseInt(process.env.INGESTION_EMAIL_CONCURRENCY ?? '', 10) || 8
-		);
+		const CONCURRENCY = config.ingestion.emailConcurrency;
 		const sem = new Semaphore(CONCURRENCY);
 
 		const flushBatch = async () => {

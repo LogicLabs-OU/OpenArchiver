@@ -212,7 +212,7 @@ export class ImapConnector implements IEmailConnector {
 
 					// Only fetch if the mailbox has messages, to avoid errors on empty mailboxes with some IMAP servers.
 					if (mailbox.exists > 0) {
-						const BATCH_SIZE = 250;
+						const BATCH_SIZE = config.ingestion.imapFetchBatchSize;
 						let startUid = (lastUid || 0) + 1;
 						const maxUidToFetch = currentMaxUid;
 
