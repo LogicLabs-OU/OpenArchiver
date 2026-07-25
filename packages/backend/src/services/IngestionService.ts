@@ -22,6 +22,7 @@ import type {
 	IngestionStats,
 } from '@open-archiver/types';
 import { stripAttachmentsFromEml } from '../helpers/emlUtils';
+import { sanitizeEmailForStorage, stripNullBytes } from '../helpers/sanitize';
 import {
 	archivedEmails,
 	attachments as attachmentsSchema,
@@ -925,6 +926,14 @@ export class IngestionService {
 					.update(rawEmlBuffer)
 					.digest('hex')}-${source.id}-${email.id}`;
 			}
+
+			// Strip NUL bytes (U+0000) from parsed header fields before they are
+			// used in dedup queries or written to the DB. Postgres text/jsonb
+			// cannot store U+0000 and rejects the insert (error 22021), which
+			// otherwise drops the email. Done before the dedup gates so their
+			// query parameters are clean too.
+			sanitizeEmailForStorage(email);
+			messageId = stripNullBytes(messageId);
 			// ── Three-gate deduplication ──────────────────────────────────────
 			// Gate 1: Per-mailbox idempotency — has THIS mailbox already archived
 			//         this email? If so, skip entirely (handles re-sync / retry).
