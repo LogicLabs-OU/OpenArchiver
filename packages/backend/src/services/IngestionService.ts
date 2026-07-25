@@ -652,6 +652,15 @@ export class IngestionService {
 			}
 		}
 
+		// Force sync is a deliberate, user-initiated full re-import: clear the
+		// stored sync_state (maxUid) so the scan restarts from the beginning
+		// instead of resuming from the last incremental checkpoint.
+		await db
+			.update(ingestionSources)
+			.set({ syncState: null })
+			.where(eq(ingestionSources.id, id));
+		logger.info({ ingestionSourceId: id }, 'Cleared sync state for force sync (full re-scan).');
+
 		// Reset status to 'active'
 		await this.update(
 			id,
@@ -697,6 +706,11 @@ export class IngestionService {
 						{ childId: child.id, parentId: id },
 						'Cascading force sync to child source.'
 					);
+					// Match the root: clear the child's sync_state so it re-scans fully.
+					await db
+						.update(ingestionSources)
+						.set({ syncState: null })
+						.where(eq(ingestionSources.id, child.id));
 					await ingestionQueue.add('continuous-sync', { ingestionSourceId: child.id });
 				}
 			}
