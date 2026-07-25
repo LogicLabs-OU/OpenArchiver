@@ -1,5 +1,10 @@
 import { Job } from 'bullmq';
-import { IProcessMailboxJob, ProcessMailboxError, PendingEmail } from '@open-archiver/types';
+import {
+	IProcessMailboxJob,
+	ProcessMailboxError,
+	PendingEmail,
+	ProcessEmailError,
+} from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
 import { logger } from '../../config/logger';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
@@ -7,6 +12,7 @@ import { StorageService } from '../../services/StorageService';
 import { config } from '../../config';
 import { indexingQueue, ingestionQueue } from '../queues';
 import { SyncSessionService } from '../../services/SyncSessionService';
+import { Semaphore } from '../../helpers/semaphore';
 
 /**
  * Handles ingestion of emails for a single user's mailbox.
@@ -67,6 +73,53 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 		let lastHeartbeatAt = Date.now();
 
+		// Process emails with bounded concurrency so per-email DB + object-storage
+		// latency overlaps instead of running strictly one-at-a-time (the batched
+		// IMAP fetch already removed the per-message network round-trip). The IMAP
+		// generator is still pulled sequentially — async generators are not safe to
+		// iterate concurrently — and each yielded email is dispatched to a pool
+		// capped at CONCURRENCY. Shared counters and emailBatch are only mutated
+		// from the settled callbacks below, which run one at a time on JS's single
+		// thread, so no locking is needed.
+		//
+		// Caveat: two DISTINCT new emails that share a Message-ID and land in the
+		// same concurrency window can both pass the dedup gates before either
+		// inserts (there is no unique constraint on message_id_header, only an
+		// index). This is rare — Pass 1 already filters already-archived dupes, so
+		// only brand-new messages reach here — and CONCURRENCY=1 restores the old
+		// strictly-serial behavior if it ever matters.
+		const CONCURRENCY = Math.max(
+			1,
+			parseInt(process.env.INGESTION_EMAIL_CONCURRENCY ?? '', 10) || 8
+		);
+		const sem = new Semaphore(CONCURRENCY);
+
+		const flushBatch = async () => {
+			if (emailBatch.length === 0) return;
+			// Capture + reset synchronously (no await between) so a concurrent
+			// completion can't push into a batch that is mid-flush.
+			const toFlush = emailBatch;
+			emailBatch = [];
+			await indexingQueue.add('index-email-batch', { emails: toFlush });
+		};
+
+		const handleResult = async (
+			result: PendingEmail | ProcessEmailError | null
+		): Promise<void> => {
+			if (result && 'error' in result) {
+				messagesFailed++;
+				if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+					failureSamples.push(result.message);
+				}
+			} else if (result) {
+				messagesArchived++;
+				emailBatch.push(result);
+				if (emailBatch.length >= BATCH_SIZE) {
+					await flushBatch();
+				}
+			}
+		};
+
 		for await (const email of connector.fetchEmails(
 			userEmail,
 			source.syncState,
@@ -74,27 +127,34 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		)) {
 			if (email) {
 				messagesSeen++;
-				const processedEmail = await ingestionService.processEmail(
-					email,
-					source,
-					storageService,
-					userEmail,
-					false,
-					groupIds
-				);
-				if (processedEmail && 'error' in processedEmail) {
-					messagesFailed++;
-					if (failureSamples.length < MAX_FAILURE_SAMPLES) {
-						failureSamples.push(processedEmail.message);
+				await sem.acquire();
+				// Detached: the pool bounds how many run at once; we drain below.
+				void (async () => {
+					try {
+						const result = await ingestionService.processEmail(
+							email,
+							source,
+							storageService,
+							userEmail,
+							false,
+							groupIds
+						);
+						await handleResult(result);
+					} catch (err) {
+						// processEmail is designed to RETURN a ProcessEmailError rather
+						// than throw; treat an unexpected throw as a per-message failure
+						// (count it, don't drop it silently — #403) instead of aborting
+						// the whole mailbox.
+						messagesFailed++;
+						if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+							failureSamples.push(
+								`${email.id}: ${err instanceof Error ? err.message : 'unknown error'}`
+							);
+						}
+					} finally {
+						sem.release();
 					}
-				} else if (processedEmail) {
-					messagesArchived++;
-					emailBatch.push(processedEmail);
-					if (emailBatch.length >= BATCH_SIZE) {
-						await indexingQueue.add('index-email-batch', { emails: emailBatch });
-						emailBatch = [];
-					}
-				}
+				})();
 			}
 			// Heartbeat on wall-clock time, unconditionally. A single large mailbox can
 			// take hours, and long stretches legitimately archive nothing (dedup-skip
@@ -109,10 +169,13 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			}
 		}
 
-		if (emailBatch.length > 0) {
-			await indexingQueue.add('index-email-batch', { emails: emailBatch });
-			emailBatch = [];
+		// Drain: acquiring every permit is only possible once all in-flight
+		// processEmail calls have released theirs.
+		for (let i = 0; i < CONCURRENCY; i++) {
+			await sem.acquire();
 		}
+
+		await flushBatch();
 
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
 		logger.info(
