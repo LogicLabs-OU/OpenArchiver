@@ -26,6 +26,10 @@ export const ingestionConfig = {
 	/** BullMQ indexing worker: how many index-email-batch jobs run at once. */
 	indexingWorkerConcurrency: intFromEnv('INDEXING_WORKER_CONCURRENCY', 1),
 
+	/** Documents built concurrently within one index-email-batch job (each build
+	 *  reads the .eml from storage + parses it). */
+	indexingDocumentBuildConcurrency: intFromEnv('INDEXING_DOCUMENT_BUILD_CONCURRENCY', 10),
+
 	/** Keyset page size for the reindex `is_indexed` reset scan. */
 	reindexResetBatchSize: intFromEnv('REINDEX_RESET_BATCH_SIZE', 5000),
 };
