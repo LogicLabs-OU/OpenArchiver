@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import { connection } from '../config/redis';
+import { config } from '../config';
 import initialImportProcessor from '../jobs/processors/initial-import.processor';
 import continuousSyncProcessor from '../jobs/processors/continuous-sync.processor';
 import scheduleContinuousSyncProcessor from '../jobs/processors/schedule-continuous-sync.processor';
@@ -27,9 +28,7 @@ const processor = async (job: any) => {
 const worker = new Worker('ingestion', processor, {
 	connection,
 	// Configurable via INGESTION_WORKER_CONCURRENCY env var. Tune based on available RAM.
-	concurrency: process.env.INGESTION_WORKER_CONCURRENCY
-		? parseInt(process.env.INGESTION_WORKER_CONCURRENCY, 10)
-		: 5,
+	concurrency: config.ingestion.workerConcurrency,
 	// Connector work (pst-extractor parsing, attachment reads, EML construction) is
 	// largely synchronous, and one huge message can block the event loop long enough
 	// that the automatic lock renewal (every lockDuration/2) misses its window. With

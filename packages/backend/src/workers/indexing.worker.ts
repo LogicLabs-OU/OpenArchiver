@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import { connection } from '../config/redis';
+import { config } from '../config';
 import indexEmailBatchProcessor from '../jobs/processors/index-email-batch.processor';
 import reindexProcessor from '../jobs/processors/reindex.processor';
 import reconcileIndexProcessor from '../jobs/processors/reconcile-index.processor';
@@ -20,6 +21,9 @@ const processor = async (job: any) => {
 
 const worker = new Worker('indexing', processor, {
 	connection,
+	// Configurable via INDEXING_WORKER_CONCURRENCY env var (default 1, matching
+	// BullMQ's previous implicit default).
+	concurrency: config.ingestion.indexingWorkerConcurrency,
 	removeOnComplete: {
 		count: 100, // keep last 100 jobs
 	},

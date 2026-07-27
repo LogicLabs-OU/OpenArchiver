@@ -14,6 +14,7 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
 import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
 import { logger } from '../config/logger';
+import { config } from '../config';
 
 interface DbRecipients {
 	to: { name: string; address: string }[];
@@ -85,7 +86,7 @@ export class IndexingService {
 
 		logger.info({ batchSize: emails.length }, 'Starting batch indexing of emails');
 
-		const CONCURRENCY_LIMIT = 10;
+		const CONCURRENCY_LIMIT = config.ingestion.indexingDocumentBuildConcurrency;
 		const rawDocuments: EmailDocument[] = [];
 		// Emails whose document could not be BUILT (corrupt EML, parse error, etc.).
 		// These are email-specific ("poison") failures — increment index_attempts so

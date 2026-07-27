@@ -652,6 +652,15 @@ export class IngestionService {
 			}
 		}
 
+		// Force sync is a deliberate, user-initiated full re-import: clear the
+		// stored sync_state (maxUid) so the scan restarts from the beginning
+		// instead of resuming from the last incremental checkpoint.
+		await db
+			.update(ingestionSources)
+			.set({ syncState: null })
+			.where(eq(ingestionSources.id, id));
+		logger.info({ ingestionSourceId: id }, 'Cleared sync state for force sync (full re-scan).');
+
 		// Reset status to 'active'
 		await this.update(
 			id,
@@ -697,6 +706,11 @@ export class IngestionService {
 						{ childId: child.id, parentId: id },
 						'Cascading force sync to child source.'
 					);
+					// Match the root: clear the child's sync_state so it re-scans fully.
+					await db
+						.update(ingestionSources)
+						.set({ syncState: null })
+						.where(eq(ingestionSources.id, child.id));
 					await ingestionQueue.add('continuous-sync', { ingestionSourceId: child.id });
 				}
 			}
@@ -779,13 +793,16 @@ export class IngestionService {
 	public static async doesEmailExist(
 		messageId: string,
 		ingestionSourceId: string,
-		userEmail: string
+		userEmail: string,
+		groupIds?: string[]
 	): Promise<boolean> {
-		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
+		// Callers processing many messages for one source can pass a precomputed
+		// merge-group id list to avoid re-resolving it (DB + decrypt) per message.
+		const resolvedGroupIds = groupIds ?? (await this.findGroupSourceIds(ingestionSourceId));
 		const sourceFilter =
-			groupIds.length === 1
-				? eq(archivedEmails.ingestionSourceId, groupIds[0])
-				: inArray(archivedEmails.ingestionSourceId, groupIds);
+			resolvedGroupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, resolvedGroupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, resolvedGroupIds);
 
 		const existingEmail = await db.query.archivedEmails.findFirst({
 			where: and(
@@ -799,6 +816,65 @@ export class IngestionService {
 			columns: { id: true },
 		});
 		return !!existingEmail;
+	}
+
+	/**
+	 * Batched form of doesEmailExist for the ingestion pre-check: given many
+	 * candidate message-ids, return the subset that already exists for this
+	 * mailbox in a SINGLE query, instead of one findFirst per id. This collapses
+	 * the per-message dedup round-trips during the envelope scan (the dominant
+	 * cost of re-scanning an already-archived mailbox) into one query per batch.
+	 * A message-id matches on either providerMessageId or messageIdHeader,
+	 * scoped to the merge group + userEmail — identical predicate to
+	 * doesEmailExist, just set-based.
+	 */
+	public static async filterExistingMessageIds(
+		messageIds: string[],
+		ingestionSourceId: string,
+		userEmail: string,
+		groupIds?: string[]
+	): Promise<Set<string>> {
+		const existing = new Set<string>();
+		if (messageIds.length === 0) {
+			return existing;
+		}
+
+		const resolvedGroupIds = groupIds ?? (await this.findGroupSourceIds(ingestionSourceId));
+		const sourceFilter =
+			resolvedGroupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, resolvedGroupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, resolvedGroupIds);
+
+		const rows = await db
+			.select({
+				providerMessageId: archivedEmails.providerMessageId,
+				messageIdHeader: archivedEmails.messageIdHeader,
+			})
+			.from(archivedEmails)
+			.where(
+				and(
+					sourceFilter,
+					eq(archivedEmails.userEmail, userEmail),
+					or(
+						inArray(archivedEmails.providerMessageId, messageIds),
+						inArray(archivedEmails.messageIdHeader, messageIds)
+					)
+				)
+			);
+
+		// A matched row carries both columns; only one necessarily matched the IN
+		// clause, so intersect with the requested ids to return exactly the input
+		// message-ids that exist.
+		const requested = new Set(messageIds);
+		for (const row of rows) {
+			if (row.providerMessageId && requested.has(row.providerMessageId)) {
+				existing.add(row.providerMessageId);
+			}
+			if (row.messageIdHeader && requested.has(row.messageIdHeader)) {
+				existing.add(row.messageIdHeader);
+			}
+		}
+		return existing;
 	}
 
 	/**
@@ -888,6 +964,10 @@ export class IngestionService {
 	 *   email.tempFilePath. Used by the journaling fan-out loop which calls
 	 *   processEmail() multiple times with the same EmailObject — only the last
 	 *   caller should clean up the temp file.
+	 * @param precomputedGroupIds Optional merge-group source IDs resolved once by the
+	 *   caller (e.g. the process-mailbox loop) so this method doesn't re-run
+	 *   findGroupSourceIds (a DB query + credential decrypt + children query) on
+	 *   every message. Must be the group of `source.id`.
 	 * @returns The pending email on success, `null` when the email was deduplicated /
 	 *   intentionally skipped, or a ProcessEmailError when archiving failed. Callers must
 	 *   count error returns towards their failure totals — treating them as skips is what
@@ -898,7 +978,8 @@ export class IngestionService {
 		source: IngestionSource,
 		storage: StorageService,
 		userEmail: string,
-		skipTempFileCleanup: boolean = false
+		skipTempFileCleanup: boolean = false,
+		precomputedGroupIds?: string[]
 	): Promise<PendingEmail | ProcessEmailError | null> {
 		try {
 			// Read the raw bytes from the temp file written by the connector
@@ -935,7 +1016,8 @@ export class IngestionService {
 			//         in the group. Write file + create row.
 			// ─────────────────────────────────────────────────────────────────
 
-			const groupIds = await IngestionService.findGroupSourceIds(source.id);
+			const groupIds =
+				precomputedGroupIds ?? (await IngestionService.findGroupSourceIds(source.id));
 			const groupSourceFilter =
 				groupIds.length === 1
 					? eq(archivedEmails.ingestionSourceId, groupIds[0])
