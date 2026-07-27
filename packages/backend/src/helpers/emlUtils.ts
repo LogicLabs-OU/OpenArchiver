@@ -3,6 +3,12 @@ import MailComposer from 'nodemailer/lib/mail-composer';
 import type Mail from 'nodemailer/lib/mailer';
 import { logger } from '../config/logger';
 
+export type CryptoEnvelopeDetection = {
+	isCryptoEnvelope: boolean;
+	encryption: 'none' | 'smime' | 'pgp_mime' | 'pgp_inline';
+	signature: 'none' | 'smime_opaque' | 'smime_detached' | 'pgp_mime' | 'pgp_inline';
+};
+
 /**
  * Set of headers that are either handled natively by nodemailer's MailComposer
  * via dedicated options, or are structural MIME headers that will be regenerated
@@ -24,6 +30,294 @@ const HEADERS_HANDLED_BY_COMPOSER = new Set([
 	'reply-to',
 	'sender',
 ]);
+
+function emptyDetection(): CryptoEnvelopeDetection {
+	return {
+		isCryptoEnvelope: false,
+		encryption: 'none',
+		signature: 'none',
+	};
+}
+
+function findHeaderEnd(raw: Buffer): { headerEnd: number; bodyStart: number } {
+	const crlf = raw.indexOf('\r\n\r\n');
+	const lf = raw.indexOf('\n\n');
+
+	if (crlf !== -1 && (lf === -1 || crlf < lf)) {
+		return { headerEnd: crlf, bodyStart: crlf + 4 };
+	}
+
+	if (lf !== -1) {
+		return { headerEnd: lf, bodyStart: lf + 2 };
+	}
+
+	return { headerEnd: raw.length, bodyStart: raw.length };
+}
+
+function parseHeaderBlock(headerBlock: string): Map<string, string> {
+	const headers = new Map<string, string>();
+	const lines = headerBlock.replace(/\r\n/g, '\n').split('\n');
+	let currentName = '';
+
+	for (const line of lines) {
+		if (/^[\t ]/.test(line) && currentName) {
+			headers.set(currentName, `${headers.get(currentName) || ''} ${line.trim()}`);
+			continue;
+		}
+
+		const separator = line.indexOf(':');
+		if (separator === -1) {
+			currentName = '';
+			continue;
+		}
+
+		currentName = line.slice(0, separator).toLowerCase();
+		headers.set(currentName, line.slice(separator + 1).trim());
+	}
+
+	return headers;
+}
+
+function splitHeaderValue(value: string): string[] {
+	const parts: string[] = [];
+	let part = '';
+	let quoted = false;
+
+	for (let i = 0; i < value.length; i += 1) {
+		const char = value[i];
+		if (char === '"' && value[i - 1] !== '\\') {
+			quoted = !quoted;
+		}
+		if (char === ';' && !quoted) {
+			parts.push(part.trim());
+			part = '';
+			continue;
+		}
+		part += char;
+	}
+	parts.push(part.trim());
+	return parts;
+}
+
+function unquote(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+		return trimmed.slice(1, -1);
+	}
+	return trimmed;
+}
+
+function parseStructuredHeader(value: string | undefined): {
+	value: string;
+	params: Map<string, string>;
+} {
+	if (!value) {
+		return { value: '', params: new Map() };
+	}
+
+	const [mediaType = '', ...paramParts] = splitHeaderValue(value);
+	const params = new Map<string, string>();
+
+	for (const paramPart of paramParts) {
+		const separator = paramPart.indexOf('=');
+		if (separator === -1) {
+			continue;
+		}
+		params.set(
+			paramPart.slice(0, separator).trim().toLowerCase(),
+			unquote(paramPart.slice(separator + 1))
+		);
+	}
+
+	return {
+		value: mediaType.toLowerCase(),
+		params,
+	};
+}
+
+function filenamesFromHeaders(headers: Map<string, string>): string[] {
+	const names: string[] = [];
+	for (const header of ['content-type', 'content-disposition']) {
+		const parsed = parseStructuredHeader(headers.get(header));
+		for (const key of ['name', 'filename']) {
+			const value = parsed.params.get(key);
+			if (value) {
+				names.push(value.toLowerCase());
+			}
+		}
+	}
+	return names;
+}
+
+function getFirstLevelParts(body: string, boundary: string | undefined): Map<string, string>[] {
+	if (!boundary) {
+		return [];
+	}
+
+	const parts: Map<string, string>[] = [];
+	const lines = body.replace(/\r\n/g, '\n').split('\n');
+	const boundaryLine = `--${boundary}`;
+	const closingBoundaryLine = `--${boundary}--`;
+	let partLines: string[] | null = null;
+
+	for (const line of lines) {
+		const trimmed = line.trimEnd();
+		if (trimmed === boundaryLine || trimmed === closingBoundaryLine) {
+			if (partLines) {
+				const partText = partLines.join('\n');
+				const headerEnd = partText.indexOf('\n\n');
+				const headerBlock = headerEnd === -1 ? partText : partText.slice(0, headerEnd);
+				parts.push(parseHeaderBlock(headerBlock));
+			}
+			partLines = trimmed === closingBoundaryLine ? null : [];
+			if (trimmed === closingBoundaryLine) {
+				break;
+			}
+			continue;
+		}
+
+		if (partLines) {
+			partLines.push(line);
+		}
+	}
+
+	return parts;
+}
+
+function bodyContainsPgp(body: string): Pick<CryptoEnvelopeDetection, 'encryption' | 'signature'> {
+	if (
+		body.includes('-----BEGIN PGP MESSAGE-----') &&
+		body.includes('-----END PGP MESSAGE-----')
+	) {
+		return { encryption: 'pgp_inline', signature: 'none' };
+	}
+
+	if (body.includes('-----BEGIN PGP SIGNED MESSAGE-----')) {
+		return { encryption: 'none', signature: 'pgp_inline' };
+	}
+
+	return { encryption: 'none', signature: 'none' };
+}
+
+/**
+ * Detects top-level S/MIME and PGP envelopes without parsing or reserializing MIME.
+ */
+export function detectCryptoEnvelope(raw: Buffer): CryptoEnvelopeDetection {
+	const { headerEnd, bodyStart } = findHeaderEnd(raw);
+	const headers = parseHeaderBlock(raw.subarray(0, headerEnd).toString('latin1'));
+	const contentType = parseStructuredHeader(headers.get('content-type'));
+	const contentDisposition = parseStructuredHeader(headers.get('content-disposition'));
+	const topLevelType = contentType.value;
+	const smimeType = contentType.params.get('smime-type')?.toLowerCase();
+	const protocol = contentType.params.get('protocol')?.toLowerCase();
+	const filenames = [
+		...filenamesFromHeaders(headers),
+		contentType.params.get('name') || '',
+		contentDisposition.params.get('filename') || '',
+	];
+	const hasFilename = (filename: string) => filenames.some((name) => name === filename);
+	const isPkcs7Mime =
+		topLevelType === 'application/pkcs7-mime' || topLevelType === 'application/x-pkcs7-mime';
+	const isPkcs7Signature =
+		topLevelType === 'application/pkcs7-signature' ||
+		topLevelType === 'application/x-pkcs7-signature';
+
+	if (isPkcs7Mime) {
+		if (smimeType === 'certs-only' || hasFilename('smime.p7c')) {
+			return { ...emptyDetection(), isCryptoEnvelope: true };
+		}
+
+		if (smimeType === 'signed-data') {
+			return {
+				isCryptoEnvelope: true,
+				encryption: 'none',
+				signature: 'smime_opaque',
+			};
+		}
+
+		return {
+			isCryptoEnvelope: true,
+			encryption: 'smime',
+			signature: 'none',
+		};
+	}
+
+	if (isPkcs7Signature) {
+		return {
+			isCryptoEnvelope: true,
+			encryption: 'none',
+			signature: 'smime_detached',
+		};
+	}
+
+	const bodyProbe = raw
+		.subarray(bodyStart, Math.min(raw.length, bodyStart + 64 * 1024))
+		.toString('latin1');
+
+	if (topLevelType.startsWith('multipart/')) {
+		const parts = getFirstLevelParts(bodyProbe, contentType.params.get('boundary'));
+		const partTypes = parts.map(
+			(part) => parseStructuredHeader(part.get('content-type')).value
+		);
+		const partFilenames = parts.flatMap(filenamesFromHeaders);
+
+		if (topLevelType === 'multipart/encrypted') {
+			if (
+				protocol === 'application/pgp-encrypted' ||
+				partTypes.includes('application/pgp-encrypted') ||
+				partFilenames.includes('encrypted.asc')
+			) {
+				return {
+					isCryptoEnvelope: true,
+					encryption: 'pgp_mime',
+					signature: 'none',
+				};
+			}
+		}
+
+		if (topLevelType === 'multipart/signed') {
+			if (
+				protocol === 'application/pgp-signature' ||
+				partTypes.includes('application/pgp-signature') ||
+				partFilenames.includes('signature.asc')
+			) {
+				return {
+					isCryptoEnvelope: true,
+					encryption: 'none',
+					signature: 'pgp_mime',
+				};
+			}
+
+			if (
+				protocol === 'application/pkcs7-signature' ||
+				protocol === 'application/x-pkcs7-signature' ||
+				partTypes.includes('application/pkcs7-signature') ||
+				partTypes.includes('application/x-pkcs7-signature') ||
+				partFilenames.includes('smime.p7s')
+			) {
+				return {
+					isCryptoEnvelope: true,
+					encryption: 'none',
+					signature: 'smime_detached',
+				};
+			}
+		}
+
+		const inlinePgp = bodyContainsPgp(bodyProbe);
+		if (inlinePgp.encryption !== 'none' || inlinePgp.signature !== 'none') {
+			return { isCryptoEnvelope: true, ...inlinePgp };
+		}
+	}
+
+	if (topLevelType === 'text/plain') {
+		const inlinePgp = bodyContainsPgp(bodyProbe);
+		if (inlinePgp.encryption !== 'none' || inlinePgp.signature !== 'none') {
+			return { isCryptoEnvelope: true, ...inlinePgp };
+		}
+	}
+
+	return emptyDetection();
+}
 
 /**
  * Determines whether a parsed attachment should be preserved in the stored .eml.
@@ -139,6 +433,10 @@ function addressToString(
  */
 export async function stripAttachmentsFromEml(emlBuffer: Buffer): Promise<Buffer> {
 	try {
+		if (detectCryptoEnvelope(emlBuffer).isCryptoEnvelope) {
+			return emlBuffer;
+		}
+
 		const parsed = await simpleParser(emlBuffer);
 
 		// If there are no attachments at all, return early

@@ -1,0 +1,4 @@
+*.eml
+smime.key
+smime.crt
+tmp/

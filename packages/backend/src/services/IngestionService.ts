@@ -21,7 +21,7 @@ import type {
 	ReindexMode,
 	IngestionStats,
 } from '@open-archiver/types';
-import { stripAttachmentsFromEml } from '../helpers/emlUtils';
+import { detectCryptoEnvelope, stripAttachmentsFromEml } from '../helpers/emlUtils';
 import {
 	archivedEmails,
 	attachments as attachmentsSchema,
@@ -41,6 +41,16 @@ import { checkDeletionEnabled } from '../helpers/deletionGuard';
  * so inserting null (from a missing/unparseable sender, e.g. Exchange "Deleted Items"
  * system messages) would fail with Postgres 23502 and drop the email entirely. */
 const UNKNOWN_SENDER = 'unknown@no-sender.invalid';
+
+function cryptoStatusesFromDetection(detection: ReturnType<typeof detectCryptoEnvelope>): {
+	encryptionStatus: 'none' | 'encrypted';
+	signatureStatus: 'none' | 'signed_unverified';
+} {
+	return {
+		encryptionStatus: detection.encryption === 'none' ? 'none' : 'encrypted',
+		signatureStatus: detection.signature === 'none' ? 'none' : 'signed_unverified',
+	};
+}
 
 export class IngestionService {
 	private static auditService = new AuditService();
@@ -903,6 +913,8 @@ export class IngestionService {
 		try {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
+			const cryptoDetection = detectCryptoEnvelope(rawEmlBuffer);
+			const cryptoStatuses = cryptoStatusesFromDetection(cryptoDetection);
 
 			// If this source is a child in a merge group, redirect all storage and DB
 			// ownership to the root source. Child sources are "assistants" — they fetch
@@ -972,6 +984,8 @@ export class IngestionService {
 					storageHashSha256: true,
 					sizeBytes: true,
 					hasAttachments: true,
+					encryptionStatus: true,
+					signatureStatus: true,
 				},
 			});
 
@@ -1000,6 +1014,8 @@ export class IngestionService {
 						storageHashSha256: existingGroupEmail.storageHashSha256,
 						sizeBytes: existingGroupEmail.sizeBytes,
 						hasAttachments: existingGroupEmail.hasAttachments,
+						encryptionStatus: existingGroupEmail.encryptionStatus,
+						signatureStatus: existingGroupEmail.signatureStatus,
 						isJournaled: effectiveSource.provider === 'smtp_journaling',
 						path: email.path,
 						tags: email.tags,
@@ -1120,6 +1136,7 @@ export class IngestionService {
 						storageHashSha256: emailHash,
 						sizeBytes: rawEmlBuffer.length,
 						hasAttachments: email.attachments.length > 0,
+						...cryptoStatuses,
 						isJournaled: effectiveSource.provider === 'smtp_journaling',
 						path: email.path,
 						tags: email.tags,
@@ -1133,7 +1150,9 @@ export class IngestionService {
 
 			// Default mode: strip non-inline attachments from the .eml to avoid double-storing
 			// attachment data (attachments are stored separately).
-			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer);
+			const emlBuffer = cryptoDetection.isCryptoEnvelope
+				? rawEmlBuffer
+				: await stripAttachmentsFromEml(rawEmlBuffer);
 			const emailHash = createHash('sha256').update(emlBuffer).digest('hex');
 			await storage.put(emailPath, emlBuffer);
 
@@ -1158,6 +1177,7 @@ export class IngestionService {
 					storageHashSha256: emailHash,
 					sizeBytes: emlBuffer.length,
 					hasAttachments: email.attachments.length > 0,
+					...cryptoStatuses,
 					isJournaled: effectiveSource.provider === 'smtp_journaling',
 					path: email.path,
 					tags: email.tags,

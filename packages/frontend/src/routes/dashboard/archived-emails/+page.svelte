@@ -10,9 +10,12 @@
 	import * as Pagination from '$lib/components/ui/pagination/index.js';
 	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
+	import LockKeyhole from 'lucide-svelte/icons/lock-keyhole';
+	import BadgeCheck from 'lucide-svelte/icons/badge-check';
 	import { api } from '$lib/api.client';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import type { PaginatedArchivedEmails } from '@open-archiver/types';
+	import { Badge } from '$lib/components/ui/badge';
 
 	let { data }: { data: PageData } = $props();
 
@@ -166,10 +169,25 @@
 						<Table.Cell>{new Date(email.sentAt).toLocaleString()}</Table.Cell>
 
 						<Table.Cell>
-							<div class="max-w-100 truncate">
-								<a class="link" href={`/dashboard/archived-emails/${email.id}`}>
-									{email.subject}
+							<div class="max-w-100 flex flex-wrap items-center gap-2">
+								<a
+									class="link min-w-0 truncate"
+									href={`/dashboard/archived-emails/${email.id}`}
+								>
+									{email.subject || $t('app.archive.no_subject')}
 								</a>
+								{#if email.encryptionStatus !== 'none'}
+									<Badge variant="secondary" class="gap-1 text-xs">
+										<LockKeyhole class="h-3 w-3" />
+										{$t('app.archive.encrypted')}
+									</Badge>
+								{/if}
+								{#if email.signatureStatus !== 'none'}
+									<Badge variant="outline" class="gap-1 text-xs">
+										<BadgeCheck class="h-3 w-3" />
+										{$t('app.archive.signed')}
+									</Badge>
+								{/if}
 							</div>
 						</Table.Cell>
 						<Table.Cell>

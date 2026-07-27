@@ -25,6 +25,8 @@
 		CircleAlert,
 		Tag,
 		FileDown,
+		LockKeyhole,
+		BadgeCheck,
 	} from 'lucide-svelte';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
@@ -278,7 +280,21 @@
 		<div class="col-span-3 md:col-span-2">
 			<Card.Root>
 				<Card.Header>
-					<Card.Title>{email.subject || $t('app.archive.no_subject')}</Card.Title>
+					<Card.Title class="flex flex-wrap items-center gap-2">
+						<span>{email.subject || $t('app.archive.no_subject')}</span>
+						{#if email.encryptionStatus !== 'none'}
+							<Badge variant="secondary" class="gap-1 text-xs">
+								<LockKeyhole class="h-3 w-3" />
+								{$t('app.archive.encrypted')}
+							</Badge>
+						{/if}
+						{#if email.signatureStatus !== 'none'}
+							<Badge variant="outline" class="gap-1 text-xs">
+								<BadgeCheck class="h-3 w-3" />
+								{$t('app.archive.signed')}
+							</Badge>
+						{/if}
+					</Card.Title>
 					<Card.Description>
 						{$t('app.archive.from')}: {email.senderName && email.senderEmail
 							? `${email.senderName} <${email.senderEmail}>`

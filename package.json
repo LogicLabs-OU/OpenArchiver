@@ -6,6 +6,7 @@
 	"scripts": {
 		"build:oss": "pnpm --filter \"./packages/*\" --filter \"!./packages/enterprise\" --filter \"./apps/open-archiver\" build",
 		"build:enterprise": "cross-env VITE_ENTERPRISE_MODE=true pnpm build",
+		"test": "pnpm --filter backend test",
 		"start:oss": "dotenv -- concurrently \"node apps/open-archiver/dist/index.js\" \"pnpm --filter @open-archiver/frontend start\"",
 		"start:enterprise": "dotenv -- concurrently \"node apps/open-archiver-enterprise/dist/index.js\" \"pnpm --filter @open-archiver/frontend start\"",
 		"dev:enterprise": "cross-env VITE_ENTERPRISE_MODE=true dotenv -- pnpm --filter \"@open-archiver/*\" --filter \"open-archiver-enterprise-app\" --parallel dev & pnpm run start:workers:dev",
