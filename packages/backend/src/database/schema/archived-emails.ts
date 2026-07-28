@@ -9,8 +9,24 @@ import {
 	uuid,
 	bigint,
 	index,
+	pgEnum,
 } from 'drizzle-orm/pg-core';
 import { ingestionSources } from './ingestion-sources';
+
+export const emailEncryptionStatusEnum = pgEnum('email_encryption_status', [
+	'none',
+	'encrypted',
+	'decrypted',
+	'decrypt_failed',
+]);
+
+export const emailSignatureStatusEnum = pgEnum('email_signature_status', [
+	'none',
+	'signed_unverified',
+	'signed_valid',
+	'signed_invalid',
+	'signed_unverifiable',
+]);
 
 export const archivedEmails = pgTable(
 	'archived_emails',
@@ -33,6 +49,8 @@ export const archivedEmails = pgTable(
 		storagePath: text('storage_path').notNull(),
 		storageHashSha256: text('storage_hash_sha256').notNull(),
 		sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+		encryptionStatus: emailEncryptionStatusEnum('encryption_status').notNull().default('none'),
+		signatureStatus: emailSignatureStatusEnum('signature_status').notNull().default('none'),
 		isIndexed: boolean('is_indexed').notNull().default(false),
 		/** Number of failed indexing attempts. The reconcile job stops retrying an
 		 * email once this reaches MAX_INDEX_ATTEMPTS, preventing poison emails from
@@ -66,6 +84,9 @@ export const archivedEmails = pgTable(
 		index('archived_emails_unindexed_idx')
 			.on(table.id)
 			.where(sql`${table.isIndexed} = false`),
+		index('archived_emails_undecrypted_idx')
+			.on(table.id)
+			.where(sql`${table.encryptionStatus} IN ('encrypted', 'decrypt_failed')`),
 	]
 );
 

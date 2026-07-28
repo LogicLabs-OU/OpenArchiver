@@ -69,6 +69,8 @@
 			"retention_policy_overridden_by_label": "This policy is overridden by retention label ",
 			"embedded_attachments": "Embedded Attachments",
 			"embedded": "Embedded",
+			"encrypted": "Encrypted",
+			"signed": "Signed",
 			"embedded_attachment_title": "Embedded Attachment",
 			"embedded_attachment_description": "This attachment is embedded in the original email file and cannot be downloaded separately. To get this attachment, download the complete email (.eml) file."
 		},

@@ -288,6 +288,13 @@
       "when": 1784721992999,
       "tag": "0040_lively_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785194951863,
+      "tag": "0041_spotty_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }

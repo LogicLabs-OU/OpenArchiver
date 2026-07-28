@@ -25,6 +25,15 @@ export interface ThreadEmail {
 	senderEmail: string;
 }
 
+export type EmailEncryptionStatus = 'none' | 'encrypted' | 'decrypted' | 'decrypt_failed';
+
+export type EmailSignatureStatus =
+	| 'none'
+	| 'signed_unverified'
+	| 'signed_valid'
+	| 'signed_invalid'
+	| 'signed_unverifiable';
+
 /**
  * Represents a single archived email.
  */
@@ -43,6 +52,8 @@ export interface ArchivedEmail {
 	storagePath: string;
 	storageHashSha256: string;
 	sizeBytes: number;
+	encryptionStatus: EmailEncryptionStatus;
+	signatureStatus: EmailSignatureStatus;
 	isIndexed: boolean;
 	/** Number of times indexing has been attempted and failed for this email.
 	 * Used by the reconcile job to stop retrying persistently-failing ("poison") emails. */
