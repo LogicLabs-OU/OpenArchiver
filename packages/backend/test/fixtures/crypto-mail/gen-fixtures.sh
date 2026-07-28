@@ -52,7 +52,7 @@ openssl smime -encrypt \
 	smime.crt
 
 cat >smime-enveloped-pkcs7.eml <smime-enveloped.eml
-perl -0pi -e 's/application\/x-pkcs7-mime/application\/pkcs7-mime/gi' smime-enveloped-pkcs7.eml
+sed -i 's|application/x-pkcs7-mime|application/pkcs7-mime|gI' smime-enveloped-pkcs7.eml
 
 cat >smime-filename-fallback-p7m.eml <<'EML'
 From: alice@example.test
@@ -217,6 +217,48 @@ Clear signed body.
 owEBFAKEPGPSIGNATURE
 =test
 -----END PGP SIGNATURE-----
+EML
+
+cat >quoted-pgp-reply.eml <<'EML'
+From: bob@example.test
+To: alice@example.test
+Subject: Re: your encrypted note
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Thanks, I got it. For reference you sent:
+
+> -----BEGIN PGP MESSAGE-----
+>
+> owEBFAKEQUOTEDPGP
+> =test
+> -----END PGP MESSAGE-----
+
+Talk soon.
+EML
+
+cat >pgp-attachment-normal.eml <<'EML'
+From: alice@example.test
+To: bob@example.test
+Subject: Plain mail with PGP file attached
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="pgp-attachment-boundary"
+
+--pgp-attachment-boundary
+Content-Type: text/plain; charset=utf-8
+
+Plain body; the armor below lives in an attachment only.
+
+--pgp-attachment-boundary
+Content-Type: application/octet-stream; name="secret-note.asc"
+Content-Disposition: attachment; filename="secret-note.asc"
+
+-----BEGIN PGP MESSAGE-----
+
+owEBFAKEATTACHEDPGP
+=test
+-----END PGP MESSAGE-----
+--pgp-attachment-boundary--
 EML
 
 cat >normal-with-attachment.eml <<'EML'

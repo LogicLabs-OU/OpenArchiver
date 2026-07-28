@@ -149,12 +149,17 @@ function filenamesFromHeaders(headers: Map<string, string>): string[] {
 	return names;
 }
 
-function getFirstLevelParts(body: string, boundary: string | undefined): Map<string, string>[] {
+type MimePartProbe = {
+	headers: Map<string, string>;
+	body: string;
+};
+
+function getFirstLevelParts(body: string, boundary: string | undefined): MimePartProbe[] {
 	if (!boundary) {
 		return [];
 	}
 
-	const parts: Map<string, string>[] = [];
+	const parts: MimePartProbe[] = [];
 	const lines = body.replace(/\r\n/g, '\n').split('\n');
 	const boundaryLine = `--${boundary}`;
 	const closingBoundaryLine = `--${boundary}--`;
@@ -167,7 +172,8 @@ function getFirstLevelParts(body: string, boundary: string | undefined): Map<str
 				const partText = partLines.join('\n');
 				const headerEnd = partText.indexOf('\n\n');
 				const headerBlock = headerEnd === -1 ? partText : partText.slice(0, headerEnd);
-				parts.push(parseHeaderBlock(headerBlock));
+				const partBody = headerEnd === -1 ? '' : partText.slice(headerEnd + 2);
+				parts.push({ headers: parseHeaderBlock(headerBlock), body: partBody });
 			}
 			partLines = trimmed === closingBoundaryLine ? null : [];
 			if (trimmed === closingBoundaryLine) {
@@ -184,15 +190,20 @@ function getFirstLevelParts(body: string, boundary: string | undefined): Map<str
 	return parts;
 }
 
+const PGP_MESSAGE_BEGIN = /^-----BEGIN PGP MESSAGE-----/m;
+const PGP_MESSAGE_END = /^-----END PGP MESSAGE-----/m;
+const PGP_SIGNED_BEGIN = /^-----BEGIN PGP SIGNED MESSAGE-----/m;
+
 function bodyContainsPgp(body: string): Pick<CryptoEnvelopeDetection, 'encryption' | 'signature'> {
-	if (
-		body.includes('-----BEGIN PGP MESSAGE-----') &&
-		body.includes('-----END PGP MESSAGE-----')
-	) {
+	// Anchored at line start so quoted armor in replies ("> -----BEGIN ...")
+	// does not flag an ordinary email as encrypted.
+	const normalized = body.replace(/\r\n/g, '\n');
+
+	if (PGP_MESSAGE_BEGIN.test(normalized) && PGP_MESSAGE_END.test(normalized)) {
 		return { encryption: 'pgp_inline', signature: 'none' };
 	}
 
-	if (body.includes('-----BEGIN PGP SIGNED MESSAGE-----')) {
+	if (PGP_SIGNED_BEGIN.test(normalized)) {
 		return { encryption: 'none', signature: 'pgp_inline' };
 	}
 
@@ -257,9 +268,9 @@ export function detectCryptoEnvelope(raw: Buffer): CryptoEnvelopeDetection {
 	if (topLevelType.startsWith('multipart/')) {
 		const parts = getFirstLevelParts(bodyProbe, contentType.params.get('boundary'));
 		const partTypes = parts.map(
-			(part) => parseStructuredHeader(part.get('content-type')).value
+			(part) => parseStructuredHeader(part.headers.get('content-type')).value
 		);
-		const partFilenames = parts.flatMap(filenamesFromHeaders);
+		const partFilenames = parts.flatMap((part) => filenamesFromHeaders(part.headers));
 
 		if (topLevelType === 'multipart/encrypted') {
 			if (
@@ -320,9 +331,18 @@ export function detectCryptoEnvelope(raw: Buffer): CryptoEnvelopeDetection {
 			};
 		}
 
-		const inlinePgp = bodyContainsPgp(bodyProbe);
-		if (inlinePgp.encryption !== 'none' || inlinePgp.signature !== 'none') {
-			return { isCryptoEnvelope: true, ...inlinePgp };
+		// Only inline PGP in the message text itself makes this a crypto
+		// envelope; armor inside attachments (.asc files, quoted forwards)
+		// must not stop attachment stripping.
+		const firstTextPart = parts.find((part, index) => {
+			const partType = partTypes[index];
+			return partType === 'text/plain' || partType === '';
+		});
+		if (firstTextPart) {
+			const inlinePgp = bodyContainsPgp(firstTextPart.body);
+			if (inlinePgp.encryption !== 'none' || inlinePgp.signature !== 'none') {
+				return { isCryptoEnvelope: true, ...inlinePgp };
+			}
 		}
 	}
 

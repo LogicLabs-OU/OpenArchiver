@@ -67,6 +67,11 @@ const matrixCases = [
 		'multipart-signed-unknown-protocol.eml',
 		{ isCryptoEnvelope: true, encryption: 'none', signature: 'other' },
 	],
+	['quoted-pgp-reply.eml', { isCryptoEnvelope: false, encryption: 'none', signature: 'none' }],
+	[
+		'pgp-attachment-normal.eml',
+		{ isCryptoEnvelope: false, encryption: 'none', signature: 'none' },
+	],
 	[
 		'normal-with-attachment.eml',
 		{ isCryptoEnvelope: false, encryption: 'none', signature: 'none' },
@@ -98,5 +103,20 @@ assert.notEqual(Buffer.compare(normalStripped, normalRaw), 0, 'normal email shou
 const parsedNormal = await simpleParser(normalStripped);
 assert.equal(parsedNormal.text?.includes('Plain body that should survive stripping.'), true);
 assert.equal(parsedNormal.attachments.length, 0);
+
+const pgpAttachmentRaw = fixture('pgp-attachment-normal.eml');
+const pgpAttachmentStripped = await stripAttachmentsFromEml(pgpAttachmentRaw);
+assert.notEqual(
+	Buffer.compare(pgpAttachmentStripped, pgpAttachmentRaw),
+	0,
+	'pgp .asc attachment email should be rebuilt'
+);
+
+const parsedPgpAttachment = await simpleParser(pgpAttachmentStripped);
+assert.equal(
+	parsedPgpAttachment.text?.includes('Plain body; the armor below lives in an attachment only.'),
+	true
+);
+assert.equal(parsedPgpAttachment.attachments.length, 0);
 
 console.log('crypto-mail P0 tests passed');
