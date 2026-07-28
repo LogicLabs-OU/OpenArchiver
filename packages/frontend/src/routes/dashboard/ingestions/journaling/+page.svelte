@@ -6,8 +6,9 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { enhance } from '$app/forms';
+	import { enhance, deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import type { ActionResult } from '@sveltejs/kit';
 	import {
 		MoreHorizontal,
 		Plus,
@@ -58,6 +59,60 @@
 		setTimeout(() => (copiedField = null), 2000);
 	}
 
+	/**
+	 * Routes every possible action result to an alert.
+	 *
+	 * Beyond success and failure this covers thrown actions (`type: 'error'`) and
+	 * responses carrying no type at all — SvelteKit's CSRF rejection returns a bare
+	 * `{ message }` object, which previously matched no branch and rendered nothing,
+	 * leaving the user with a silently broken button.
+	 */
+	function showActionResult(
+		result: ActionResult,
+		successTitle: string,
+		errorTitle: string,
+		onSuccess?: () => void
+	): void {
+		const showError = (message: string) =>
+			setAlert({
+				type: 'error',
+				title: errorTitle,
+				message,
+				duration: 5000,
+				show: true,
+			});
+
+		switch (result.type) {
+			case 'success':
+				onSuccess?.();
+				setAlert({
+					type: 'success',
+					title: successTitle,
+					message: '',
+					duration: 3000,
+					show: true,
+				});
+				return;
+			case 'failure':
+				showError(String(result.data?.message ?? ''));
+				return;
+			case 'error':
+				showError(result.error?.message ?? $t('app.journaling.unexpected_error'));
+				return;
+			case 'redirect':
+				// Navigation is handled by update() / applyAction.
+				return;
+			default: {
+				// Not modelled by ActionResult — a response that never reached the action,
+				// such as the CSRF rejection body.
+				const message = (result as { message?: unknown }).message;
+				showError(
+					typeof message === 'string' ? message : $t('app.journaling.unexpected_error')
+				);
+			}
+		}
+	}
+
 	/** Programmatically submit the regenerateAddress action (avoids nested <form>). */
 	async function handleRegenerateAddress(sourceId: string) {
 		isFormLoading = true;
@@ -68,38 +123,24 @@
 			const res = await fetch('?/regenerateAddress', {
 				method: 'POST',
 				body: formData,
+				// Without this, an error body comes back as text/plain and deserialize throws.
+				headers: { accept: 'application/json' },
 			});
-			const result = await res.json();
-			const resultData = result?.data;
-			const success = Array.isArray(resultData)
-				? resultData[0]?.success !== false
-				: resultData?.success !== false;
 
-			if (success) {
-				setAlert({
-					type: 'success',
-					title: $t('app.journaling.regenerate_address_success'),
-					message: '',
-					duration: 5000,
-					show: true,
-				});
-			} else {
-				const msg = Array.isArray(resultData)
-					? resultData[0]?.message
-					: resultData?.message;
-				setAlert({
-					type: 'error',
-					title: $t('app.journaling.regenerate_address_error'),
-					message: String(msg ?? ''),
-					duration: 5000,
-					show: true,
-				});
-			}
+			// The action response is devalue-encoded: result.data is a STRING, so reading
+			// it as an object made every failure look like a success.
+			const result: ActionResult = deserialize(await res.text());
+
+			showActionResult(
+				result,
+				$t('app.journaling.regenerate_address_success'),
+				$t('app.journaling.regenerate_address_error')
+			);
 		} catch {
 			setAlert({
 				type: 'error',
 				title: $t('app.journaling.regenerate_address_error'),
-				message: '',
+				message: $t('app.journaling.unexpected_error'),
 				duration: 5000,
 				show: true,
 			});
@@ -293,23 +334,11 @@
 										action="?/toggleStatus"
 										use:enhance={() => {
 											return async ({ result, update }) => {
-												if (result.type === 'success') {
-													setAlert({
-														type: 'success',
-														title: $t('app.journaling.update_success'),
-														message: '',
-														duration: 3000,
-														show: true,
-													});
-												} else if (result.type === 'failure') {
-													setAlert({
-														type: 'error',
-														title: $t('app.journaling.update_error'),
-														message: String(result.data?.message ?? ''),
-														duration: 5000,
-														show: true,
-													});
-												}
+												showActionResult(
+													result,
+													$t('app.journaling.update_success'),
+													$t('app.journaling.update_error')
+												);
 												await update();
 											};
 										}}
@@ -368,24 +397,12 @@
 					isFormLoading = true;
 					return async ({ result, update }) => {
 						isFormLoading = false;
-						if (result.type === 'success') {
-							isCreateOpen = false;
-							setAlert({
-								type: 'success',
-								title: $t('app.journaling.create_success'),
-								message: '',
-								duration: 3000,
-								show: true,
-							});
-						} else if (result.type === 'failure') {
-							setAlert({
-								type: 'error',
-								title: $t('app.journaling.create_error'),
-								message: String(result.data?.message ?? ''),
-								duration: 5000,
-								show: true,
-							});
-						}
+						showActionResult(
+							result,
+							$t('app.journaling.create_success'),
+							$t('app.journaling.create_error'),
+							() => (isCreateOpen = false)
+						);
 						await update();
 					};
 				}}
@@ -521,25 +538,15 @@
 						isFormLoading = true;
 						return async ({ result, update }) => {
 							isFormLoading = false;
-							if (result.type === 'success') {
-								isEditOpen = false;
-								selectedSource = null;
-								setAlert({
-									type: 'success',
-									title: $t('app.journaling.update_success'),
-									message: '',
-									duration: 3000,
-									show: true,
-								});
-							} else if (result.type === 'failure') {
-								setAlert({
-									type: 'error',
-									title: $t('app.journaling.update_error'),
-									message: String(result.data?.message ?? ''),
-									duration: 5000,
-									show: true,
-								});
-							}
+							showActionResult(
+								result,
+								$t('app.journaling.update_success'),
+								$t('app.journaling.update_error'),
+								() => {
+									isEditOpen = false;
+									selectedSource = null;
+								}
+							);
 							await update();
 						};
 					}}
@@ -583,25 +590,15 @@
 						isFormLoading = true;
 						return async ({ result, update }) => {
 							isFormLoading = false;
-							if (result.type === 'success') {
-								isDeleteOpen = false;
-								setAlert({
-									type: 'success',
-									title: $t('app.journaling.delete_success'),
-									message: '',
-									duration: 3000,
-									show: true,
-								});
-								selectedSource = null;
-							} else if (result.type === 'failure') {
-								setAlert({
-									type: 'error',
-									title: $t('app.journaling.delete_error'),
-									message: String(result.data?.message ?? ''),
-									duration: 5000,
-									show: true,
-								});
-							}
+							showActionResult(
+								result,
+								$t('app.journaling.delete_success'),
+								$t('app.journaling.delete_error'),
+								() => {
+									isDeleteOpen = false;
+									selectedSource = null;
+								}
+							);
 							await update();
 						};
 					}}
