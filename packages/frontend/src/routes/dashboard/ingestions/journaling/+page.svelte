@@ -8,7 +8,16 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { MoreHorizontal, Plus, Radio, Mail, Copy, Check, RefreshCw } from 'lucide-svelte';
+	import {
+		MoreHorizontal,
+		Plus,
+		Radio,
+		Mail,
+		Copy,
+		Check,
+		RefreshCw,
+		AlertTriangle,
+	} from 'lucide-svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import JournalingSourceForm from '$lib/components/custom/JournalingSourceForm.svelte';
 	import type { JournalingSource } from '@open-archiver/types';
@@ -153,6 +162,7 @@
 				<Table.Head>{$t('app.journaling.name')}</Table.Head>
 				<Table.Head>{$t('app.journaling.allowed_ips')}</Table.Head>
 				<Table.Head>{$t('app.journaling.total_received')}</Table.Head>
+				<Table.Head>{$t('app.journaling.total_failed')}</Table.Head>
 				<Table.Head>{$t('app.journaling.status')}</Table.Head>
 				<Table.Head>{$t('app.journaling.last_received_at')}</Table.Head>
 				<Table.Head class="text-right">{$t('app.journaling.actions')}</Table.Head>
@@ -209,6 +219,36 @@
 								<Badge variant={source.totalReceived > 0 ? 'secondary' : 'outline'}>
 									{source.totalReceived}
 								</Badge>
+							</div>
+						</Table.Cell>
+						<Table.Cell>
+							<div class="flex flex-col gap-1">
+								<div class="flex items-center gap-1.5">
+									<AlertTriangle class="text-muted-foreground h-3.5 w-3.5" />
+									<Badge
+										variant={source.totalFailed > 0 ? 'destructive' : 'outline'}
+										title={$t('app.journaling.failure_hint')}
+									>
+										{source.totalFailed}
+									</Badge>
+								</div>
+								{#if source.totalFailed > 0}
+									{#if source.lastErrorMessage}
+										<span
+											class="text-muted-foreground max-w-[240px] truncate text-[10px]"
+											title={source.lastErrorMessage}
+										>
+											{source.lastErrorMessage}
+										</span>
+									{/if}
+									{#if source.lastFailedAt}
+										<span class="text-muted-foreground text-[10px]">
+											{$t('app.journaling.last_failed_at')}: {new Date(
+												source.lastFailedAt
+											).toLocaleString()}
+										</span>
+									{/if}
+								{/if}
 							</div>
 						</Table.Cell>
 						<Table.Cell>
@@ -302,7 +342,7 @@
 				{/each}
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={6} class="h-24 text-center">
+					<Table.Cell colspan={7} class="h-24 text-center">
 						{$t('app.journaling.no_sources_found')}
 					</Table.Cell>
 				</Table.Row>

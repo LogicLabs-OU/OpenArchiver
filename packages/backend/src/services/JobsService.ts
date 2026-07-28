@@ -1,17 +1,13 @@
-import { Job, Queue } from 'bullmq';
-import { ingestionQueue, indexingQueue } from '../jobs/queues';
+import { Job } from 'bullmq';
+import { getAdminQueues } from '../jobs/queues';
 import { IJob, IQueueCounts, IQueueDetails, IQueueOverview, JobStatus } from '@open-archiver/types';
 
 export class JobsService {
-	private queues: Queue[];
-
-	constructor() {
-		this.queues = [ingestionQueue, indexingQueue];
-	}
-
 	public async getQueues(): Promise<IQueueOverview[]> {
 		const queueOverviews: IQueueOverview[] = [];
-		for (const queue of this.queues) {
+		// Read the registry per call, not once in a constructor — enterprise
+		// queues register after this service is instantiated.
+		for (const queue of getAdminQueues()) {
 			const counts = await queue.getJobCounts(
 				'active',
 				'completed',
@@ -41,7 +37,7 @@ export class JobsService {
 		page: number,
 		limit: number
 	): Promise<IQueueDetails> {
-		const queue = this.queues.find((q) => q.name === queueName);
+		const queue = getAdminQueues().find((q) => q.name === queueName);
 		if (!queue) {
 			throw new Error(`Queue ${queueName} not found`);
 		}

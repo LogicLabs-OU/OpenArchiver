@@ -31,3 +31,21 @@ export const complianceLifecycleQueue = new Queue('compliance-lifecycle', {
 	connection,
 	defaultJobOptions,
 });
+
+/**
+ * Queues exposed on the admin jobs page. Enterprise-only queues (declared in
+ * the enterprise package, which backend must never import from) register
+ * themselves at module initialization, so an OSS deployment never shows a
+ * queue nothing feeds. Read through getAdminQueues() rather than captured in
+ * a constructor — JobsService is instantiated when the routes module loads,
+ * which happens before enterprise modules initialize.
+ */
+const adminQueues: Queue[] = [ingestionQueue, indexingQueue];
+
+export const registerAdminQueue = (queue: Queue): void => {
+	if (!adminQueues.includes(queue)) {
+		adminQueues.push(queue);
+	}
+};
+
+export const getAdminQueues = (): Queue[] => adminQueues;

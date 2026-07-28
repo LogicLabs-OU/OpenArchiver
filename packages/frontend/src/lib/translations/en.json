@@ -789,6 +789,11 @@
 			"paused": "Paused",
 			"total_received": "Emails Received",
 			"last_received_at": "Last Received",
+			"total_failed": "Failed",
+			"last_failed_at": "Last Failure",
+			"last_error": "Last Error",
+			"quarantined": "Quarantined",
+			"failure_hint": "Emails that exhausted all retries. The raw message was saved to quarantine storage.",
 			"created_at": "Created At",
 			"actions": "Actions",
 			"create": "Create",
@@ -928,7 +933,10 @@
 			"revalidating": "Revalidating...",
 			"revalidate_success": "License revalidated successfully.",
 			"revoked_grace_period": "on {{date}}",
-			"revoked_immediately": "immediately"
+			"revoked_immediately": "immediately",
+			"instance_id": "Instance ID",
+			"instance_violation_title": "License Key Shared Across Multiple Instances",
+			"instance_violation_message": "This license key is being used on more than one deployment. Each license key is bound to a single deployment. Please ensure only one instance uses this key, or contact your account manager to add additional instance slots."
 		}
 	}
 }

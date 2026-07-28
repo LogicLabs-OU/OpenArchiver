@@ -45,6 +45,14 @@ export interface JournalingSource {
 	totalReceived: number;
 	/** Timestamp of the last email received */
 	lastReceivedAt: Date | null;
+	/** Number of emails that exhausted every retry and were quarantined */
+	totalFailed: number;
+	/** Timestamp of the most recent terminal processing failure */
+	lastFailedAt: Date | null;
+	/** Message of the most recent terminal failure */
+	lastErrorMessage: string | null;
+	/** Storage path of the most recently quarantined raw .eml */
+	lastQuarantinePath: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }

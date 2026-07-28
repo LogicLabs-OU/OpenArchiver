@@ -288,6 +288,13 @@
       "when": 1784721992999,
       "tag": "0040_lively_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785182919651,
+      "tag": "0041_nappy_katie_power",
+      "breakpoints": true
     }
   ]
 }

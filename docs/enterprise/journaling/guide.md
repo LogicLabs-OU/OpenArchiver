@@ -21,6 +21,9 @@ Add the following to your `.env` file:
 | `SMTP_JOURNALING_PORT`                 | `2525`      | The port the SMTP listener binds to inside the container. The `docker-compose.yml` maps this to the host.                                                      |
 | `SMTP_JOURNALING_DOMAIN`               | `localhost` | The domain used to generate routing addresses (e.g., `journal-abc12345@journal.yourdomain.com`). Set this to the domain whose MX record points to this server. |
 | `JOURNAL_QUEUE_BACKPRESSURE_THRESHOLD` | `10000`     | Maximum waiting jobs before the listener returns 4xx temporary failures.                                                                                       |
+| `JOURNAL_WORKER_CONCURRENCY`           | `3`         | How many journal emails are processed in parallel.                                                                                                             |
+| `JOURNAL_WORKER_LOCK_DURATION_MS`      | `300000`    | How long a job may hold its lock before being considered stalled. Stalled jobs are failed without retries, so keep this above your slowest message.            |
+| `JOURNAL_TEMP_TTL_HOURS`               | `24`        | How long an orphaned temp file is kept before being swept. Only affects files whose job crashed or stalled.                                                    |
 
 ## Docker Deployment
 
@@ -251,6 +254,60 @@ GET /v1/enterprise/journaling/health
 ```
 
 Returns `200` with `{ "smtp": "listening", "port": "2525" }` when healthy, or `503` when the listener is down.
+
+---
+
+## Retries, Quarantine and Failure Visibility
+
+A journal report arrives once over SMTP and cannot be fetched again, so processing failures are handled
+differently from the polled email connectors.
+
+### Retries
+
+Each accepted email is written to a temp file on disk and queued as a job with **5 attempts** and exponential
+backoff (2s, 4s, 8s, 16s). The temp file is kept until the job either succeeds or exhausts every attempt, so each
+retry works from the original bytes.
+
+Some failures skip the remaining attempts because retrying cannot help:
+
+- The journaling source was deleted while the email was in flight.
+- The backing ingestion source is missing, or its credentials cannot be decrypted (usually a changed
+  `ENCRYPTION_KEY`).
+- The temp file is gone.
+
+A partial fan-out counts as a failure. When an email resolves to several internal recipients and only some are
+archived, the job fails and retries; recipients already archived are skipped by deduplication, so the retry only
+re-attempts the ones that failed.
+
+### Quarantine
+
+When every attempt is exhausted, the raw message is written to your configured storage before the temp file is
+removed:
+
+```
+<storage-root>/open-archiver/journal-quarantine/<journaling-source-id>/<YYYY>/<MM>/<DD>/<filename>.eml
+```
+
+The quarantine prefix sits outside the per-source folders, so deleting an ingestion source or applying a retention
+policy never removes quarantined messages. They are also not cleaned up automatically — review the folder
+periodically and remove files once the underlying problem is resolved and the messages have been re-imported (for
+example via the EML importer).
+
+If the quarantine write itself fails, the temp file is deliberately **kept** and a `CRITICAL` line is logged with
+its path, so the raw message can still be recovered by hand.
+
+### Visibility
+
+- The journaling sources table shows a **Failed** count next to **Emails Received**, along with the most recent
+  error and when it happened.
+- The `journal-inbound` queue appears on **Admin → Jobs**, where failed jobs show their attempt count and error.
+- Failed jobs are retained in Redis (the last 2000).
+
+### Known limitation
+
+For journaling sources created with **Preserve original file** disabled, a failure that happens after the email row
+is written but during attachment storage will be skipped by deduplication on retry, leaving that email with missing
+attachments. Sources are created with preserve-original enabled by default, which avoids this path entirely.
 
 ---
 
