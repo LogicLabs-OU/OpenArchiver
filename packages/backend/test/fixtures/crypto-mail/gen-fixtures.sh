@@ -97,6 +97,44 @@ Content-Transfer-Encoding: base64
 MIIBFAKECERTS
 EML
 
+cat >multipart-encrypted-unknown-protocol.eml <<'EML'
+From: alice@example.test
+To: bob@example.test
+Subject: multipart/encrypted with unknown protocol
+MIME-Version: 1.0
+Content-Type: multipart/encrypted; protocol="application/vnd.example-encryption"; boundary="unknown-encrypted-boundary"
+
+--unknown-encrypted-boundary
+Content-Type: application/vnd.example-encryption
+
+Version: 1
+
+--unknown-encrypted-boundary
+Content-Type: application/octet-stream
+
+BASE64CIPHERTEXTPAYLOAD
+--unknown-encrypted-boundary--
+EML
+
+cat >multipart-signed-unknown-protocol.eml <<'EML'
+From: alice@example.test
+To: bob@example.test
+Subject: multipart/signed with unknown protocol
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/vnd.example-signature"; boundary="unknown-signed-boundary"
+
+--unknown-signed-boundary
+Content-Type: text/plain; charset=utf-8
+
+Signed content with an unrecognized signature protocol.
+
+--unknown-signed-boundary
+Content-Type: application/vnd.example-signature
+
+FAKESIGNATUREBLOB
+--unknown-signed-boundary--
+EML
+
 cat >pgp-mime-encrypted.eml <<'EML'
 From: alice@example.test
 To: bob@example.test

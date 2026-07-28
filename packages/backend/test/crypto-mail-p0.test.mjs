@@ -60,6 +60,14 @@ const matrixCases = [
 	],
 	['smime-certs-only.eml', { isCryptoEnvelope: true, encryption: 'none', signature: 'none' }],
 	[
+		'multipart-encrypted-unknown-protocol.eml',
+		{ isCryptoEnvelope: true, encryption: 'other', signature: 'none' },
+	],
+	[
+		'multipart-signed-unknown-protocol.eml',
+		{ isCryptoEnvelope: true, encryption: 'none', signature: 'other' },
+	],
+	[
 		'normal-with-attachment.eml',
 		{ isCryptoEnvelope: false, encryption: 'none', signature: 'none' },
 	],
@@ -75,6 +83,8 @@ for (const name of [
 	'smime-detached-signed.eml',
 	'pgp-mime-encrypted.eml',
 	'pgp-mime-signed.eml',
+	'multipart-encrypted-unknown-protocol.eml',
+	'multipart-signed-unknown-protocol.eml',
 ]) {
 	const raw = fixture(name);
 	const stripped = await stripAttachmentsFromEml(raw);

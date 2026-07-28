@@ -5,8 +5,8 @@ import { logger } from '../config/logger';
 
 export type CryptoEnvelopeDetection = {
 	isCryptoEnvelope: boolean;
-	encryption: 'none' | 'smime' | 'pgp_mime' | 'pgp_inline';
-	signature: 'none' | 'smime_opaque' | 'smime_detached' | 'pgp_mime' | 'pgp_inline';
+	encryption: 'none' | 'smime' | 'pgp_mime' | 'pgp_inline' | 'other';
+	signature: 'none' | 'smime_opaque' | 'smime_detached' | 'pgp_mime' | 'pgp_inline' | 'other';
 };
 
 /**
@@ -273,6 +273,14 @@ export function detectCryptoEnvelope(raw: Buffer): CryptoEnvelopeDetection {
 					signature: 'none',
 				};
 			}
+
+			// RFC 1847: multipart/encrypted is always an encrypted envelope, even
+			// with an unknown or missing protocol — never let it reach stripping.
+			return {
+				isCryptoEnvelope: true,
+				encryption: 'other',
+				signature: 'none',
+			};
 		}
 
 		if (topLevelType === 'multipart/signed') {
@@ -301,6 +309,15 @@ export function detectCryptoEnvelope(raw: Buffer): CryptoEnvelopeDetection {
 					signature: 'smime_detached',
 				};
 			}
+
+			// RFC 1847: multipart/signed always carries a signature over the exact
+			// bytes of the first part; re-serializing destroys it regardless of the
+			// (possibly unknown, missing, or beyond-probe) protocol.
+			return {
+				isCryptoEnvelope: true,
+				encryption: 'none',
+				signature: 'other',
+			};
 		}
 
 		const inlinePgp = bodyContainsPgp(bodyProbe);
