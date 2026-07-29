@@ -1,5 +1,5 @@
 import { api } from '$lib/server/api';
-import type { SystemSettings } from '@open-archiver/types';
+import type { PublicSystemSettings } from '@open-archiver/types';
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -11,7 +11,7 @@ export const load: PageServerLoad = async (event) => {
 		throw error(response.status, message || 'Failed to fetch system settings');
 	}
 
-	const systemSettings: SystemSettings = await response.json();
+	const systemSettings: PublicSystemSettings = await response.json();
 	return {
 		systemSettings,
 	};
@@ -24,9 +24,9 @@ export const actions: Actions = {
 		const theme = formData.get('theme');
 		const supportEmail = formData.get('supportEmail');
 
-		const body: Partial<SystemSettings> = {
-			language: language as SystemSettings['language'],
-			theme: theme as SystemSettings['theme'],
+		const body: Partial<PublicSystemSettings> = {
+			language: language as PublicSystemSettings['language'],
+			theme: theme as PublicSystemSettings['theme'],
 			supportEmail: supportEmail ? String(supportEmail) : null,
 		};
 
@@ -40,7 +40,7 @@ export const actions: Actions = {
 			return fail(response.status, { message: message || 'Failed to update settings' });
 		}
 
-		const updatedSettings: SystemSettings = await response.json();
+		const updatedSettings: PublicSystemSettings = await response.json();
 
 		return {
 			success: true,

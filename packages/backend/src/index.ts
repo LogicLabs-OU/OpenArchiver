@@ -6,6 +6,7 @@ export * from './services/AuditService';
 export * from './api/middleware/requireAuth';
 export * from './api/middleware/requirePermission';
 export { db } from './database';
+export { ensureSystemSettingsRow, mergeSystemSettingsConfig } from './database/systemSettingsRow';
 export * from './database/schema';
 export { AuditService } from './services/AuditService';
 export * from './config';

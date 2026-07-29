@@ -45,6 +45,15 @@
 			!!data.licenseStatus.gracePeriodEnds &&
 			new Date(data.licenseStatus.gracePeriodEnds) > new Date()
 	);
+
+	// License key is being used on multiple distinct deployments.
+	const hasInstanceViolation = $derived(!!data.licenseStatus.instanceViolation);
+
+	// The license server has not been reached for a while. Enterprise features are
+	// disabled once the offline grace window runs out, so warn from halfway.
+	const isOfflineGraceLow = $derived(
+		data.licenseStatus.offlineGraceDaysRemaining <= data.licenseStatus.offlineGraceDays / 2
+	);
 </script>
 
 <svelte:head>
@@ -88,6 +97,29 @@
 			</CardHeader>
 			<CardContent>
 				<p>{data.licenseStatus.message}</p>
+			</CardContent>
+		</Card>
+	{/if}
+
+	<!-- Instance violation warning: license key used on multiple deployments -->
+	{#if hasInstanceViolation && !isInvalid}
+		<Card class="border-yellow-500">
+			<CardHeader>
+				<div class="flex items-center gap-3">
+					<AlertTriangle class="h-6 w-6 text-yellow-500" />
+					<CardTitle class="text-yellow-600"
+						>{$t('app.license_page.instance_violation_title')}</CardTitle
+					>
+				</div>
+			</CardHeader>
+			<CardContent>
+				<p>{$t('app.license_page.instance_violation_message')}</p>
+				<p class="text-muted-foreground mt-2 text-xs">
+					{$t('app.license_page.instance_id')}:
+					<code class="bg-muted rounded px-1 py-0.5 text-xs"
+						>{data.licenseStatus.instanceId}</code
+					>
+				</p>
 			</CardContent>
 		</Card>
 	{/if}
@@ -194,6 +226,24 @@
 						</span>
 					</div>
 				{/if}
+				{#if isOfflineGraceLow}
+					<div class="flex justify-between">
+						<span class="text-muted-foreground"
+							>{$t('app.license_page.offline_grace')}</span
+						>
+						<span class="text-xs text-yellow-700">
+							{$t('app.license_page.offline_grace_days', {
+								days: data.licenseStatus.offlineGraceDaysRemaining,
+							} as any)}
+						</span>
+					</div>
+				{/if}
+				<div class="flex justify-between">
+					<span class="text-muted-foreground">{$t('app.license_page.instance_id')}</span>
+					<code class="bg-muted rounded px-1 py-0.5 text-xs"
+						>{data.licenseStatus.instanceId}</code
+					>
+				</div>
 			</CardContent>
 		</Card>
 

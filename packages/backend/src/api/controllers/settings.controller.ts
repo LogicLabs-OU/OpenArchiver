@@ -25,6 +25,14 @@ export const updateSystemSettings = async (req: Request, res: Response) => {
 		if (!actor) {
 			return res.status(401).json({ message: 'Unauthorized' });
 		}
+
+		// The body is merged into a JSONB column. A non-object (array, scalar,
+		// null) would retype the whole row and make every key unreadable, so
+		// reject it before it reaches the merge.
+		if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+			return res.status(400).json({ message: req.t('settings.failedToUpdate') });
+		}
+
 		const updatedSettings = await settingsService.updateSystemSettings(
 			req.body,
 			actor,

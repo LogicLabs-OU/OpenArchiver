@@ -92,17 +92,17 @@ Here is a complete list of environment variables available for configuration:
 
 #### Application Settings
 
-| Variable                | Description                                                                                                                                                  | Default Value           |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `NODE_ENV`              | The application environment.                                                                                                                                 | `development`           |
-| `PORT_BACKEND`          | The port for the backend service.                                                                                                                            | `4000`                  |
-| `PORT_FRONTEND`         | The port for the frontend service.                                                                                                                           | `3000`                  |
-| `APP_URL`               | The public-facing URL of your application. This is used by the backend to configure CORS.                                                                    | `http://localhost:3000` |
-| `ORIGIN`                | Used by the SvelteKit Node adapter to determine the server's public-facing URL. It should always be set to the value of `APP_URL` (e.g., `ORIGIN=$APP_URL`). | `http://localhost:3000` |
-| `SYNC_FREQUENCY`        | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details.                                                        | `* * * * *`             |
-| `ALL_INCLUSIVE_ARCHIVE` | Set to `true` to include all emails, including Junk and Trash folders, in the email archive.                                                                 | `false`                 |
+| Variable                | Description                                                                                                                                                                                    | Default Value           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `NODE_ENV`              | The application environment.                                                                                                                                                                   | `development`           |
+| `PORT_BACKEND`          | The port for the backend service.                                                                                                                                                              | `4000`                  |
+| `PORT_FRONTEND`         | The port for the frontend service.                                                                                                                                                             | `3000`                  |
+| `APP_URL`               | The public-facing URL of your application. This is used by the backend to configure CORS.                                                                                                      | `http://localhost:3000` |
+| `ORIGIN`                | Used by the SvelteKit Node adapter to determine the server's public-facing URL. It should always be set to the value of `APP_URL` (e.g., `ORIGIN=$APP_URL`).                                   | `http://localhost:3000` |
+| `SYNC_FREQUENCY`        | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details.                                                                                          | `* * * * *`             |
+| `ALL_INCLUSIVE_ARCHIVE` | Set to `true` to include all emails, including Junk and Trash folders, in the email archive.                                                                                                   | `false`                 |
 | `PDF_PARSE_TIMEOUT_MS`  | Timeout (in ms) for the built-in PDF text extractor during indexing. A malformed PDF is given up on after this so it can't stall the indexing worker. Only applies when `TIKA_URL` is not set. | `20000`                 |
-| `LOG_LEVEL`             | Minimum severity of logs to emit. Set to `debug` for verbose per-tick scheduler and per-message ingestion logs; routine logs are quiet at `info`.            | `info`                  |
+| `LOG_LEVEL`             | Minimum severity of logs to emit. Set to `debug` for verbose per-tick scheduler and per-message ingestion logs; routine logs are quiet at `info`.                                              | `info`                  |
 
 #### Docker Compose Service Configuration
 
@@ -162,9 +162,14 @@ These variables are used by `docker-compose.yml` to configure the services.
 
 ##### License
 
-| Variable         | Description                                                                                                                                                                                                                                              | Default Value |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `OA_LICENSE_KEY` | Your Enterprise license key (JWT). Can be provided as an environment variable or placed as a `license.jwt` file alongside the compiled backend. If neither is present, all enterprise features will be disabled and a warning will be logged at startup. |               |
+| Variable                        | Description                                                                                                                                                                                                                                                                                                                                                                                            | Default Value    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `OA_LICENSE_KEY`                | Your Enterprise license key (JWT). Can be provided as an environment variable or placed as a `license.jwt` file alongside the compiled backend. If neither is present, all enterprise features will be disabled and a warning will be logged at startup.                                                                                                                                               |                  |
+| `OA_LICENSE_OFFLINE_GRACE_DAYS` | How many days enterprise features keep working while the license server cannot be reached. **This setting can only shorten the window, never extend it** — the maximum is carried in your signed license (14 days unless your license says otherwise). Use it if you want stricter behaviour than your license allows. Values above the licensed maximum are capped, and the cap is logged at startup. | licensed maximum |
+
+> The instance verifies its license once a day, so short outages are invisible. Once the last successful verification is older than the window, enterprise features are disabled until connectivity is restored. Warnings are logged from halfway through the window, and the remaining days are shown on the License admin page.
+
+> The license status is stored in the database, so it is shared by every node of a horizontally-scaled deployment and survives restarts and image upgrades. If your deployment must run air-gapped for longer than the default window, contact your account manager — a license can be issued with a longer offline allowance.
 
 ##### Retention Policy Lifecycle
 

@@ -2,7 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import 'dotenv/config';
 import { api } from '$lib/server/api';
-import type { SystemSettings } from '@open-archiver/types';
+import type { PublicSystemSettings } from '@open-archiver/types';
 import { version } from '../../../../package.json';
 import semver from 'semver';
 
@@ -33,7 +33,7 @@ export const load: LayoutServerLoad = async (event) => {
 	}
 
 	const systemSettingsResponse = await api('/settings/system', event);
-	const systemSettings: SystemSettings | null = systemSettingsResponse.ok
+	const systemSettings: PublicSystemSettings | null = systemSettingsResponse.ok
 		? await systemSettingsResponse.json()
 		: null;
 
