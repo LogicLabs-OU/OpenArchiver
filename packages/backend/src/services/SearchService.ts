@@ -484,6 +484,20 @@ export class SearchService {
 				'hasAttachments',
 			],
 			sortableAttributes: ['timestamp'],
+			// Faceting defaults in Meilisearch are hostile to our "Top N" widgets:
+			//   - maxValuesPerFacet defaults to 100
+			//   - sortFacetValuesBy defaults to 'alpha' (lexicographic)
+			// So a facetDistribution over `from` returns only the alphabetically-first
+			// 100 senders out of the (many thousands of) distinct addresses in a large
+			// archive. getTopSenders() then sorts THAT arbitrary slice by count, which
+			// surfaces the top of an alphabetical subset — not the real top senders
+			// (observed: max count of ~25 across a 200k-email index). Sorting facet
+			// values by count makes Meilisearch return the highest-frequency values,
+			// so getTopSenders / getFacetValues see the true leaders.
+			faceting: {
+				maxValuesPerFacet: 1000,
+				sortFacetValuesBy: { '*': 'count' },
+			},
 		});
 	}
 }
