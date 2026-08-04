@@ -12,6 +12,9 @@ const handleRequest: RequestHandler = async ({ request, params, fetch }) => {
 	try {
 		let body: ArrayBuffer | null = null;
 		const headers = new Headers(request.headers);
+		// undici rejects mismatched Host; it sets Host from the URL itself.
+		headers.delete('host');
+		headers.set('x-forwarded-port', url.port);
 
 		if (request.method !== 'GET' && request.method !== 'HEAD') {
 			body = await request.arrayBuffer();
@@ -24,6 +27,8 @@ const handleRequest: RequestHandler = async ({ request, params, fetch }) => {
 			method: request.method,
 			headers: headers,
 			body: body,
+			// Preserve the backend's 302 and Set-Cookie headers for the browser.
+			redirect: 'manual',
 			duplex: 'half',
 		} as RequestInit);
 

@@ -152,9 +152,13 @@
 	if (data.enterpriseMode) {
 		navItems = mergeNavItems(baseNavItems, enterpriseNavItems);
 	}
-	function handleLogout() {
-		authStore.logout();
-		goto('/signin');
+	async function handleLogout() {
+		try {
+			await fetch('/api/v1/auth/logout', { method: 'POST' });
+		} finally {
+			authStore.logout();
+			goto('/signin');
+		}
 	}
 </script>
 

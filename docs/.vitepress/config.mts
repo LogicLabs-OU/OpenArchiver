@@ -35,6 +35,7 @@ export default defineConfig({
 				items: [
 					{ text: 'Get Started', link: '/' },
 					{ text: 'Installation', link: '/user-guides/installation' },
+					{ text: 'OIDC Single Sign-On', link: '/user-guides/oidc-sso' },
 					{ text: 'Email Integrity Check', link: '/user-guides/integrity-check' },
 					{ text: 'Searching the Archive', link: '/user-guides/searching' },
 					{ text: 'Search Indexing & Reindexing', link: '/user-guides/search-indexing' },

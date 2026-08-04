@@ -14,7 +14,7 @@ export class UserService {
 	 */
 	public async findByEmail(email: string): Promise<typeof schema.users.$inferSelect | null> {
 		const user = await db.query.users.findFirst({
-			where: eq(schema.users.email, email),
+			where: sql`lower(${schema.users.email}) = lower(${email.trim()})`,
 		});
 		return user || null;
 	}

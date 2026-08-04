@@ -115,6 +115,9 @@ export const createAuthRouter = (authController: AuthController): Router => {
 	 *         $ref: '#/components/responses/InternalServerError'
 	 */
 	router.post('/login', authController.login);
+	router.get('/oidc/start', authController.oidcStart);
+	router.get('/oidc/callback', authController.oidcCallback);
+	router.post('/logout', authController.logout);
 
 	/**
 	 * @openapi

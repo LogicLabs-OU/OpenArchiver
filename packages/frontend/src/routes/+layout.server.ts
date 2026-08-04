@@ -12,9 +12,12 @@ let lastChecked: Date | null = null;
 export const load: LayoutServerLoad = async (event) => {
 	const { locals, url } = event;
 	const response = await api('/auth/status', event);
+	let oidcEnabled = false;
 
 	if (response.ok) {
-		const { needsSetup } = await response.json();
+		const status = await response.json();
+		const { needsSetup } = status;
+		oidcEnabled = status.oidcEnabled === true;
 
 		if (needsSetup && url.pathname !== '/setup') {
 			throw redirect(307, '/setup');
@@ -64,6 +67,7 @@ export const load: LayoutServerLoad = async (event) => {
 		user: locals.user,
 		accessToken: locals.accessToken,
 		enterpriseMode: locals.enterpriseMode,
+		oidcEnabled,
 		systemSettings,
 		currentVersion: version,
 		newVersionInfo: newVersionInfo,
