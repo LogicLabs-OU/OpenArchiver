@@ -9,6 +9,7 @@ import type {
 	EmailObject,
 	SyncState,
 	MailboxUser,
+	IngestionCredentials,
 } from '@open-archiver/types';
 import { GoogleWorkspaceConnector } from './ingestion-connectors/GoogleWorkspaceConnector';
 import { MicrosoftConnector } from './ingestion-connectors/MicrosoftConnector';
@@ -27,6 +28,8 @@ export interface ConnectorOptions {
 	/** When true, connectors omit attachment binary content from the
 	 *  yielded EmailObject to avoid unnecessary memory allocation. */
 	preserveOriginalFile: boolean;
+	/** Persist connector-managed credential changes such as a rotated OAuth token cache. */
+	onCredentialsUpdated?: (credentials: IngestionCredentials) => Promise<void>;
 }
 
 // Define a common interface for all connectors
@@ -48,6 +51,11 @@ export class EmailProviderFactory {
 		const credentials = source.credentials;
 		const options: ConnectorOptions = {
 			preserveOriginalFile: source.preserveOriginalFile ?? false,
+			onCredentialsUpdated: async (credentials) => {
+				// Dynamic import avoids the factory/IngestionService module cycle during startup.
+				const { IngestionService } = await import('./IngestionService.js');
+				await IngestionService.update(source.id, { providerConfig: credentials });
+			},
 		};
 
 		switch (source.provider) {

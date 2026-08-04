@@ -49,7 +49,15 @@ export interface GenericImapCredentials extends BaseIngestionCredentials {
 	secure: boolean;
 	allowInsecureCert: boolean;
 	username: string;
+	/** Authentication mechanism. Omitted on legacy sources, where password auth is used. */
+	authMethod?: 'password' | 'xoauth2';
 	password?: string;
+	/** Public-client Azure application ID used by Microsoft's device authorization flow. */
+	clientId?: string;
+	/** Serialized MSAL cache containing the refresh token; encrypted at rest with credentials. */
+	tokenCache?: string;
+	/** Account key used to silently renew access tokens from the MSAL cache. */
+	homeAccountId?: string;
 }
 
 export interface GoogleWorkspaceCredentials extends BaseIngestionCredentials {
@@ -134,7 +142,10 @@ export interface IngestionSource {
  * This type is safe to use in client-side applications or API responses
  * where exposing credentials would be a security risk.
  */
-export type SafeIngestionSource = Omit<IngestionSource, 'credentials'>;
+export type SafeIngestionSource = Omit<IngestionSource, 'credentials'> & {
+	/** Non-sensitive authentication mode, exposed so OAuth sources can offer reauthorization. */
+	authenticationMethod?: GenericImapCredentials['authMethod'];
+};
 
 export interface CreateIngestionSourceDto {
 	name: string;

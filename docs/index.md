@@ -35,6 +35,7 @@ After deploying the application, you will need to configure one or more ingestio
 
 - [Connecting to Google Workspace](./user-guides/email-providers/google-workspace.md)
 - [Connecting to Microsoft 365](./user-guides/email-providers/microsoft-365.md)
+- [Connecting Microsoft Outlook with IMAP OAuth](./user-guides/email-providers/outlook-imap.md)
 - [Connecting to a Generic IMAP Server](./user-guides/email-providers/imap.md)
 
 ## Contributing
