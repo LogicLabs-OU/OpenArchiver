@@ -11,6 +11,8 @@ import { UserService } from '../../services/UserService';
 import { AuditService } from '../../services/AuditService';
 import { checkDeletionEnabled } from '../../helpers/deletionGuard';
 import type { ReindexMode } from '@open-archiver/types';
+import { MicrosoftImapDeviceAuthService } from '../../services/MicrosoftImapDeviceAuthService';
+import { EmailProviderFactory } from '../../services/EmailProviderFactory';
 
 export class IngestionController {
 	private userService = new UserService();
@@ -23,7 +25,13 @@ export class IngestionController {
 	 */
 	private toSafeIngestionSource(source: IngestionSource): SafeIngestionSource {
 		const { credentials, ...safeSource } = source;
-		return safeSource;
+		return {
+			...safeSource,
+			authenticationMethod:
+				credentials.type === 'generic_imap'
+					? (credentials.authMethod ?? 'password')
+					: undefined,
+		};
 	}
 
 	public create = async (req: Request, res: Response): Promise<Response> => {
@@ -337,6 +345,102 @@ export class IngestionController {
 				return res.status(404).json({ message: req.t('ingestion.notFound') });
 			}
 			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+	public startMicrosoftImapDeviceAuth = async (
+		req: Request,
+		res: Response
+	): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) return res.status(401).json({ message: req.t('errors.unauthorized') });
+			return res
+				.status(201)
+				.json(
+					await MicrosoftImapDeviceAuthService.start(
+						req.body?.clientId,
+						userId,
+						undefined,
+						req.body?.authority
+					)
+				);
+		} catch (error) {
+			return res
+				.status(400)
+				.json({ message: error instanceof Error ? error.message : String(error) });
+		}
+	};
+
+	public restartMicrosoftImapDeviceAuth = async (
+		req: Request,
+		res: Response
+	): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) return res.status(401).json({ message: req.t('errors.unauthorized') });
+			const source = await IngestionService.findById(req.params.id);
+			if (
+				source.credentials.type !== 'generic_imap' ||
+				source.credentials.authMethod !== 'xoauth2'
+			) {
+				return res
+					.status(400)
+					.json({ message: 'This source does not use Microsoft IMAP OAuth.' });
+			}
+			const clientId = req.body?.clientId || source.credentials.clientId;
+			const authority = req.body?.authority || source.credentials.authority;
+			return res
+				.status(201)
+				.json(
+					await MicrosoftImapDeviceAuthService.start(
+						clientId,
+						userId,
+						source.id,
+						authority
+					)
+				);
+		} catch (error) {
+			return res
+				.status(400)
+				.json({ message: error instanceof Error ? error.message : String(error) });
+		}
+	};
+
+	public pollMicrosoftImapDeviceAuth = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) return res.status(401).json({ message: req.t('errors.unauthorized') });
+			const result = MicrosoftImapDeviceAuthService.poll(req.params.flowId, userId);
+			if (result.status !== 'complete' || !result.sourceId)
+				return res.status(200).json(result);
+
+			const actor = await this.userService.findById(userId);
+			if (!actor) return res.status(401).json({ message: req.t('errors.unauthorized') });
+			const source = await IngestionService.findById(result.sourceId);
+			if (source.credentials.type !== 'generic_imap') {
+				return res.status(400).json({ message: 'This source is not an IMAP source.' });
+			}
+			const providerConfig = {
+				...source.credentials,
+				tokenCache: result.tokenCache,
+				homeAccountId: result.homeAccountId,
+				username: result.username || source.credentials.username,
+			};
+			const candidate = { ...source, credentials: providerConfig } as IngestionSource;
+			await EmailProviderFactory.createConnector(candidate).testConnection();
+			const updated = await IngestionService.update(
+				source.id,
+				{ providerConfig, status: 'active' },
+				actor,
+				req.ip || 'unknown'
+			);
+			return res
+				.status(200)
+				.json({ status: 'complete', source: this.toSafeIngestionSource(updated) });
+		} catch (error) {
+			return res
+				.status(404)
+				.json({ message: error instanceof Error ? error.message : String(error) });
 		}
 	};
 }

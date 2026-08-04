@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
     open-archiver:
-        image: logiclabshq/open-archiver:latest
+        build:
+            context: .
+            dockerfile: apps/open-archiver/Dockerfile
+        image: open-archiver:local
         container_name: open-archiver
         restart: unless-stopped
         ports:

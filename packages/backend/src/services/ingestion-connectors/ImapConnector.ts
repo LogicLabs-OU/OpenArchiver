@@ -12,9 +12,11 @@ import { config } from '../../config';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
+import { PublicClientApplication } from '@azure/msal-node';
+import { resolveMicrosoftImapAuthority } from '../MicrosoftImapDeviceAuthService';
 
 export class ImapConnector implements IEmailConnector {
-	private client: ImapFlow;
+	private client!: ImapFlow;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
 	private options: ConnectorOptions;
@@ -24,10 +26,14 @@ export class ImapConnector implements IEmailConnector {
 		options?: ConnectorOptions
 	) {
 		this.options = options ?? { preserveOriginalFile: false };
-		this.client = this.createClient();
 	}
 
-	private createClient(): ImapFlow {
+	private createClient(accessToken?: string): ImapFlow {
+		const auth =
+			this.credentials.authMethod === 'xoauth2'
+				? { user: this.credentials.username, accessToken }
+				: { user: this.credentials.username, pass: this.credentials.password };
+
 		const client = new ImapFlow({
 			host: this.credentials.host,
 			port: this.credentials.port,
@@ -36,10 +42,7 @@ export class ImapConnector implements IEmailConnector {
 				rejectUnauthorized: !this.credentials.allowInsecureCert,
 				requestCert: true,
 			},
-			auth: {
-				user: this.credentials.username,
-				pass: this.credentials.password,
-			},
+			auth,
 			logger: logger.child({ module: 'ImapFlow' }),
 		});
 
@@ -56,12 +59,16 @@ export class ImapConnector implements IEmailConnector {
 	 */
 	private async connect(): Promise<void> {
 		// If the client is already connected and usable, do nothing.
-		if (this.client.usable) {
+		if (this.client?.usable) {
 			return;
 		}
 
 		// If the client is not usable (e.g., after a logout or an error), create a new one.
-		this.client = this.createClient();
+		const accessToken =
+			this.credentials.authMethod === 'xoauth2'
+				? await this.acquireMicrosoftAccessToken()
+				: undefined;
+		this.client = this.createClient(accessToken);
 
 		try {
 			await this.client.connect();
@@ -78,9 +85,37 @@ export class ImapConnector implements IEmailConnector {
 	 * Disconnects from the IMAP server if the connection is active.
 	 */
 	private async disconnect(): Promise<void> {
-		if (this.client.usable) {
+		if (this.client?.usable) {
 			await this.client.logout();
 		}
+	}
+
+	private async acquireMicrosoftAccessToken(): Promise<string> {
+		const { clientId, tokenCache, homeAccountId } = this.credentials;
+		if (!clientId || !tokenCache || !homeAccountId) {
+			throw new Error('Microsoft device authentication has not been completed.');
+		}
+		const app = new PublicClientApplication({
+			auth: {
+				clientId,
+				authority: resolveMicrosoftImapAuthority(this.credentials.authority),
+			},
+		});
+		app.getTokenCache().deserialize(tokenCache);
+		const account = await app.getTokenCache().getAccountByHomeId(homeAccountId);
+		if (!account)
+			throw new Error('The authenticated Microsoft account is missing from the token cache.');
+		const result = await app.acquireTokenSilent({
+			account,
+			scopes: ['https://outlook.office.com/IMAP.AccessAsUser.All'],
+		});
+		if (!result?.accessToken) throw new Error('Microsoft did not return an IMAP access token.');
+		const updatedTokenCache = app.getTokenCache().serialize();
+		if (updatedTokenCache !== tokenCache) {
+			this.credentials.tokenCache = updatedTokenCache;
+			await this.options.onCredentialsUpdated?.(this.credentials);
+		}
+		return result.accessToken;
 	}
 
 	public async testConnection(): Promise<boolean> {

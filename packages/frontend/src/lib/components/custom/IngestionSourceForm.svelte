@@ -17,6 +17,8 @@
 	import tippy from 'tippy.js';
 	import 'tippy.js/dist/tippy.css';
 	import { t } from '$lib/translations';
+	import { api } from '$lib/api.client';
+	import { onDestroy } from 'svelte';
 	let {
 		source = null,
 		existingSources = [],
@@ -32,6 +34,13 @@
 		{
 			value: 'generic_imap',
 			label: $t('app.components.ingestion_source_form.provider_generic_imap'),
+			disabled: false,
+		},
+		{
+			// This is a UI-only variant. It is stored as generic_imap with authMethod=xoauth2,
+			// so existing provider enums, filtering, and connector dispatch remain compatible.
+			value: 'generic_imap_xoauth2',
+			label: $t('app.components.ingestion_source_form.provider_outlook_imap'),
 			disabled: false,
 		},
 		{
@@ -83,17 +92,42 @@
 		},
 		preserveOriginalFile: source?.preserveOriginalFile ?? false,
 	});
+	let selectedProvider = $state<string>(
+		source?.provider === 'generic_imap' && source.authenticationMethod === 'xoauth2'
+			? 'generic_imap_xoauth2'
+			: (source?.provider ?? 'generic_imap')
+	);
 
 	$effect(() => {
+		const isXoauth2 = selectedProvider === 'generic_imap_xoauth2';
+		formData.provider = isXoauth2
+			? 'generic_imap'
+			: (selectedProvider as typeof formData.provider);
 		formData.providerConfig.type = formData.provider;
+		if (formData.provider === 'generic_imap') {
+			formData.providerConfig.authMethod = isXoauth2 ? 'xoauth2' : 'password';
+			if (isXoauth2) {
+				formData.providerConfig.host ||= 'outlook.office365.com';
+				formData.providerConfig.port ||= 993;
+				formData.providerConfig.secure = true;
+				formData.providerConfig.authority ||=
+					'https://login.microsoftonline.com/consumers/oauth2/v2.0';
+			}
+		}
 	});
 
 	const triggerContent = $derived(
-		providerOptions.find((p) => p.value === formData.provider)?.label ??
+		providerOptions.find((p) => p.value === selectedProvider)?.label ??
 			$t('app.components.ingestion_source_form.select_provider')
 	);
 
 	let isSubmitting = $state(false);
+	type DeviceAuthState = 'idle' | 'starting' | 'waiting' | 'complete' | 'error';
+	let deviceAuthState = $state<DeviceAuthState>('idle');
+	let deviceAuthMessage = $state('');
+	let deviceUserCode = $state('');
+	let deviceVerificationUri = $state('https://microsoft.com/devicelogin');
+	let devicePollTimer: ReturnType<typeof setTimeout> | undefined;
 	let showAdvanced = $state(false);
 	let mergeEnabled = $state(false);
 
@@ -163,11 +197,88 @@
 		event.preventDefault();
 		isSubmitting = true;
 		try {
-			await onSubmit(formData);
+			if (formData.provider === 'generic_imap') {
+				if (formData.providerConfig.authMethod === 'xoauth2') {
+					delete formData.providerConfig.password;
+				} else {
+					delete formData.providerConfig.clientId;
+					delete formData.providerConfig.tokenCache;
+					delete formData.providerConfig.homeAccountId;
+				}
+			}
+			if (source && formData.providerConfig.authMethod === 'xoauth2') {
+				// Reauthorization is persisted by the device-auth endpoint itself. Do not replace
+				// the existing encrypted IMAP settings with this form's blank credential copy.
+				const updateData = { ...formData } as Partial<CreateIngestionSourceDto>;
+				delete updateData.providerConfig;
+				await onSubmit(updateData as CreateIngestionSourceDto);
+			} else {
+				await onSubmit(formData);
+			}
 		} finally {
 			isSubmitting = false;
 		}
 	};
+
+	const pollDeviceAuth = async (flowId: string) => {
+		try {
+			const response = await api(
+				source
+					? `/ingestion-sources/${source.id}/microsoft-imap/device-auth/${flowId}`
+					: `/ingestion-sources/microsoft-imap/device-auth/${flowId}`
+			);
+			const result = await response.json();
+			if (!response.ok || result.status === 'error') {
+				throw new Error(result.message || 'Microsoft authentication failed.');
+			}
+			if (result.status === 'complete') {
+				if (!source) {
+					formData.providerConfig.tokenCache = result.tokenCache;
+					formData.providerConfig.homeAccountId = result.homeAccountId;
+					if (result.username) formData.providerConfig.username = result.username;
+				}
+				deviceAuthState = 'complete';
+				return;
+			}
+			devicePollTimer = setTimeout(() => void pollDeviceAuth(flowId), 2000);
+		} catch (error) {
+			deviceAuthState = 'error';
+			deviceAuthMessage = error instanceof Error ? error.message : String(error);
+		}
+	};
+
+	const startDeviceAuth = async () => {
+		clearTimeout(devicePollTimer);
+		deviceAuthState = 'starting';
+		deviceAuthMessage = '';
+		try {
+			const response = await api(
+				source
+					? `/ingestion-sources/${source.id}/microsoft-imap/device-auth`
+					: '/ingestion-sources/microsoft-imap/device-auth',
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						clientId: formData.providerConfig.clientId,
+						authority: formData.providerConfig.authority,
+					}),
+				}
+			);
+			const result = await response.json();
+			if (!response.ok)
+				throw new Error(result.message || 'Could not start Microsoft authentication.');
+			deviceUserCode = result.userCode;
+			deviceVerificationUri = result.verificationUri;
+			deviceAuthMessage = result.message;
+			deviceAuthState = 'waiting';
+			void pollDeviceAuth(result.flowId);
+		} catch (error) {
+			deviceAuthState = 'error';
+			deviceAuthMessage = error instanceof Error ? error.message : String(error);
+		}
+	};
+
+	onDestroy(() => clearTimeout(devicePollTimer));
 
 	const handleFileChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
@@ -349,7 +460,7 @@
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
 		<Label for="provider" class="text-left">{$t('app.ingestions.provider')}</Label>
-		<Select.Root name="provider" bind:value={formData.provider} type="single">
+		<Select.Root name="provider" bind:value={selectedProvider} type="single">
 			<Select.Trigger class="col-span-3">
 				{triggerContent}
 			</Select.Trigger>
@@ -436,15 +547,91 @@
 			>
 			<Input id="username" bind:value={formData.providerConfig.username} class="col-span-3" />
 		</div>
-		<div class="grid grid-cols-4 items-center gap-4">
-			<Label for="password" class="text-left">{$t('app.auth.password')}</Label>
-			<Input
-				id="password"
-				type="password"
-				bind:value={formData.providerConfig.password}
-				class="col-span-3"
-			/>
-		</div>
+		{#if selectedProvider === 'generic_imap_xoauth2'}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="imapOauthClientId" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_client_id')}</Label
+				>
+				<Input
+					id="imapOauthClientId"
+					bind:value={formData.providerConfig.clientId}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="imapOauthAuthority" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_authority')}</Label
+				>
+				<Input
+					id="imapOauthAuthority"
+					bind:value={formData.providerConfig.authority}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-start gap-4">
+				<Label class="pt-2 text-left"
+					>{$t('app.components.ingestion_source_form.microsoft_account')}</Label
+				>
+				<div class="col-span-3 space-y-2">
+					<Button
+						type="button"
+						variant="outline"
+						disabled={(!source && !formData.providerConfig.clientId) ||
+							deviceAuthState === 'starting' ||
+							deviceAuthState === 'waiting'}
+						onclick={startDeviceAuth}
+					>
+						{deviceAuthState === 'starting'
+							? $t('app.components.ingestion_source_form.starting_device_login')
+							: source
+								? $t(
+										'app.components.ingestion_source_form.reconnect_microsoft_account'
+									)
+								: $t(
+										'app.components.ingestion_source_form.connect_microsoft_account'
+									)}
+					</Button>
+					{#if deviceAuthState === 'waiting'}
+						<Alert.Root>
+							<Info class="size-4" />
+							<Alert.Title
+								>{$t(
+									'app.components.ingestion_source_form.device_login_title'
+								)}</Alert.Title
+							>
+							<Alert.Description>
+								<p>{deviceAuthMessage}</p>
+								<p class="mt-2 font-mono text-lg font-semibold">{deviceUserCode}</p>
+								<a
+									class="mt-2 inline-block underline"
+									href={deviceVerificationUri}
+									target="_blank"
+									rel="noreferrer"
+								>
+									{$t('app.components.ingestion_source_form.open_device_login')}
+								</a>
+							</Alert.Description>
+						</Alert.Root>
+					{:else if deviceAuthState === 'complete'}
+						<p class="text-sm text-green-600">
+							{$t('app.components.ingestion_source_form.microsoft_account_connected')}
+						</p>
+					{:else if deviceAuthState === 'error'}
+						<p class="text-destructive text-sm">{deviceAuthMessage}</p>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="password" class="text-left">{$t('app.auth.password')}</Label>
+				<Input
+					id="password"
+					type="password"
+					bind:value={formData.providerConfig.password}
+					class="col-span-3"
+				/>
+			</div>
+		{/if}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="secure" class="text-left"
 				>{$t('app.components.ingestion_source_form.use_tls')}</Label
@@ -687,7 +874,14 @@
 	</div>
 
 	<Dialog.Footer>
-		<Button type="submit" disabled={isSubmitting || uploadState === 'uploading'}>
+		<Button
+			type="submit"
+			disabled={isSubmitting ||
+				uploadState === 'uploading' ||
+				(!source &&
+					selectedProvider === 'generic_imap_xoauth2' &&
+					deviceAuthState !== 'complete')}
+		>
 			{#if isSubmitting}
 				{$t('app.components.common.submitting')}
 			{:else}

@@ -72,6 +72,26 @@ export const createIngestionRouter = (
 	router.post('/', requirePermission('create', 'ingestion'), ingestionController.create);
 
 	router.get('/', requirePermission('read', 'ingestion'), ingestionController.findAll);
+	router.post(
+		'/microsoft-imap/device-auth',
+		requirePermission('create', 'ingestion'),
+		ingestionController.startMicrosoftImapDeviceAuth
+	);
+	router.get(
+		'/microsoft-imap/device-auth/:flowId',
+		requirePermission('create', 'ingestion'),
+		ingestionController.pollMicrosoftImapDeviceAuth
+	);
+	router.post(
+		'/:id/microsoft-imap/device-auth',
+		requirePermission('update', 'ingestion'),
+		ingestionController.restartMicrosoftImapDeviceAuth
+	);
+	router.get(
+		'/:id/microsoft-imap/device-auth/:flowId',
+		requirePermission('update', 'ingestion'),
+		ingestionController.pollMicrosoftImapDeviceAuth
+	);
 
 	/**
 	 * @openapi
@@ -361,7 +381,11 @@ export const createIngestionRouter = (
 	 *       '404':
 	 *         $ref: '#/components/responses/NotFound'
 	 */
-	router.post('/:id/reindex', requirePermission('sync', 'ingestion'), ingestionController.reindex);
+	router.post(
+		'/:id/reindex',
+		requirePermission('sync', 'ingestion'),
+		ingestionController.reindex
+	);
 
 	/**
 	 * @openapi

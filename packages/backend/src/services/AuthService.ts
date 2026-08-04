@@ -156,6 +156,58 @@ export class AuthService {
 		};
 	}
 
+	/**
+	 * Creates a session for an identity already authenticated by a trusted external provider.
+	 */
+	public async loginWithIdentity(
+		email: string,
+		ip: string,
+		authenticationMethod: string
+	): Promise<LoginResponse | null> {
+		const user = await this.#userService.findByEmail(email);
+
+		if (!user) {
+			await this.#auditService.createAuditLog({
+				actorIdentifier: email,
+				actionType: 'LOGIN',
+				targetType: 'User',
+				targetId: email,
+				actorIp: ip,
+				details: { error: 'UserNotFound', authenticationMethod },
+			});
+			return null;
+		}
+
+		const login = await this.#createFullAccessToken(user.id);
+		if (!login) return null;
+
+		await this.#auditService.createAuditLog({
+			actorIdentifier: user.id,
+			actionType: 'LOGIN',
+			targetType: 'User',
+			targetId: user.id,
+			actorIp: ip,
+			details: { authenticationMethod },
+		});
+		return login;
+	}
+
+	/** Records the end of a valid session. JWTs remain stateless and expire normally. */
+	public async logout(token: string | undefined, ip: string): Promise<void> {
+		if (!token) return;
+		const payload = await this.verifyToken(token);
+		if (!payload?.sub) return;
+
+		await this.#auditService.createAuditLog({
+			actorIdentifier: payload.sub,
+			actionType: 'LOGOUT',
+			targetType: 'User',
+			targetId: payload.sub,
+			actorIp: ip,
+			details: {},
+		});
+	}
+
 	public async verifyToken(token: string): Promise<AuthTokenPayload | null> {
 		try {
 			const { payload } = await jwtVerify<AuthTokenPayload>(token, this.#jwtSecret);
@@ -204,6 +256,10 @@ export class AuthService {
 	 * Called by the enterprise advanced-security module.
 	 */
 	public async generateFullAccessToken(userId: string): Promise<LoginResponse | null> {
+		return this.#createFullAccessToken(userId);
+	}
+
+	async #createFullAccessToken(userId: string): Promise<LoginResponse | null> {
 		const user = await this.#userService.findById(userId);
 		if (!user) return null;
 

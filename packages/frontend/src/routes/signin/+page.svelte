@@ -9,6 +9,9 @@
 	import type { LoginResponse } from '@open-archiver/types';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { t } from '$lib/translations';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	let email = $state('');
 	let password = $state('');
@@ -90,6 +93,14 @@
 			<Card.Description>{$t('app.auth.login_tip')}</Card.Description>
 		</Card.Header>
 		<Card.Content class="grid gap-4">
+			{#if data.oidcEnabled}
+				<Button href="/api/v1/auth/oidc/start" class="w-full">Sign in with SSO</Button>
+				<div class="relative flex items-center">
+					<div class="grow border-t"></div>
+					<span class="text-muted-foreground px-3 text-xs">or use a local account</span>
+					<div class="grow border-t"></div>
+				</div>
+			{/if}
 			<form onsubmit={handleSubmit} class="grid gap-4">
 				<div class="grid gap-2">
 					<Label for="email">{$t('app.auth.email')}</Label>
