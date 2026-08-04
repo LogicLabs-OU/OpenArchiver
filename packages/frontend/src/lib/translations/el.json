@@ -184,6 +184,7 @@
 				"port": "Θύρα",
 				"username": "Όνομα χρήστη",
 				"oauth_client_id": "Αναγνωριστικό εφαρμογής (πελάτη)",
+				"oauth_authority": "URL αρχής Microsoft",
 				"microsoft_account": "Λογαριασμός Microsoft",
 				"connect_microsoft_account": "Σύνδεση λογαριασμού Microsoft",
 				"reconnect_microsoft_account": "Επανασύνδεση λογαριασμού Microsoft",

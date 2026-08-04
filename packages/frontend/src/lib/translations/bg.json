@@ -186,6 +186,7 @@
 				"port": "Порт",
 				"username": "Потребителско им",
 				"oauth_client_id": "ИД на приложение (клиент)",
+				"oauth_authority": "URL адрес на органа на Microsoft",
 				"microsoft_account": "Акаунт в Microsoft",
 				"connect_microsoft_account": "Свързване на акаунт в Microsoft",
 				"reconnect_microsoft_account": "Повторно свързване на акаунт в Microsoft",

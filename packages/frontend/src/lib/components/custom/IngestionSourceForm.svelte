@@ -110,6 +110,8 @@
 				formData.providerConfig.host ||= 'outlook.office365.com';
 				formData.providerConfig.port ||= 993;
 				formData.providerConfig.secure = true;
+				formData.providerConfig.authority ||=
+					'https://login.microsoftonline.com/consumers/oauth2/v2.0';
 			}
 		}
 	});
@@ -256,7 +258,10 @@
 					: '/ingestion-sources/microsoft-imap/device-auth',
 				{
 					method: 'POST',
-					body: JSON.stringify({ clientId: formData.providerConfig.clientId }),
+					body: JSON.stringify({
+						clientId: formData.providerConfig.clientId,
+						authority: formData.providerConfig.authority,
+					}),
 				}
 			);
 			const result = await response.json();
@@ -550,6 +555,16 @@
 				<Input
 					id="imapOauthClientId"
 					bind:value={formData.providerConfig.clientId}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="imapOauthAuthority" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_authority')}</Label
+				>
+				<Input
+					id="imapOauthAuthority"
+					bind:value={formData.providerConfig.authority}
 					class="col-span-3"
 				/>
 			</div>

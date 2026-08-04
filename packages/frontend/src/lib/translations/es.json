@@ -243,6 +243,7 @@
 				"port": "Puerto",
 				"username": "Nombre de usuario",
 				"oauth_client_id": "ID de aplicación (cliente)",
+				"oauth_authority": "URL de autoridad de Microsoft",
 				"microsoft_account": "Cuenta de Microsoft",
 				"connect_microsoft_account": "Conectar cuenta de Microsoft",
 				"reconnect_microsoft_account": "Volver a conectar la cuenta de Microsoft",

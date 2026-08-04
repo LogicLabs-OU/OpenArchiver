@@ -207,6 +207,7 @@
 				"port": "Poort",
 				"username": "Gebruikersnaam",
 				"oauth_client_id": "Toepassings-id (client-id)",
+				"oauth_authority": "URL van Microsoft-autoriteit",
 				"microsoft_account": "Microsoft-account",
 				"connect_microsoft_account": "Microsoft-account verbinden",
 				"reconnect_microsoft_account": "Microsoft-account opnieuw verbinden",

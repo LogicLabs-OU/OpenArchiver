@@ -54,6 +54,8 @@ export interface GenericImapCredentials extends BaseIngestionCredentials {
 	password?: string;
 	/** Public-client Azure application ID used by Microsoft's device authorization flow. */
 	clientId?: string;
+	/** Microsoft identity authority used for device login and silent token renewal. */
+	authority?: string;
 	/** Serialized MSAL cache containing the refresh token; encrypted at rest with credentials. */
 	tokenCache?: string;
 	/** Account key used to silently renew access tokens from the MSAL cache. */

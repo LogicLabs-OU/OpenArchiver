@@ -6,9 +6,9 @@ ARG BASE_IMAGE=node:22-alpine
 FROM ${BASE_IMAGE} AS base
 WORKDIR /app
 
-# Install pnpm
+# Keep the container's package manager aligned with package.json and pnpm-lock.yaml.
 RUN --mount=type=cache,target=/root/.npm \
-    npm install -g pnpm
+    npm install -g pnpm@10.13.1
 
 # Copy manifests and lockfile
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./

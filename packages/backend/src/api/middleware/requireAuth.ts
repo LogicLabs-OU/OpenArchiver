@@ -52,6 +52,17 @@ export const requireAuth = (authService: AuthService) => {
 				return res.status(401).json({ message: 'Unauthorized: MFA verification required' });
 			}
 
+			// A correctly signed token can outlive its database user (for example after
+			// restoring or replacing the database). Do not let that stale identity reach
+			// permission middleware, where it would surface as an internal server error.
+			if (!payload.sub) {
+				return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+			}
+			const user = await new UserService().findById(payload.sub);
+			if (!user) {
+				return res.status(401).json({ message: 'Unauthorized: Invalid user' });
+			}
+
 			req.user = payload;
 			next();
 		} catch (error) {

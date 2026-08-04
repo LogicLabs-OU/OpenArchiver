@@ -4,7 +4,33 @@ import { AuthenticationResult, DeviceCodeRequest, PublicClientApplication } from
 type DeviceCodeResponse = Parameters<DeviceCodeRequest['deviceCodeCallback']>[0];
 
 const SCOPES = ['https://outlook.office.com/IMAP.AccessAsUser.All', 'offline_access'];
+export const DEFAULT_MICROSOFT_IMAP_AUTHORITY =
+	'https://login.microsoftonline.com/consumers/oauth2/v2.0';
 const FLOW_TTL_MS = 15 * 60 * 1000;
+
+export const resolveMicrosoftImapAuthority = (authority?: string): string => {
+	const value = authority?.trim() || DEFAULT_MICROSOFT_IMAP_AUTHORITY;
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new Error('The Microsoft authority URL is invalid.');
+	}
+	const path = url.pathname.replace(/\/+$/, '');
+	const validPath = /^\/[A-Za-z0-9.-]+(?:\/oauth2\/v2\.0)?$/.test(path);
+	if (
+		url.protocol !== 'https:' ||
+		url.hostname !== 'login.microsoftonline.com' ||
+		url.username ||
+		url.password ||
+		url.search ||
+		url.hash ||
+		!validPath
+	) {
+		throw new Error('Authority must be a Microsoft login.microsoftonline.com tenant URL.');
+	}
+	return `${url.origin}${path}`;
+};
 
 type DeviceFlow = {
 	userId: string;
@@ -22,14 +48,15 @@ type DeviceFlow = {
 export class MicrosoftImapDeviceAuthService {
 	private static flows = new Map<string, DeviceFlow>();
 
-	static async start(clientId: string, userId: string, sourceId?: string) {
+	static async start(clientId: string, userId: string, sourceId?: string, authority?: string) {
 		this.removeExpiredFlows();
 		if (!clientId?.trim()) throw new Error('A Microsoft application client ID is required.');
+		const resolvedAuthority = resolveMicrosoftImapAuthority(authority);
 
 		const client = new PublicClientApplication({
 			auth: {
 				clientId: clientId.trim(),
-				authority: 'https://login.microsoftonline.com/common',
+				authority: resolvedAuthority,
 			},
 		});
 		const flowId = randomUUID();

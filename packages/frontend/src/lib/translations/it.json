@@ -211,6 +211,7 @@
 				"port": "Porta",
 				"username": "Nome utente",
 				"oauth_client_id": "ID applicazione (client)",
+				"oauth_authority": "URL autorità Microsoft",
 				"microsoft_account": "Account Microsoft",
 				"connect_microsoft_account": "Connetti account Microsoft",
 				"reconnect_microsoft_account": "Riconnetti account Microsoft",

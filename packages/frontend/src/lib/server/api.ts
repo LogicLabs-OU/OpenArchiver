@@ -1,4 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { accessTokenCookieName } from '$lib/auth-cookie';
 
 const BASE_URL = '/api/v1'; // Using a relative URL for proxying
@@ -33,5 +34,10 @@ export const api = async (
 		},
 	};
 
-	return event.fetch(`${BASE_URL}${url}`, mergedOptions);
+	const response = await event.fetch(`${BASE_URL}${url}`, mergedOptions);
+	if (response.status === 401 && accessToken) {
+		event.cookies.delete(accessTokenCookieName(event.url.port), { path: '/' });
+		throw redirect(303, '/signin');
+	}
+	return response;
 };

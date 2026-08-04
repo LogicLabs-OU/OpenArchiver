@@ -58,6 +58,36 @@ describe('application authentication flows', () => {
 		expect(response.body).toEqual({ message: 'invalid Microsoft client' });
 	});
 
+	it('accepts supported Microsoft authorities and rejects authority injection', async () => {
+		const { resolveMicrosoftImapAuthority } = await import(
+			'../services/MicrosoftImapDeviceAuthService.js'
+		);
+
+		expect(
+			resolveMicrosoftImapAuthority(
+				'https://login.microsoftonline.com/consumers/oauth2/v2.0/'
+			)
+		).toBe('https://login.microsoftonline.com/consumers/oauth2/v2.0');
+		expect(resolveMicrosoftImapAuthority('https://login.microsoftonline.com/common')).toBe(
+			'https://login.microsoftonline.com/common'
+		);
+		expect(
+			resolveMicrosoftImapAuthority(
+				'https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000'
+			)
+		).toBe('https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000');
+
+		for (const authority of [
+			'https://example.test/consumers/oauth2/v2.0',
+			'https://login.microsoftonline.com.evil.test/consumers',
+			'https://user:password@login.microsoftonline.com/consumers',
+			'https://login.microsoftonline.com/consumers?redirect=https://example.test',
+			'https://login.microsoftonline.com/consumers/oauth2/v2.0/token',
+		]) {
+			expect(() => resolveMicrosoftImapAuthority(authority)).toThrow();
+		}
+	});
+
 	it('completes OIDC login through the application routes', async () => {
 		const loginWithIdentity = vi.fn().mockResolvedValue({
 			accessToken: 'application-session-token',

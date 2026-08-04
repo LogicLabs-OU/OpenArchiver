@@ -356,7 +356,14 @@ export class IngestionController {
 			if (!userId) return res.status(401).json({ message: req.t('errors.unauthorized') });
 			return res
 				.status(201)
-				.json(await MicrosoftImapDeviceAuthService.start(req.body?.clientId, userId));
+				.json(
+					await MicrosoftImapDeviceAuthService.start(
+						req.body?.clientId,
+						userId,
+						undefined,
+						req.body?.authority
+					)
+				);
 		} catch (error) {
 			return res
 				.status(400)
@@ -381,9 +388,17 @@ export class IngestionController {
 					.json({ message: 'This source does not use Microsoft IMAP OAuth.' });
 			}
 			const clientId = req.body?.clientId || source.credentials.clientId;
+			const authority = req.body?.authority || source.credentials.authority;
 			return res
 				.status(201)
-				.json(await MicrosoftImapDeviceAuthService.start(clientId, userId, source.id));
+				.json(
+					await MicrosoftImapDeviceAuthService.start(
+						clientId,
+						userId,
+						source.id,
+						authority
+					)
+				);
 		} catch (error) {
 			return res
 				.status(400)

@@ -335,6 +335,7 @@
 				"port": "Port",
 				"username": "Username",
 				"oauth_client_id": "Application (Client) ID",
+				"oauth_authority": "Microsoft authority URL",
 				"microsoft_account": "Microsoft account",
 				"connect_microsoft_account": "Connect Microsoft account",
 				"reconnect_microsoft_account": "Reconnect Microsoft account",

@@ -207,6 +207,7 @@
 				"port": "ポート",
 				"username": "ユーザー名",
 				"oauth_client_id": "アプリケーション（クライアント）ID",
+				"oauth_authority": "Microsoft 認証機関 URL",
 				"microsoft_account": "Microsoft アカウント",
 				"connect_microsoft_account": "Microsoft アカウントに接続",
 				"reconnect_microsoft_account": "Microsoft アカウントに再接続",

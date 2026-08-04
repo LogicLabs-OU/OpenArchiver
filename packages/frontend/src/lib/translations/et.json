@@ -207,6 +207,7 @@
 				"port": "Port",
 				"username": "Kasutajanimi",
 				"oauth_client_id": "Rakenduse (kliendi) ID",
+				"oauth_authority": "Microsofti autoriteedi URL",
 				"microsoft_account": "Microsofti konto",
 				"connect_microsoft_account": "Ühenda Microsofti konto",
 				"reconnect_microsoft_account": "Ühenda Microsofti konto uuesti",

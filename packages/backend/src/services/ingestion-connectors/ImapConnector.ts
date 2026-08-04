@@ -13,6 +13,7 @@ import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import { PublicClientApplication } from '@azure/msal-node';
+import { resolveMicrosoftImapAuthority } from '../MicrosoftImapDeviceAuthService';
 
 export class ImapConnector implements IEmailConnector {
 	private client!: ImapFlow;
@@ -95,7 +96,10 @@ export class ImapConnector implements IEmailConnector {
 			throw new Error('Microsoft device authentication has not been completed.');
 		}
 		const app = new PublicClientApplication({
-			auth: { clientId, authority: 'https://login.microsoftonline.com/common' },
+			auth: {
+				clientId,
+				authority: resolveMicrosoftImapAuthority(this.credentials.authority),
+			},
 		});
 		app.getTokenCache().deserialize(tokenCache);
 		const account = await app.getTokenCache().getAccountByHomeId(homeAccountId);
