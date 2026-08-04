@@ -11,6 +11,7 @@
 	},
 	"scripts": {
 		"build": "tsc && pnpm copy-assets",
+		"test": "vitest run",
 		"dev": "tsc --watch",
 		"copy-assets": "cp -r src/locales dist/locales",
 		"start:ingestion-worker": "node dist/workers/ingestion.worker.js",
@@ -81,11 +82,14 @@
 		"@types/multer": "^2.0.0",
 		"@types/node": "^24.0.12",
 		"@types/nodemailer": "^7.0.11",
+		"@types/supertest": "^7.2.1",
 		"@types/swagger-jsdoc": "^6.0.4",
 		"@types/yauzl": "^2.10.3",
+		"supertest": "^7.2.2",
 		"swagger-jsdoc": "^6.2.8",
 		"ts-node-dev": "^2.0.0",
 		"tsconfig-paths": "^4.2.0",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"vitest": "^4.1.10"
 	}
 }
