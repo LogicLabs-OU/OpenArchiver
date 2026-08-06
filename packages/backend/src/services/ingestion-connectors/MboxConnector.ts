@@ -5,24 +5,37 @@ import type {
 	SyncState,
 	MailboxUser,
 } from '@open-archiver/types';
-import type { IEmailConnector } from '../EmailProviderFactory';
+import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { Readable, Transform } from 'stream';
 import { createHash } from 'crypto';
+import { promises as fs, createReadStream } from 'fs';
 
 class MboxSplitter extends Transform {
 	private buffer: Buffer = Buffer.alloc(0);
 	private delimiter: Buffer = Buffer.from('\nFrom ');
 	private firstChunk: boolean = true;
 
+	constructor() {
+		// The readable side must be object mode so each pushed per-message Buffer stays a
+		// discrete item. Without it, Node's readable buffering concatenates pushed buffers
+		// and the consumer receives runs of messages glued together — every run is then
+		// parsed and archived as ONE email (silent data loss, see issue #412). The writable
+		// side stays a byte stream, since the input is the raw mbox file.
+		super({ readableObjectMode: true });
+	}
+
 	_transform(chunk: Buffer, encoding: string, callback: Function) {
 		if (this.firstChunk) {
 			// Check if the file starts with "From ". If not, prepend it to the first email.
+			// Must be concatenated into the chunk, not push()ed: in object mode a push()
+			// would emit the 5-byte fragment as its own bogus "message".
 			if (chunk.subarray(0, 5).toString() !== 'From ') {
-				this.push(Buffer.from('From '));
+				chunk = Buffer.concat([Buffer.from('From '), chunk]);
 			}
 			this.firstChunk = false;
 		}
@@ -53,22 +66,46 @@ class MboxSplitter extends Transform {
 
 export class MboxConnector implements IEmailConnector {
 	private storage: StorageService;
+	private options: ConnectorOptions;
 
-	constructor(private credentials: MboxImportCredentials) {
+	constructor(
+		private credentials: MboxImportCredentials,
+		options?: ConnectorOptions
+	) {
+		this.options = options ?? { preserveOriginalFile: false };
 		this.storage = new StorageService();
 	}
 
 	public async testConnection(): Promise<boolean> {
 		try {
-			if (!this.credentials.uploadedFilePath) {
+			const filePath = this.getFilePath();
+			if (!filePath) {
 				throw Error('Mbox file path not provided.');
 			}
-			if (!this.credentials.uploadedFilePath.includes('.mbox')) {
+			if (!filePath.includes('.mbox')) {
 				throw Error('Provided file is not in the MBOX format.');
 			}
-			const fileExist = await this.storage.exists(this.credentials.uploadedFilePath);
+
+			let fileExist = false;
+			if (this.credentials.localFilePath) {
+				try {
+					await fs.access(this.credentials.localFilePath);
+					fileExist = true;
+				} catch {
+					fileExist = false;
+				}
+			} else {
+				fileExist = await this.storage.exists(filePath);
+			}
+
 			if (!fileExist) {
-				throw Error('Mbox file upload not finished yet, please wait.');
+				if (this.credentials.localFilePath) {
+					throw Error(`Mbox file not found at path: ${this.credentials.localFilePath}`);
+				} else {
+					throw Error(
+						'Uploaded Mbox file not found. The upload may not have finished yet, or it failed.'
+					);
+				}
 			}
 
 			return true;
@@ -78,9 +115,19 @@ export class MboxConnector implements IEmailConnector {
 		}
 	}
 
+	private getFilePath(): string {
+		return this.credentials.localFilePath || this.credentials.uploadedFilePath || '';
+	}
+
+	private async getFileStream(): Promise<NodeJS.ReadableStream> {
+		if (this.credentials.localFilePath) {
+			return createReadStream(this.credentials.localFilePath);
+		}
+		return this.storage.getStream(this.getFilePath());
+	}
+
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		const displayName =
-			this.credentials.uploadedFileName || `mbox-import-${new Date().getTime()}`;
+		const displayName = this.getDisplayName();
 		logger.info(`Found potential mailbox: ${displayName}`);
 		const constructedPrimaryEmail = `${displayName.replace(/ /g, '.').toLowerCase()}@mbox.local`;
 		yield {
@@ -90,47 +137,101 @@ export class MboxConnector implements IEmailConnector {
 		};
 	}
 
+	private getDisplayName(): string {
+		if (this.credentials.uploadedFileName) {
+			return this.credentials.uploadedFileName;
+		}
+		if (this.credentials.localFilePath) {
+			const parts = this.credentials.localFilePath.split('/');
+			return parts[parts.length - 1].replace('.mbox', '');
+		}
+		return `mbox-import-${new Date().getTime()}`;
+	}
+
 	public async *fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null
 	): AsyncGenerator<EmailObject | null> {
-		const fileStream = await this.storage.getStream(this.credentials.uploadedFilePath);
+		const filePath = this.getFilePath();
+		const fileStream = await this.getFileStream();
 		const mboxSplitter = new MboxSplitter();
 		const emailStream = fileStream.pipe(mboxSplitter);
+		// pipe() does not forward source errors to the destination, so a source-stream error
+		// (e.g. EACCES on a locked/unreadable mbox) would fire an unhandled 'error' event and
+		// crash the worker. Destroy the splitter with the error instead, so the `for await`
+		// below throws it and the job fails cleanly.
+		fileStream.on('error', (err) => {
+			emailStream.destroy(err instanceof Error ? err : new Error(String(err)));
+		});
 
+		// Count what the splitter yields so a source-vs-archived mismatch is visible in the
+		// job logs instead of failing silently (issue #412).
+		let messagesFound = 0;
 		for await (const emailBuffer of emailStream) {
+			messagesFound++;
 			try {
 				const emailObject = await this.parseMessage(emailBuffer as Buffer, '');
 				yield emailObject;
 			} catch (error) {
 				logger.error(
-					{ error, file: this.credentials.uploadedFilePath },
+					{ error, file: filePath },
 					'Failed to process a single message from mbox file. Skipping.'
 				);
 			}
 		}
+		logger.info(
+			{ file: filePath, messagesFound },
+			'Finished splitting mbox file into individual messages.'
+		);
 
-		// After the stream is fully consumed, delete the file.
-		// The `for await...of` loop ensures streams are properly closed on completion,
-		// so we can safely delete the file here without causing a hang.
-		try {
-			await this.storage.delete(this.credentials.uploadedFilePath);
-		} catch (error) {
-			logger.error(
-				{ error, file: this.credentials.uploadedFilePath },
-				'Failed to delete mbox file after processing.'
-			);
+		if (this.credentials.uploadedFilePath && !this.credentials.localFilePath) {
+			try {
+				await this.storage.delete(filePath);
+			} catch (error) {
+				logger.error(
+					{ error, file: filePath },
+					'Failed to delete mbox file after processing.'
+				);
+			}
 		}
 	}
 
-	private async parseMessage(emlBuffer: Buffer, path: string): Promise<EmailObject> {
+	/**
+	 * Strips the mbox "From " envelope line from the raw buffer.
+	 * The mbox format prepends each message with a "From sender@... timestamp\n"
+	 * line that is NOT part of the RFC 5322 message. Storing this line in the
+	 * .eml would produce an invalid file and corrupt the SHA-256 hash for GoBD
+	 * compliance purposes.
+	 */
+	private stripMboxEnvelope(buffer: Buffer): Buffer {
+		// The "From " line ends at the first \n — everything after is the real RFC 5322 message.
+		const fromPrefix = Buffer.from('From ');
+		if (buffer.subarray(0, fromPrefix.length).equals(fromPrefix)) {
+			const newlineIndex = buffer.indexOf(0x0a); // \n
+			if (newlineIndex !== -1) {
+				return buffer.subarray(newlineIndex + 1);
+			}
+		}
+		return buffer;
+	}
+
+	private async parseMessage(rawMboxBuffer: Buffer, path: string): Promise<EmailObject> {
+		// Strip the mbox "From " envelope line before writing to temp file.
+		// This line is an mbox transport artifact, not part of the RFC 5322 message.
+		const emlBuffer = this.stripMboxEnvelope(rawMboxBuffer);
+
+		const tempFilePath = await writeEmailToTempFile(emlBuffer);
 		const parsedEmail: ParsedMail = await simpleParser(emlBuffer);
 
+		// In preserve-original mode, skip extracting full attachment binary content
+		// to avoid unnecessary memory allocation — the raw EML on disk is the source of truth.
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
 			filename: attachment.filename || 'untitled',
 			contentType: attachment.contentType,
 			size: attachment.size,
-			content: attachment.content as Buffer,
+			content: this.options.preserveOriginalFile
+				? Buffer.alloc(0)
+				: (attachment.content as Buffer),
 		}));
 
 		const mapAddresses = (
@@ -185,7 +286,7 @@ export class MboxConnector implements IEmailConnector {
 			headers: parsedEmail.headers,
 			attachments,
 			receivedAt: parsedEmail.date || new Date(),
-			eml: emlBuffer,
+			tempFilePath,
 			path: finalPath,
 		};
 	}

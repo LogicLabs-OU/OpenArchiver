@@ -2,7 +2,8 @@ import { Job } from 'bullmq';
 import { IngestionService } from '../../services/IngestionService';
 import { IContinuousSyncJob } from '@open-archiver/types';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
-import { flowProducer } from '../queues';
+import { ingestionQueue } from '../queues';
+import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 
 export default async (job: Job<IContinuousSyncJob>) => {
@@ -26,50 +27,54 @@ export default async (job: Job<IContinuousSyncJob>) => {
 	const connector = EmailProviderFactory.createConnector(source);
 
 	try {
-		const jobs = [];
+		// Phase 1: Collect user emails (async generator — no full buffering of job descriptors).
+		// We need the total count before creating the session so the counter is correct.
+		const userEmails: string[] = [];
 		for await (const user of connector.listAllUsers()) {
 			if (user.primaryEmail) {
-				jobs.push({
-					name: 'process-mailbox',
-					queueName: 'ingestion',
-					data: {
-						ingestionSourceId: source.id,
-						userEmail: user.primaryEmail,
-					},
-					opts: {
-						removeOnComplete: {
-							age: 60 * 10, // 10 minutes
-						},
-						removeOnFail: {
-							age: 60 * 30, // 30 minutes
-						},
-						timeout: 1000 * 60 * 30, // 30 minutes
-					},
-				});
+				userEmails.push(user.primaryEmail);
 			}
 		}
-		// }
 
-		if (jobs.length > 0) {
-			await flowProducer.add({
-				name: 'sync-cycle-finished',
-				queueName: 'ingestion',
-				data: {
-					ingestionSourceId,
-					isInitialImport: false,
-				},
-				children: jobs,
-				opts: {
-					removeOnComplete: true,
-					removeOnFail: true,
-				},
+		if (userEmails.length === 0) {
+			logger.info(
+				{ ingestionSourceId },
+				'No users found during continuous sync, marking active.'
+			);
+			await IngestionService.update(ingestionSourceId, {
+				status: 'active',
+				lastSyncFinishedAt: new Date(),
+				lastSyncStatusMessage: 'Continuous sync complete. No users found.',
+			});
+			return;
+		}
+
+		// Phase 2: Create a session BEFORE dispatching any jobs.
+		const sessionId = await SyncSessionService.create(
+			ingestionSourceId,
+			userEmails.length,
+			false
+		);
+
+		logger.info(
+			{ ingestionSourceId, userCount: userEmails.length, sessionId },
+			'Dispatching process-mailbox jobs for continuous sync'
+		);
+
+		// Phase 3: Enqueue individual process-mailbox jobs one at a time.
+		// No FlowProducer — each job carries the sessionId for DB-based coordination.
+		for (const userEmail of userEmails) {
+			await ingestionQueue.add('process-mailbox', {
+				ingestionSourceId: source.id,
+				userEmail,
+				sessionId,
 			});
 		}
 
 		// The status will be set back to 'active' by the 'sync-cycle-finished' job
 		// once all the mailboxes have been processed.
 		logger.info(
-			{ ingestionSourceId },
+			{ ingestionSourceId, sessionId },
 			'Continuous sync job finished dispatching mailbox jobs.'
 		);
 	} catch (error) {

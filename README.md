@@ -11,7 +11,7 @@
 
 Open Archiver provides a robust, self-hosted solution for archiving, storing, indexing, and searching emails from major platforms, including Google Workspace (Gmail), Microsoft 365, PST files, as well as generic IMAP-enabled email inboxes. Use Open Archiver to keep a permanent, tamper-proof record of your communication history, free from vendor lock-in.
 
-## 📸 Screenshots
+## Screenshots
 
 ![Open Archiver Preview](assets/screenshots/dashboard-1.png)
 _Dashboard_
@@ -22,9 +22,9 @@ _Archived emails_
 ![Open Archiver Preview](assets/screenshots/search.png)
 _Full-text search across all your emails and attachments_
 
-## 👨‍👩‍👧‍👦 Join our community!
+## Join our community!
 
-We are committed to build an engaging community around Open Archiver, and we are inviting all of you to join our community on Discord to get real-time support and connect with the team.
+We are committed to building an engaging community around Open Archiver, and we are inviting all of you to join our community on Discord to get real-time support and connect with the team.
 
 [![Discord](https://img.shields.io/badge/Join%20our%20Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/MTtD7BhuTQ)
 
@@ -34,11 +34,11 @@ We are committed to build an engaging community around Open Archiver, and we are
 
 Check out the live demo here: https://demo.openarchiver.com
 
-Username: admin@local.com
+Username: demo@openarchiver.com
 
 Password: openarchiver_demo
 
-## ✨ Key Features
+## Key Features
 
 - **Universal Ingestion**: Connect to any email provider to perform initial bulk imports and maintain continuous, real-time synchronization. Ingestion sources include:
     - IMAP connection
@@ -57,7 +57,7 @@ Password: openarchiver_demo
 -   - Each archived email comes with an "Integrity Report" feature that indicates if the files are original.
 - **Comprehensive Auditing**: An immutable audit trail logs all system activities, ensuring you have a clear record of who accessed what and when.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 Open Archiver is built on a modern, scalable, and maintainable technology stack:
 
@@ -68,7 +68,7 @@ Open Archiver is built on a modern, scalable, and maintainable technology stack:
 - **Database**: PostgreSQL for metadata, user management, and audit logs
 - **Deployment**: Docker Compose deployment
 
-## 📦 Deployment
+## Deployment
 
 ### Prerequisites
 
@@ -104,7 +104,7 @@ Open Archiver is built on a modern, scalable, and maintainable technology stack:
 4.  **Access the application:**
     Once the services are running, you can access the Open Archiver web interface by navigating to `http://localhost:3000` in your web browser.
 
-## ⚙️ Data Source Configuration
+## Data Source Configuration
 
 After deploying the application, you will need to configure one or more ingestion sources to begin archiving emails. Follow our detailed guides to connect to your email provider:
 
@@ -112,7 +112,7 @@ After deploying the application, you will need to configure one or more ingestio
 - [Connecting to Microsoft 365](https://docs.openarchiver.com/user-guides/email-providers/imap.html)
 - [Connecting to a Generic IMAP Server](https://docs.openarchiver.com/user-guides/email-providers/imap.html)
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions from the community!
 

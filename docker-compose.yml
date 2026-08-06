@@ -6,11 +6,11 @@ services:
         container_name: open-archiver
         restart: unless-stopped
         ports:
-            - '3000:3000' # Frontend
+            - '3000:${PORT_FRONTEND:-3000}' # Frontend
         env_file:
             - .env
         volumes:
-            - ${STORAGE_LOCAL_ROOT_PATH}:${STORAGE_LOCAL_ROOT_PATH}
+            - 'archiver-data:${STORAGE_LOCAL_ROOT_PATH}'
         depends_on:
             - postgres
             - valkey
@@ -42,11 +42,12 @@ services:
             - open-archiver-net
 
     meilisearch:
-        image: getmeili/meilisearch:v1.15
+        image: getmeili/meilisearch:v1.38
         container_name: meilisearch
         restart: unless-stopped
         environment:
             MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-aSampleMasterKey}
+            MEILI_SCHEDULE_SNAPSHOT: ${MEILI_SCHEDULE_SNAPSHOT:-86400}
         volumes:
             - meilidata:/meili_data
         networks:
@@ -65,6 +66,8 @@ volumes:
     valkeydata:
         driver: local
     meilidata:
+        driver: local
+    archiver-data:
         driver: local
 
 networks:

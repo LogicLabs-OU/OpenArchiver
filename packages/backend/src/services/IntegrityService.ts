@@ -28,13 +28,21 @@ export class IntegrityService {
 		const currentEmailHash = createHash('sha256').update(emailBuffer).digest('hex');
 
 		if (currentEmailHash === email.storageHashSha256) {
-			results.push({ type: 'email', id: email.id, isValid: true });
+			results.push({
+				type: 'email',
+				id: email.id,
+				isValid: true,
+				storedHash: email.storageHashSha256,
+				computedHash: currentEmailHash,
+			});
 		} else {
 			results.push({
 				type: 'email',
 				id: email.id,
 				isValid: false,
 				reason: 'Stored hash does not match current hash.',
+				storedHash: email.storageHashSha256,
+				computedHash: currentEmailHash,
 			});
 		}
 
@@ -62,6 +70,8 @@ export class IntegrityService {
 							id: attachment.id,
 							filename: attachment.filename,
 							isValid: true,
+							storedHash: attachment.contentHashSha256,
+							computedHash: currentAttachmentHash,
 						});
 					} else {
 						results.push({
@@ -70,6 +80,8 @@ export class IntegrityService {
 							filename: attachment.filename,
 							isValid: false,
 							reason: 'Stored hash does not match current hash.',
+							storedHash: attachment.contentHashSha256,
+							computedHash: currentAttachmentHash,
 						});
 					}
 				} catch (error) {
@@ -83,6 +95,8 @@ export class IntegrityService {
 						filename: attachment.filename,
 						isValid: false,
 						reason: 'Could not read attachment file from storage.',
+						storedHash: attachment.contentHashSha256,
+						computedHash: '',
 					});
 				}
 			}

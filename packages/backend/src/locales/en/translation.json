@@ -46,13 +46,19 @@
 		"failedToCreate": "Failed to create ingestion source due to a connection error.",
 		"notFound": "Ingestion source not found",
 		"initialImportTriggered": "Initial import triggered successfully.",
-		"forceSyncTriggered": "Force sync triggered successfully."
+		"forceSyncTriggered": "Force sync triggered successfully.",
+		"reindexTriggered": "Reindex triggered successfully.",
+		"journalingSourceManagedByJournaling": "SMTP journaling sources are managed through the Journaling page and cannot be modified via the ingestion source API."
 	},
 	"archivedEmail": {
 		"notFound": "Archived email not found"
 	},
 	"search": {
-		"keywordsRequired": "Keywords are required"
+		"keywordsRequired": "Keywords are required when no filter is provided",
+		"invalidSourceId": "One or more ingestion source IDs are not valid",
+		"invalidDate": "Dates must use the yyyy-mm-dd format",
+		"invalidDateRange": "The start date must not be after the end date",
+		"invalidParam": "One or more search parameters have an invalid value"
 	},
 	"storage": {
 		"filePathRequired": "File path is required",
@@ -66,5 +72,12 @@
 	},
 	"api": {
 		"requestBodyInvalid": "Invalid request body."
+	},
+	"upload": {
+		"invalid_request": "The upload request is invalid or malformed.",
+		"stream_error": "An error occurred while receiving the file. Please try again.",
+		"parse_error": "Failed to parse the uploaded file data.",
+		"storage_error": "Failed to save the uploaded file to storage. Please try again.",
+		"connection_error": "The connection was lost during the upload."
 	}
 }

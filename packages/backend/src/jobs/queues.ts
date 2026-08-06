@@ -1,7 +1,5 @@
-import { Queue, FlowProducer } from 'bullmq';
+import { Queue } from 'bullmq';
 import { connection } from '../config/redis';
-
-export const flowProducer = new FlowProducer({ connection });
 
 // Default job options
 const defaultJobOptions = {
@@ -24,6 +22,12 @@ export const ingestionQueue = new Queue('ingestion', {
 });
 
 export const indexingQueue = new Queue('indexing', {
+	connection,
+	defaultJobOptions,
+});
+
+// Queue for the Data Lifecycle Manager (retention policy enforcement)
+export const complianceLifecycleQueue = new Queue('compliance-lifecycle', {
 	connection,
 	defaultJobOptions,
 });

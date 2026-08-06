@@ -29,10 +29,25 @@ export interface RecentSync {
 }
 
 export interface TopSender {
+	/** Sender email address — the stable identity the facet is grouped by. */
 	sender: string;
+	/** Resolved display name for the address, when one is known (label only). */
+	senderName?: string | null;
 	count: number;
 }
 
 export interface IndexedInsights {
 	topSenders: TopSender[];
+}
+
+/**
+ * Index-health snapshot comparing how many emails are archived in the database
+ * against how many documents exist in the search index. A gap indicates emails
+ * that are missing from search and can be repaired with a reindex.
+ */
+export interface IndexHealth {
+	/** Number of archived emails in the database (source of truth). */
+	archivedCount: number;
+	/** Number of documents present in the Meilisearch index. */
+	indexedCount: number;
 }

@@ -1,4 +1,4 @@
-import { count, desc, eq, asc, and } from 'drizzle-orm';
+import { count, desc, eq, asc, and, inArray, ne } from 'drizzle-orm';
 import { db } from '../database';
 import {
 	archivedEmails,
@@ -16,10 +16,13 @@ import type {
 } from '@open-archiver/types';
 import { StorageService } from './StorageService';
 import { SearchService } from './SearchService';
+import { IngestionService } from './IngestionService';
 import type { Readable } from 'stream';
 import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
+import { RetentionHook } from '../hooks/RetentionHook';
+import { logger } from '../config/logger';
 
 interface DbRecipients {
 	to: { name: string; address: string }[];
@@ -57,7 +60,14 @@ export class ArchivedEmailService {
 	): Promise<PaginatedArchivedEmails> {
 		const offset = (page - 1) * limit;
 		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
-		const where = and(eq(archivedEmails.ingestionSourceId, ingestionSourceId), drizzleFilter);
+
+		// Expand to the full merge group so emails from children appear when browsing a root source
+		const groupIds = await IngestionService.findGroupSourceIds(ingestionSourceId);
+		const sourceFilter =
+			groupIds.length === 1
+				? eq(archivedEmails.ingestionSourceId, groupIds[0])
+				: inArray(archivedEmails.ingestionSourceId, groupIds);
+		const where = and(sourceFilter, drizzleFilter);
 
 		const countQuery = db
 			.select({
@@ -135,17 +145,21 @@ export class ArchivedEmailService {
 
 		let threadEmails: ThreadEmail[] = [];
 
+		// Expand thread query to the full merge group so threads can span across merged sources
 		if (email.threadId) {
+			const groupIds = await IngestionService.findGroupSourceIds(email.ingestionSourceId);
+			const sourceFilter =
+				groupIds.length === 1
+					? eq(archivedEmails.ingestionSourceId, groupIds[0])
+					: inArray(archivedEmails.ingestionSourceId, groupIds);
 			threadEmails = await db.query.archivedEmails.findMany({
-				where: and(
-					eq(archivedEmails.threadId, email.threadId),
-					eq(archivedEmails.ingestionSourceId, email.ingestionSourceId)
-				),
+				where: and(eq(archivedEmails.threadId, email.threadId), sourceFilter),
 				orderBy: [asc(archivedEmails.sentAt)],
 				columns: {
 					id: true,
 					subject: true,
 					sentAt: true,
+					senderName: true,
 					senderEmail: true,
 				},
 			});
@@ -157,6 +171,11 @@ export class ArchivedEmailService {
 
 		const mappedEmail = {
 			...email,
+			// Trim the joined ingestion source to just id + name; the full row carries
+			// encrypted credentials that must never be sent to the client.
+			ingestionSource: email.ingestionSource
+				? { id: email.ingestionSource.id, name: email.ingestionSource.name }
+				: null,
 			recipients: this.mapRecipients(email.recipients),
 			raw,
 			thread: threadEmails,
@@ -197,9 +216,22 @@ export class ArchivedEmailService {
 	public static async deleteArchivedEmail(
 		emailId: string,
 		actor: User,
-		actorIp: string
+		actorIp: string,
+		options: {
+			systemDelete?: boolean;
+			/**
+			 * Human-readable name of the retention rule that triggered deletion
+			 */
+			governingRule?: string;
+		} = {}
 	): Promise<void> {
-		checkDeletionEnabled();
+		checkDeletionEnabled({ allowSystemDelete: options.systemDelete });
+
+		const canDelete = await RetentionHook.canDelete(emailId);
+		if (!canDelete) {
+			throw new Error('Deletion blocked by retention policy (Legal Hold or similar).');
+		}
+
 		const [email] = await db
 			.select()
 			.from(archivedEmails)
@@ -249,18 +281,47 @@ export class ArchivedEmailService {
 					}
 				}
 			} catch (error) {
-				console.error('Failed to delete email attachments', error);
+				logger.error(
+					{
+						emailId,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					'Failed to delete email attachments'
+				);
 				throw new Error('Failed to delete email attachments');
 			}
 		}
 
-		// Delete the email file from storage
-		await storage.delete(email.storagePath);
+		// Only delete the physical EML file if no other archived_emails row shares
+		// the same storagePath. Multiple rows can point to the same file when
+		// per-mailbox archiving creates shared-file reference rows.
+		const [emlRefCount] = await db
+			.select({ count: count() })
+			.from(archivedEmails)
+			.where(
+				and(
+					eq(archivedEmails.storagePath, email.storagePath),
+					ne(archivedEmails.id, emailId)
+				)
+			);
+
+		if (emlRefCount.count === 0) {
+			await storage.delete(email.storagePath);
+		}
 
 		const searchService = new SearchService();
 		await searchService.deleteDocuments('emails', [emailId]);
 
 		await db.delete(archivedEmails).where(eq(archivedEmails.id, emailId));
+
+		// Build audit details: system-initiated deletions carry retention context
+		// for GoBD compliance; manual deletions record only the reason.
+		const auditDetails: Record<string, unknown> = {
+			reason: options.systemDelete ? 'RetentionExpiration' : 'ManualDeletion',
+		};
+		if (options.systemDelete && options.governingRule) {
+			auditDetails.governingRule = options.governingRule;
+		}
 
 		await this.auditService.createAuditLog({
 			actorIdentifier: actor.id,
@@ -268,9 +329,7 @@ export class ArchivedEmailService {
 			targetType: 'ArchivedEmail',
 			targetId: emailId,
 			actorIp,
-			details: {
-				reason: 'ManualDeletion',
-			},
+			details: auditDetails,
 		});
 	}
 }

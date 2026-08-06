@@ -66,6 +66,31 @@ export class AuthController {
 				return res.status(401).json({ message: req.t('auth.login.invalidCredentials') });
 			}
 
+			// MFA pending — set the pending token as an httpOnly cookie and signal the client to redirect.
+			// If the user is grace-expired and unenrolled, also signal enrollmentRequired so the
+			// frontend can redirect to the forced-enrollment page instead of the normal MFA challenge.
+			if ('requiresMfa' in result) {
+				// Determine whether the pending token carries the enrollment flag by verifying it
+				const decodedPayload = await this.#authService.verifyToken(result.mfaPendingToken);
+				const enrollmentRequired = decodedPayload?.mfaEnrollmentRequired === true;
+
+				// Extend the cookie maxAge for enrollment flow (10 min) vs normal MFA (5 min)
+				const cookieMaxAge = enrollmentRequired ? 10 * 60 * 1000 : 5 * 60 * 1000;
+
+				res.cookie('mfaPending', result.mfaPendingToken, {
+					httpOnly: true,
+					sameSite: 'strict',
+					// Secure in all environments except explicit local development.
+					// Prevents the pending token from being transmitted over plain HTTP
+					// in staging, QA, or production environments.
+					secure: process.env.NODE_ENV !== 'development',
+					maxAge: cookieMaxAge,
+					// Use '/' so the cookie is sent regardless of the /api proxy prefix
+					path: '/',
+				});
+				return res.status(200).json({ requiresMfa: true, enrollmentRequired });
+			}
+
 			return res.status(200).json(result);
 		} catch (error) {
 			console.error('Login error:', error);

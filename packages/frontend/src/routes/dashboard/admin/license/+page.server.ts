@@ -37,3 +37,35 @@ export const load: PageServerLoad = async (event) => {
 		throw e;
 	}
 };
+
+export const actions = {
+	revalidate: async (event) => {
+		if (!event.locals.enterpriseMode) {
+			throw error(403, 'Forbidden');
+		}
+
+		try {
+			const response = await api('/enterprise/status/revalidate', event, {
+				method: 'POST',
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				return {
+					success: false,
+					message: errorData.error || 'Failed to revalidate license',
+				};
+			}
+
+			return {
+				success: true,
+			};
+		} catch (e) {
+			console.error('License revalidation failed:', e);
+			return {
+				success: false,
+				message: 'An unexpected error occurred',
+			};
+		}
+	},
+};

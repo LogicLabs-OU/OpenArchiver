@@ -8,9 +8,12 @@ export type SupportedLanguage =
 	| 'nl' // Dutch
 	| 'ja' // Japanese
 	| 'et' // Estonian
-	| 'el'; // Greek
+	| 'el' // Greek
+	| 'bg'; // Bulgarian
 
 export type Theme = 'light' | 'dark' | 'system';
+
+import type { AdvancedSecurityPolicy } from './security.types';
 
 export interface SystemSettings {
 	/** The default display language for the application UI. */
@@ -21,4 +24,11 @@ export interface SystemSettings {
 
 	/** A public-facing email address for user support inquiries. */
 	supportEmail: string | null;
+
+	/**
+	 * Enterprise advanced security policy (TOTP enforcement, grace period, etc.).
+	 * Only written and read by the enterprise advanced-security module.
+	 * Absent on OSS instances.
+	 */
+	advanced_security_policy?: AdvancedSecurityPolicy;
 }

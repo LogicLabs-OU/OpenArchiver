@@ -27,9 +27,7 @@
 			{/if}
 			<p class="text-balance text-center text-xs font-medium leading-loose">
 				© {new Date().getFullYear()}
-				<a href="https://openarchiver.com/" target="_blank">Open Archiver</a>. {$t(
-					'app.components.footer.all_rights_reserved'
-				)}
+				<a href="https://openarchiver.com/" target="_blank">Open Archiver</a>
 			</p>
 			<p class="text-balance text-center text-xs font-medium leading-loose">
 				Version: {currentVersion}

@@ -17,9 +17,11 @@ git clone https://github.com/LogicLabs-OU/OpenArchiver.git
 cd OpenArchiver
 ```
 
-## 2. Create a Directory for Local Storage (Important)
+## 2. Create a Directory for Local Storage
 
-Before configuring the application, you **must** create a directory on your host machine where Open Archiver will store its data (such as emails and attachments). Manually creating this directory helps prevent potential permission issues.
+> This is only required if you want to use local storage to store archived email and attachments. If you plan to use S3 for data storage, you can skip this step.
+
+Before configuring the application, you should create a directory on your host machine where Open Archiver will store its data (such as emails and attachments in case of using local storage for data storage). Manually creating this directory helps prevent potential permission issues.
 
 Foe examples, you can use this path `/var/data/open-archiver`.
 
@@ -99,6 +101,8 @@ Here is a complete list of environment variables available for configuration:
 | `ORIGIN`                | Used by the SvelteKit Node adapter to determine the server's public-facing URL. It should always be set to the value of `APP_URL` (e.g., `ORIGIN=$APP_URL`). | `http://localhost:3000` |
 | `SYNC_FREQUENCY`        | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details.                                                        | `* * * * *`             |
 | `ALL_INCLUSIVE_ARCHIVE` | Set to `true` to include all emails, including Junk and Trash folders, in the email archive.                                                                 | `false`                 |
+| `PDF_PARSE_TIMEOUT_MS`  | Timeout (in ms) for the built-in PDF text extractor during indexing. A malformed PDF is given up on after this so it can't stall the indexing worker. Only applies when `TIKA_URL` is not set. | `20000`                 |
+| `LOG_LEVEL`             | Minimum severity of logs to emit. Set to `debug` for verbose per-tick scheduler and per-message ingestion logs; routine logs are quiet at `info`.            | `info`                  |
 
 #### Docker Compose Service Configuration
 
@@ -115,6 +119,7 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `MEILI_INDEXING_BATCH` | The number of emails to batch together for indexing. | `500`                                                    |
 | `REDIS_HOST`           | The host for the Valkey (Redis) service.             | `valkey`                                                 |
 | `REDIS_PORT`           | The port for the Valkey (Redis) service.             | `6379`                                                   |
+| `REDIS_USER`           | Optional Redis username if ACLs are used.            |                                                          |
 | `REDIS_PASSWORD`       | The password for the Valkey (Redis) service.         | `defaultredispassword`                                   |
 | `REDIS_TLS_ENABLED`    | Enable or disable TLS for Redis.                     | `false`                                                  |
 
@@ -151,6 +156,33 @@ These variables are used by `docker-compose.yml` to configure the services.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
 | `TIKA_URL` | Optional. The URL of an Apache Tika server for advanced text extraction from attachments. If not set, the application falls back to built-in parsers for PDF, Word, and Excel files. | `http://tika:9998` |
 
+#### Enterprise Settings
+
+> These variables are only applicable to the **Open Archiver Enterprise** edition. They have no effect on the open-source version.
+
+##### License
+
+| Variable         | Description                                                                                                                                                                                                                                              | Default Value |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `OA_LICENSE_KEY` | Your Enterprise license key (JWT). Can be provided as an environment variable or placed as a `license.jwt` file alongside the compiled backend. If neither is present, all enterprise features will be disabled and a warning will be logged at startup. |               |
+
+##### Retention Policy Lifecycle
+
+| Variable               | Description                                                                                                                                                                                                                                       | Default Value |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `RETENTION_BATCH_SIZE` | The number of archived emails to evaluate per batch during the daily lifecycle scan. The lifecycle worker runs once per day and pages through the entire archive in batches of this size. Adjust based on your server's available memory and CPU. | `100`         |
+
+##### SMTP Journaling
+
+> These variables configure the embedded SMTP server used by the **Journaling** module to receive journal reports from corporate MTAs (Exchange, Microsoft 365, Postfix, etc.).
+
+| Variable                               | Description                                                                                                                                                                                                                        | Default Value            |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `SMTP_JOURNALING_PORT`                 | The port the embedded SMTP journaling listener binds to inside the container. Your MTA must be configured to deliver journal reports to this port. The `docker-compose.yml` file maps this port to the 25 host.                    | `2525`                   |
+| `SMTP_JOURNALING_DOMAIN`               | The domain used to generate unique routing addresses for each journaling source (e.g., `journal-abc12345@<domain>`). Set this to the domain or subdomain whose MX record points to your Open Archiver server.                      | `journal.yourdomain.com` |
+| `JOURNAL_QUEUE_BACKPRESSURE_THRESHOLD` | The maximum number of waiting jobs in the journal inbound queue before the SMTP listener starts returning `4xx` temporary failures. The MTA will automatically retry. This prevents unbounded queue growth if workers fall behind. | `10000`                  |
+| `JOURNAL_WORKER_CONCURRENCY`           | The number of journaling worker threads that process inbound journal emails concurrently. Increase on servers with more CPU cores to handle high-volume journaling deployments.                                                    | `3`                      |
+
 ## 4. Run the Application
 
 Once you have configured your `.env` file, you can start all the services using Docker Compose:
@@ -178,6 +210,10 @@ Once the services are running, you can access the Open Archiver web interface by
 Upon first visit, you will be redirected to the `/setup` page where you can set up your admin account. Make sure you are the first person who accesses the instance.
 
 If you are not redirected to the `/setup` page but instead see the login page, there might be something wrong with the database. Restart the service and try again.
+
+Once you have signed in, you land on the dashboard, which summarizes the archive — total emails, storage used, recent ingestion activity, and top senders.
+
+![Open Archiver dashboard](/screenshots/dashboard.png)
 
 ## 6. Next Steps
 

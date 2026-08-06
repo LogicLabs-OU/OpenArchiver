@@ -1,162 +1,67 @@
-# Ingestion Service API
+---
+aside: false
+---
 
-The Ingestion Service manages ingestion sources, which are configurations for connecting to email providers and importing emails.
+# Ingestion API
 
-## Endpoints
+Manage ingestion sources — the configured connections to email providers (Google Workspace, Microsoft 365, IMAP, and file imports). Credentials are never returned in responses.
 
-All endpoints in this service require authentication.
+## Create an Ingestion Source
 
-### POST /api/v1/ingestion-sources
+<OAOperation operationId="createIngestionSource" />
 
-Creates a new ingestion source.
+## List Ingestion Sources
 
-**Access:** Authenticated
+<OAOperation operationId="listIngestionSources" />
 
-#### Request Body
+## Get an Ingestion Source
 
-The request body should be a `CreateIngestionSourceDto` object.
+<OAOperation operationId="getIngestionSourceById" />
 
-```typescript
-interface CreateIngestionSourceDto {
-	name: string;
-	provider: 'google_workspace' | 'microsoft_365' | 'generic_imap' | 'pst_import' | 'eml_import' | 'mbox_import';
-	providerConfig: IngestionCredentials;
-}
-```
+## Update an Ingestion Source
 
-#### Responses
+<OAOperation operationId="updateIngestionSource" />
 
-- **201 Created:** The newly created ingestion source.
-- **500 Internal Server Error:** An unexpected error occurred.
+## Delete an Ingestion Source
 
-### GET /api/v1/ingestion-sources
+<OAOperation operationId="deleteIngestionSource" />
 
-Retrieves all ingestion sources.
+## Trigger Initial Import
 
-**Access:** Authenticated
+<OAOperation operationId="triggerInitialImport" />
 
-#### Responses
+## Pause an Ingestion Source
 
-- **200 OK:** An array of ingestion source objects.
-- **500 Internal Server Error:** An unexpected error occurred.
+<OAOperation operationId="pauseIngestionSource" />
 
-### GET /api/v1/ingestion-sources/:id
+## Force Sync
 
-Retrieves a single ingestion source by its ID.
+<OAOperation operationId="triggerForceSync" />
 
-**Access:** Authenticated
+## Reindex an Ingestion Source
 
-#### URL Parameters
+Rebuilds the search-index documents for a source (and its whole merge group) from the archived emails already in the database — it never re-downloads or re-ingests, and it never creates duplicate documents (Meilisearch is keyed by the email ID, so re-adding upserts). Send `{"mode": "full"}` to rebuild every document, or omit it (default `missing`) to only index emails not yet in the index.
 
-| Parameter | Type   | Description                     |
-| :-------- | :----- | :------------------------------ |
-| `id`      | string | The ID of the ingestion source. |
+<OAOperation operationId="reindexIngestionSource" />
 
-#### Responses
+## Reindex All Sources
 
-- **200 OK:** The ingestion source object.
-- **404 Not Found:** Ingestion source not found.
-- **500 Internal Server Error:** An unexpected error occurred.
+Enqueues a reindex across every ingestion source. Requires `manage:ingestion`.
 
-### PUT /api/v1/ingestion-sources/:id
+<OAOperation operationId="reindexAllIngestionSources" />
 
-Updates an existing ingestion source.
+## Get Index Health
 
-**Access:** Authenticated
+Compares the number of archived emails in the database against the number of documents in the search index for a source (and its merge group). A gap means some emails are missing from search and can be repaired with a reindex.
 
-#### URL Parameters
+<OAOperation operationId="getIngestionSourceIndexHealth" />
 
-| Parameter | Type   | Description                     |
-| :-------- | :----- | :------------------------------ |
-| `id`      | string | The ID of the ingestion source. |
+## Get Statistics
 
-#### Request Body
+Read-only statistics for a source (and its merge group): email/mailbox/thread counts, storage usage (email + attachment bytes, deduplicated), index coverage, attachment and compliance counts, a per-mailbox breakdown, merge-group children, and recent activity.
 
-The request body should be an `UpdateIngestionSourceDto` object.
+<OAOperation operationId="getIngestionSourceStats" />
 
-```typescript
-interface UpdateIngestionSourceDto {
-	name?: string;
-	provider?: 'google' | 'microsoft' | 'generic_imap';
-	providerConfig?: IngestionCredentials;
-	status?: 'pending_auth' | 'auth_success' | 'importing' | 'active' | 'paused' | 'error';
-}
-```
+## Unmerge an Ingestion Source
 
-#### Responses
-
-- **200 OK:** The updated ingestion source object.
-- **404 Not Found:** Ingestion source not found.
-- **500 Internal Server Error:** An unexpected error occurred.
-
-### DELETE /api/v1/ingestion-sources/:id
-
-Deletes an ingestion source and all associated data.
-
-**Access:** Authenticated
-
-#### URL Parameters
-
-| Parameter | Type   | Description                     |
-| :-------- | :----- | :------------------------------ |
-| `id`      | string | The ID of the ingestion source. |
-
-#### Responses
-
-- **204 No Content:** The ingestion source was deleted successfully.
-- **404 Not Found:** Ingestion source not found.
-- **500 Internal Server Error:** An unexpected error occurred.
-
-### POST /api/v1/ingestion-sources/:id/import
-
-Triggers the initial import process for an ingestion source.
-
-**Access:** Authenticated
-
-#### URL Parameters
-
-| Parameter | Type   | Description                     |
-| :-------- | :----- | :------------------------------ |
-| `id`      | string | The ID of the ingestion source. |
-
-#### Responses
-
-- **202 Accepted:** The initial import was triggered successfully.
-- **404 Not Found:** Ingestion source not found.
-- **500 Internal Server Error:** An unexpected error occurred.
-
-### POST /api/v1/ingestion-sources/:id/pause
-
-Pauses an active ingestion source.
-
-**Access:** Authenticated
-
-#### URL Parameters
-
-| Parameter | Type   | Description                     |
-| :-------- | :----- | :------------------------------ |
-| `id`      | string | The ID of the ingestion source. |
-
-#### Responses
-
-- **200 OK:** The updated ingestion source object with a `paused` status.
-- **404 Not Found:** Ingestion source not found.
-- **500 Internal Server Error:** An unexpected error occurred.
-
-### POST /api/v1/ingestion-sources/:id/sync
-
-Triggers a forced synchronization for an ingestion source.
-
-**Access:** Authenticated
-
-#### URL Parameters
-
-| Parameter | Type   | Description                     |
-| :-------- | :----- | :------------------------------ |
-| `id`      | string | The ID of the ingestion source. |
-
-#### Responses
-
-- **202 Accepted:** The force sync was triggered successfully.
-- **404 Not Found:** Ingestion source not found.
-- **500 Internal Server Error:** An unexpected error occurred.
+<OAOperation operationId="unmergeIngestionSource" />

@@ -1,5 +1,5 @@
 import { and, count, eq, gte, sql } from 'drizzle-orm';
-import type { IndexedInsights } from '@open-archiver/types';
+import type { IndexedInsights, IndexHealth } from '@open-archiver/types';
 
 import { archivedEmails, ingestionSources } from '../database/schema';
 import { DatabaseService } from './DatabaseService';
@@ -37,6 +37,19 @@ class DashboardService {
 			totalEmailsArchived: totalEmailsArchived[0].count,
 			totalStorageUsed: totalStorageUsed[0].sum || 0,
 			failedIngestionsLast7Days: failedIngestionsLast7Days[0].count,
+		};
+	}
+
+	/**
+	 * Global index-health: total archived emails in the database vs. total documents
+	 * in the search index. A gap means emails are missing from search.
+	 */
+	public async getIndexHealth(): Promise<IndexHealth> {
+		const archived = await this.#db.select({ count: count() }).from(archivedEmails);
+		const indexedCount = await this.#searchService.getIndexedCount('emails');
+		return {
+			archivedCount: archived[0].count,
+			indexedCount,
 		};
 	}
 

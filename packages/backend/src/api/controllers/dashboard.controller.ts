@@ -26,6 +26,11 @@ class DashboardController {
 		const insights = await dashboardService.getIndexedInsights();
 		res.json(insights);
 	}
+
+	public async getIndexHealth(req: Request, res: Response) {
+		const health = await dashboardService.getIndexHealth();
+		res.json(health);
+	}
 }
 
 export const dashboardController = new DashboardController();

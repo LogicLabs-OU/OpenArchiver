@@ -1,4 +1,6 @@
 import { defineConfig } from 'vitepress';
+import { useSidebar } from 'vitepress-openapi';
+import spec from '../api/openapi.json';
 
 export default defineConfig({
 	head: [
@@ -6,7 +8,7 @@ export default defineConfig({
 			'script',
 			{
 				defer: '',
-				src: 'https://analytics.zenceipt.com/script.js',
+				src: 'https://analytics.openarchiver.com/script.js',
 				'data-website-id': '2c8b452e-eab5-4f82-8ead-902d8f8b976f',
 			},
 		],
@@ -34,6 +36,8 @@ export default defineConfig({
 					{ text: 'Get Started', link: '/' },
 					{ text: 'Installation', link: '/user-guides/installation' },
 					{ text: 'Email Integrity Check', link: '/user-guides/integrity-check' },
+					{ text: 'Searching the Archive', link: '/user-guides/searching' },
+					{ text: 'Search Indexing & Reindexing', link: '/user-guides/search-indexing' },
 					{
 						text: 'Email Providers',
 						link: '/user-guides/email-providers/',
@@ -95,7 +99,13 @@ export default defineConfig({
 					{ text: 'Integrity Check', link: '/api/integrity' },
 					{ text: 'Search', link: '/api/search' },
 					{ text: 'Storage', link: '/api/storage' },
+					{ text: 'Upload', link: '/api/upload' },
 					{ text: 'Jobs', link: '/api/jobs' },
+					{ text: 'Index Admin', link: '/api/index-admin' },
+					{ text: 'Users', link: '/api/users' },
+					{ text: 'IAM', link: '/api/iam' },
+					{ text: 'API Keys', link: '/api/api-keys' },
+					{ text: 'Settings', link: '/api/settings' },
 				],
 			},
 			{

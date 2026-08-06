@@ -5,7 +5,7 @@
 			"alreadyCompleted": "La configurazione è già stata completata."
 		},
 		"login": {
-			"emailAndPasswordRequired": "Email and password are required",
+			"emailAndPasswordRequired": "Email e password sono obbligatorie",
 			"invalidCredentials": "Credenziali non valide"
 		}
 	},
@@ -14,7 +14,8 @@
 		"demoMode": "Questa operazione non è consentita in modalità demo.",
 		"unauthorized": "Non autorizzato",
 		"unknown": "Si è verificato un errore sconosciuto",
-		"noPermissionToAction": "Non hai il permesso di eseguire l'azione corrente."
+		"noPermissionToAction": "Non hai il permesso di eseguire l'azione corrente.",
+		"deletion_disabled": "L'eliminazione è disabilitata per questa istanza."
 	},
 	"user": {
 		"notFound": "Utente non trovato",
@@ -58,5 +59,19 @@
 		"invalidFilePath": "Percorso del file non valido",
 		"fileNotFound": "File non trovato",
 		"downloadError": "Errore durante il download del file"
+	},
+	"apiKeys": {
+		"generateSuccess": "Chiave API generata con successo.",
+		"deleteSuccess": "Chiave API eliminata con successo."
+	},
+	"api": {
+		"requestBodyInvalid": "Corpo della richiesta non valido."
+	},
+	"upload": {
+		"invalid_request": "La richiesta di caricamento non è valida o è malformata.",
+		"stream_error": "Si è verificato un errore durante la ricezione del file. Si prega di riprovare.",
+		"parse_error": "Impossibile elaborare i dati del file caricato.",
+		"storage_error": "Impossibile salvare il file caricato. Si prega di riprovare.",
+		"connection_error": "La connessione è stata persa durante il caricamento."
 	}
 }

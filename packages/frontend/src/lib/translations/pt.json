@@ -210,7 +210,12 @@
 				"eml_file": "Arquivo EML",
 				"heads_up": "Atenção!",
 				"org_wide_warning": "Observe que esta é uma operação em toda a organização. Esse tipo de ingestão importará e indexará <b>todas</b> as caixas de correio de e-mail em sua organização. Se você deseja importar apenas caixas de correio de e-mail específicas, use o conector IMAP.",
-				"upload_failed": "Falha no upload, tente novamente"
+				"upload_failed": "Falha no upload, tente novamente",
+				"upload_cancel": "Cancelar",
+				"upload_complete": "Envio concluído",
+				"upload_file_label": "Arquivo",
+				"upload_path_label": "Caminho de armazenamento",
+				"upload_replace": "Substituir arquivo"
 			},
 			"role_form": {
 				"policies_json": "Políticas (JSON)",
@@ -254,7 +259,14 @@
 			"view": "Visualizar",
 			"no_emails_found": "Nenhum e-mail arquivado encontrado.",
 			"prev": "Anterior",
-			"next": "Próximo"
+			"next": "Próximo",
+			"delete_error_title": "Falha ao excluir e-mail",
+			"delete_selected": "Excluir selecionados",
+			"bulk_delete_confirmation_title": "Tem certeza que deseja excluir {{count}} e-mails selecionados?",
+			"bulk_delete_confirmation_description": "Esta ação não pode ser desfeita e removerá permanentemente os e-mails selecionados e seus anexos.",
+			"deleting": "Excluindo",
+			"confirm": "Confirmar",
+			"cancel": "Cancelar"
 		}
 	}
 }

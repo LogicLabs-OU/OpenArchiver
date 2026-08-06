@@ -3,6 +3,7 @@ import { UserService } from '../../services/UserService';
 import * as schema from '../../database/schema';
 import { sql } from 'drizzle-orm';
 import { db } from '../../database';
+import { config } from '../../config';
 
 const userService = new UserService();
 
@@ -92,6 +93,9 @@ export const getProfile = async (req: Request, res: Response) => {
 };
 
 export const updateProfile = async (req: Request, res: Response) => {
+	if (config.app.isDemo) {
+		return res.status(403).json({ message: req.t('errors.demoMode') });
+	}
 	const { email, first_name, last_name } = req.body;
 	if (!req.user || !req.user.sub) {
 		return res.status(401).json({ message: 'Unauthorized' });
@@ -111,6 +115,9 @@ export const updateProfile = async (req: Request, res: Response) => {
 };
 
 export const updatePassword = async (req: Request, res: Response) => {
+	if (config.app.isDemo) {
+		return res.status(403).json({ message: req.t('errors.demoMode') });
+	}
 	const { currentPassword, newPassword } = req.body;
 	if (!req.user || !req.user.sub) {
 		return res.status(401).json({ message: 'Unauthorized' });

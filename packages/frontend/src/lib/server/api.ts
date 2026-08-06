@@ -1,4 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
+import { accessTokenCookieName } from '$lib/auth-cookie';
 
 const BASE_URL = '/api/v1'; // Using a relative URL for proxying
 
@@ -14,7 +15,7 @@ export const api = async (
 	event: RequestEvent,
 	options: RequestInit = {}
 ): Promise<Response> => {
-	const accessToken = event.cookies.get('accessToken');
+	const accessToken = event.cookies.get(accessTokenCookieName(event.url.port));
 
 	const defaultHeaders: HeadersInit = {
 		'Content-Type': 'application/json',

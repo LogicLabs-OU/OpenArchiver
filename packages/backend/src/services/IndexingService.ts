@@ -10,9 +10,9 @@ import { StorageService } from './StorageService';
 import { extractText } from '../helpers/textExtractor';
 import { DatabaseService } from './DatabaseService';
 import { archivedEmails, attachments, emailAttachments } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
-import { simpleParser } from 'mailparser';
+import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
 import { logger } from '../config/logger';
 
 interface DbRecipients {
@@ -85,116 +85,177 @@ export class IndexingService {
 
 		logger.info({ batchSize: emails.length }, 'Starting batch indexing of emails');
 
-		try {
-			const CONCURRENCY_LIMIT = 10;
-			const rawDocuments: EmailDocument[] = [];
+		const CONCURRENCY_LIMIT = 10;
+		const rawDocuments: EmailDocument[] = [];
+		// Emails whose document could not be BUILT (corrupt EML, parse error, etc.).
+		// These are email-specific ("poison") failures — increment index_attempts so
+		// the reconcile job eventually stops retrying them. They are NOT thrown, so the
+		// rest of the batch still indexes.
+		const buildFailedIds: string[] = [];
 
-			for (let i = 0; i < emails.length; i += CONCURRENCY_LIMIT) {
-				const batch = emails.slice(i, i + CONCURRENCY_LIMIT);
+		for (let i = 0; i < emails.length; i += CONCURRENCY_LIMIT) {
+			const batch = emails.slice(i, i + CONCURRENCY_LIMIT);
 
-				const batchDocuments = await Promise.allSettled(
-					batch.map(async (pendingEmail) => {
-						try {
-							const document = await this.indexEmailById(
-								pendingEmail.archivedEmailId
-							);
-							if (document) {
-								return document;
-							}
-							return null;
-						} catch (error) {
-							logger.error(
-								{
-									emailId: pendingEmail.archivedEmailId,
-									error: error instanceof Error ? error.message : String(error),
-								},
-								'Failed to create document for email in batch'
-							);
-							throw error;
-						}
-					})
-				);
+			const batchResults = await Promise.allSettled(
+				batch.map(async (pendingEmail) => {
+					const document = await this.indexEmailById(pendingEmail.archivedEmailId);
+					return { id: pendingEmail.archivedEmailId, document };
+				})
+			);
 
-				for (const result of batchDocuments) {
-					if (result.status === 'fulfilled' && result.value) {
-						rawDocuments.push(result.value);
-					} else if (result.status === 'rejected') {
-						logger.error({ error: result.reason }, 'Failed to process email in batch');
-					} else {
+			for (let j = 0; j < batchResults.length; j++) {
+				const result = batchResults[j];
+				const pendingEmail = batch[j];
+				if (result.status === 'fulfilled' && result.value.document) {
+					rawDocuments.push(result.value.document);
+				} else {
+					buildFailedIds.push(pendingEmail.archivedEmailId);
+					if (result.status === 'rejected') {
 						logger.error(
-							{ result: result },
-							'Failed to process email in batch, reason unknown.'
+							{
+								emailId: pendingEmail.archivedEmailId,
+								error:
+									result.reason instanceof Error
+										? result.reason.message
+										: String(result.reason),
+							},
+							'Failed to build document for email in batch'
 						);
 					}
 				}
 			}
+		}
 
-			if (rawDocuments.length === 0) {
-				logger.warn('No documents created from email batch');
-				return;
+		if (buildFailedIds.length > 0) {
+			await this.incrementIndexAttempts(buildFailedIds);
+		}
+
+		if (rawDocuments.length === 0) {
+			logger.warn('No documents created from email batch');
+			return;
+		}
+
+		// Sanitize, fill required fields, and drop anything that cannot be serialized.
+		const completeDocuments = rawDocuments
+			.map((doc) => sanitizeObject(doc))
+			.map((doc) => this.ensureEmailDocumentFields(doc));
+
+		const validDocuments: EmailDocument[] = [];
+		const invalidIds: string[] = [];
+		for (const doc of completeDocuments) {
+			if (this.isValidEmailDocument(doc)) {
+				validDocuments.push(doc);
+			} else {
+				invalidIds.push(doc.id);
+				logger.warn({ emailId: doc.id }, 'Skipping invalid EmailDocument');
 			}
+		}
 
-			// Sanitize all documents
-			const sanitizedDocuments = rawDocuments.map((doc) => sanitizeObject(doc));
+		if (invalidIds.length > 0) {
+			await this.incrementIndexAttempts(invalidIds);
+		}
 
-			// Ensure all required fields are present
-			const completeDocuments = sanitizedDocuments.map((doc) =>
-				this.ensureEmailDocumentFields(doc)
+		if (validDocuments.length === 0) {
+			logger.warn('No valid documents to index in batch.');
+			return;
+		}
+
+		logger.debug({ documentCount: validDocuments.length }, 'Sending batch to Meilisearch');
+
+		// Enqueue the write, then WAIT for Meilisearch to actually process the task.
+		// Retrying is safe/idempotent because Meilisearch upserts by the `id` primary key.
+		const enqueued = await this.searchService.addDocuments('emails', validDocuments, 'id');
+		const task = await this.searchService.waitForTask(enqueued.taskUid);
+
+		if (task.status === 'succeeded') {
+			// Durably mark these emails as indexed only AFTER Meilisearch confirmed the write.
+			await this.markIndexed(validDocuments.map((d) => d.id));
+		} else {
+			// The batch task failed as a whole — Meilisearch fails a document-addition task
+			// atomically, so one bad ("poison") document rejects all 500. Fall back to
+			// indexing each document on its own to isolate the offender: the healthy ones
+			// still get indexed, and only the genuinely-rejected ids have index_attempts
+			// bumped (so the reconcile job eventually stops retrying them instead of the
+			// poison wedging its whole keyset page forever).
+			logger.warn(
+				{ taskUid: enqueued.taskUid, status: task.status, error: task.error ?? {} },
+				'Batch indexing task failed; falling back to per-document indexing to isolate poison'
 			);
+			await this.indexDocumentsIndividually(validDocuments);
+		}
 
-			// Validate each document and separate valid from invalid ones
-			const validDocuments: EmailDocument[] = [];
-			const invalidDocuments: { doc: any; reason: string }[] = [];
+		logger.info(
+			{
+				batchSize: emails.length,
+				successfulDocuments: validDocuments.length,
+				buildFailed: buildFailedIds.length,
+				invalidDocuments: invalidIds.length,
+			},
+			'Successfully indexed email batch'
+		);
+	}
 
-			for (const doc of completeDocuments) {
-				if (this.isValidEmailDocument(doc)) {
-					validDocuments.push(doc);
-				} else {
-					invalidDocuments.push({ doc, reason: 'JSON.stringify failed' });
-					logger.warn({ document: doc }, 'Skipping invalid EmailDocument');
-				}
+	/**
+	 * Marks emails as indexed. Chunked to keep the IN(...) list bounded on large batches.
+	 */
+	private async markIndexed(ids: string[]): Promise<void> {
+		const CHUNK = 1000;
+		for (let i = 0; i < ids.length; i += CHUNK) {
+			const chunk = ids.slice(i, i + CHUNK);
+			await this.dbService.db
+				.update(archivedEmails)
+				.set({ isIndexed: true })
+				.where(inArray(archivedEmails.id, chunk));
+		}
+	}
+
+	/**
+	 * Increments the poison-pill counter for emails that failed to index this run.
+	 * The reconcile job skips rows whose index_attempts has reached the configured max.
+	 */
+	private async incrementIndexAttempts(ids: string[]): Promise<void> {
+		const CHUNK = 1000;
+		for (let i = 0; i < ids.length; i += CHUNK) {
+			const chunk = ids.slice(i, i + CHUNK);
+			await this.dbService.db
+				.update(archivedEmails)
+				.set({ indexAttempts: sql`${archivedEmails.indexAttempts} + 1` })
+				.where(inArray(archivedEmails.id, chunk));
+		}
+	}
+
+	/**
+	 * Slow fallback used only when a whole-batch Meilisearch task fails: re-add each
+	 * document on its own so the poison document is isolated.
+	 *
+	 * - A per-document task that returns `failed` is a real poison → bump its
+	 *   index_attempts (and do NOT throw, so its healthy batch-mates still commit).
+	 * - A thrown error (network/timeout) is transient infrastructure trouble → it
+	 *   propagates so BullMQ retries the whole batch, and index_attempts is untouched.
+	 */
+	private async indexDocumentsIndividually(documents: EmailDocument[]): Promise<void> {
+		const succeeded: string[] = [];
+		const failed: string[] = [];
+
+		for (const doc of documents) {
+			const enqueued = await this.searchService.addDocuments('emails', [doc], 'id');
+			const task = await this.searchService.waitForTask(enqueued.taskUid);
+			if (task.status === 'succeeded') {
+				succeeded.push(doc.id);
+			} else {
+				failed.push(doc.id);
+				logger.error(
+					{ emailId: doc.id, taskUid: enqueued.taskUid, error: task.error ?? {} },
+					'Document rejected by Meilisearch; bumping index_attempts (poison)'
+				);
 			}
+		}
 
-			// Log detailed information for invalid documents
-			if (invalidDocuments.length > 0) {
-				for (const { doc } of invalidDocuments) {
-					logger.error(
-						{
-							emailId: doc.id,
-							document: JSON.stringify(doc, null, 2),
-						},
-						'Invalid EmailDocument details'
-					);
-				}
-			}
-
-			if (validDocuments.length === 0) {
-				logger.warn('No valid documents to index in batch.');
-				return;
-			}
-
-			logger.debug({ documentCount: validDocuments.length }, 'Sending batch to Meilisearch');
-
-			await this.searchService.addDocuments('emails', validDocuments, 'id');
-
-			logger.info(
-				{
-					batchSize: emails.length,
-					successfulDocuments: validDocuments.length,
-					failedDocuments: emails.length - validDocuments.length,
-					invalidDocuments: invalidDocuments.length,
-				},
-				'Successfully indexed email batch'
-			);
-		} catch (error) {
-			logger.error(
-				{
-					batchSize: emails.length,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				'Failed to index email batch'
-			);
-			throw error;
+		if (succeeded.length > 0) {
+			await this.markIndexed(succeeded);
+		}
+		if (failed.length > 0) {
+			await this.incrementIndexAttempts(failed);
 		}
 	}
 
@@ -351,9 +412,13 @@ export class IndexingService {
 					content: textContent,
 				});
 			} catch (error) {
-				console.error(
-					`Failed to extract text from attachment: ${attachment.filename}`,
-					error
+				logger.error(
+					{
+						filename: attachment.filename,
+						mimeType: attachment.mimeType,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					'Failed to extract text from attachment'
 				);
 			}
 		}
@@ -362,6 +427,7 @@ export class IndexingService {
 			id: archivedEmailId,
 			userEmail: userEmail,
 			from: email.from[0]?.address,
+			fromName: email.from[0]?.name ?? '',
 			to: email.to.map((i: EmailAddress) => i.address) || [],
 			cc: email.cc?.map((i: EmailAddress) => i.address) || [],
 			bcc: email.bcc?.map((i: EmailAddress) => i.address) || [],
@@ -370,6 +436,7 @@ export class IndexingService {
 			attachments: extractedAttachments,
 			timestamp: new Date(email.receivedAt).getTime(),
 			ingestionSourceId: ingestionSourceId,
+			hasAttachments: email.attachments.length > 0,
 		};
 	}
 
@@ -378,8 +445,6 @@ export class IndexingService {
 		attachments: Attachment[],
 		userEmail: string //the owner of the email inbox
 	): Promise<EmailDocument> {
-		const attachmentContents = await this.extractAttachmentContents(attachments);
-
 		const emailBodyStream = await this.storageService.get(email.storagePath);
 		const emailBodyBuffer = await streamToBuffer(emailBodyStream);
 		const parsedEmail = await simpleParser(emailBodyBuffer);
@@ -389,12 +454,27 @@ export class IndexingService {
 			(await extractText(emailBodyBuffer, 'text/plain')) ||
 			'';
 
+		// If there are linked attachment records, extract text from storage (default mode).
+		// Otherwise, if the email has attachments but no records (preserve original file mode),
+		// extract attachment text directly from the parsed EML body.
+		let attachmentContents: { filename: string; content: string }[];
+		if (attachments.length > 0) {
+			attachmentContents = await this.extractAttachmentContents(attachments);
+		} else if (email.hasAttachments && parsedEmail.attachments.length > 0) {
+			attachmentContents = await this.extractInlineAttachmentContents(
+				parsedEmail.attachments
+			);
+		} else {
+			attachmentContents = [];
+		}
+
 		const recipients = email.recipients as DbRecipients;
 		// console.log('email.userEmail', email.userEmail);
 		return {
 			id: email.id,
 			userEmail: userEmail,
 			from: email.senderEmail,
+			fromName: email.senderName ?? '',
 			to: recipients.to?.map((r) => r.address) || [],
 			cc: recipients.cc?.map((r) => r.address) || [],
 			bcc: recipients.bcc?.map((r) => r.address) || [],
@@ -403,7 +483,42 @@ export class IndexingService {
 			attachments: attachmentContents,
 			timestamp: new Date(email.sentAt).getTime(),
 			ingestionSourceId: email.ingestionSourceId,
+			hasAttachments: !!email.hasAttachments,
 		};
+	}
+
+	/**
+	 * Extracts text content from attachments embedded in the parsed EML.
+	 * Used in preserve-original-file (GoBD) mode where no separate attachment
+	 * records exist — the full MIME body is stored unmodified, so we parse
+	 * attachments directly from the in-memory parsed email.
+	 */
+	private async extractInlineAttachmentContents(
+		parsedAttachments: ParsedAttachment[]
+	): Promise<{ filename: string; content: string }[]> {
+		const extracted: { filename: string; content: string }[] = [];
+		for (const attachment of parsedAttachments) {
+			try {
+				const textContent = await extractText(
+					attachment.content,
+					attachment.contentType || ''
+				);
+				extracted.push({
+					filename: attachment.filename || 'untitled',
+					content: textContent,
+				});
+			} catch (error) {
+				logger.warn(
+					{
+						filename: attachment.filename,
+						mimeType: attachment.contentType,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					'Failed to extract text from inline attachment in preserve-original mode'
+				);
+			}
+		}
+		return extracted;
 	}
 
 	private async extractAttachmentContents(
@@ -485,6 +600,7 @@ export class IndexingService {
 			id: doc.id || 'missing-id',
 			userEmail: doc.userEmail || 'unknown',
 			from: doc.from || '',
+			fromName: doc.fromName || '',
 			to: Array.isArray(doc.to) ? doc.to : [],
 			cc: Array.isArray(doc.cc) ? doc.cc : [],
 			bcc: Array.isArray(doc.bcc) ? doc.bcc : [],
@@ -493,6 +609,7 @@ export class IndexingService {
 			attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
 			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
 			ingestionSourceId: doc.ingestionSourceId || 'unknown',
+			hasAttachments: doc.hasAttachments ?? (doc.attachments?.length ?? 0) > 0,
 		};
 	}
 

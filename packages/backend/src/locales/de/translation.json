@@ -59,5 +59,19 @@
 		"invalidFilePath": "Ungültiger Dateipfad",
 		"fileNotFound": "Datei nicht gefunden",
 		"downloadError": "Fehler beim Herunterladen der Datei"
+	},
+	"apiKeys": {
+		"generateSuccess": "API-Schlüssel erfolgreich generiert.",
+		"deleteSuccess": "API-Schlüssel erfolgreich gelöscht."
+	},
+	"api": {
+		"requestBodyInvalid": "Ungültiger Anfrage-Body."
+	},
+	"upload": {
+		"invalid_request": "Die Upload-Anfrage ist ungültig oder fehlerhaft.",
+		"stream_error": "Beim Empfangen der Datei ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
+		"parse_error": "Die hochgeladenen Dateidaten konnten nicht verarbeitet werden.",
+		"storage_error": "Die hochgeladene Datei konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+		"connection_error": "Die Verbindung wurde während des Uploads unterbrochen."
 	}
 }

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ApiKeyService } from '../../services/ApiKeyService';
 import { z } from 'zod';
 import { UserService } from '../../services/UserService';
+import { config } from '../../config';
 
 const generateApiKeySchema = z.object({
 	name: z
@@ -18,6 +19,9 @@ export class ApiKeyController {
 	private userService = new UserService();
 	public generateApiKey = async (req: Request, res: Response) => {
 		try {
+			if (config.app.isDemo) {
+				return res.status(403).json({ message: req.t('errors.demoMode') });
+			}
 			const { name, expiresInDays } = generateApiKeySchema.parse(req.body);
 			if (!req.user || !req.user.sub) {
 				return res.status(401).json({ message: 'Unauthorized' });
@@ -58,6 +62,9 @@ export class ApiKeyController {
 	};
 
 	public deleteApiKey = async (req: Request, res: Response) => {
+		if (config.app.isDemo) {
+			return res.status(403).json({ message: req.t('errors.demoMode') });
+		}
 		const { id } = req.params;
 		if (!req.user || !req.user.sub) {
 			return res.status(401).json({ message: 'Unauthorized' });

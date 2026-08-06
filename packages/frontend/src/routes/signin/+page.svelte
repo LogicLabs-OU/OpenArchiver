@@ -10,11 +10,12 @@
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { t } from '$lib/translations';
 
-	let email = '';
-	let password = '';
-	let isLoading = false;
+	let email = $state('');
+	let password = $state('');
+	let isLoading = $state(false);
 
-	async function handleSubmit() {
+	async function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
 		isLoading = true;
 		try {
 			const response = await api('/auth/login', {
@@ -26,21 +27,36 @@
 				try {
 					const errorData = await response.json();
 					errorMessage = errorData.message || errorMessage;
-				} catch (e) {
+				} catch {
 					errorMessage = response.statusText;
 				}
 				throw new Error(errorMessage);
 			}
 
-			const loginData: LoginResponse = await response.json();
-			authStore.login(loginData.accessToken, loginData.user);
-			// Redirect to a protected page after login
+			const loginData: LoginResponse | { requiresMfa: true; enrollmentRequired?: boolean } =
+				await response.json();
+
+			// MFA challenge: the mfaPendingToken is set as an httpOnly cookie by the server.
+			// If enrollmentRequired is true, the user's grace period has expired and they must
+			// enroll in TOTP before getting access — redirect to the forced enrollment page.
+			if ('requiresMfa' in loginData && loginData.requiresMfa) {
+				if ('enrollmentRequired' in loginData && loginData.enrollmentRequired) {
+					goto('/signin/mfa/enroll');
+				} else {
+					goto('/signin/mfa');
+				}
+				return;
+			}
+
+			// Normal login: persist the full-access token and go to the dashboard.
+			const fullLogin = loginData as LoginResponse;
+			authStore.login(fullLogin.accessToken, fullLogin.user);
 			goto('/dashboard');
-		} catch (e: any) {
+		} catch (e: unknown) {
 			setAlert({
 				type: 'error',
-				title: 'Login Failed',
-				message: e.message,
+				title: $t('app.auth.login_failed'),
+				message: e instanceof Error ? e.message : String(e),
 				duration: 5000,
 				show: true,
 			});

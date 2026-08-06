@@ -1,18 +1,11 @@
 {
 	"compilerOptions": {
 		"target": "ESNext",
-		"module": "CommonJS",
-		"moduleResolution": "node",
+		"module": "nodenext",
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
-		"baseUrl": ".",
-		"paths": {
-			"@open-archiver/backend/*": ["packages/backend/src/*"],
-			"@open-archiver/types": ["packages/types/src/index.ts"],
-			"@open-archiver/enterprise/*": ["packages/enterprise/src/*"]
-		}
+		"resolveJsonModule": true
 	}
 }

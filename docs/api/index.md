@@ -1,3 +1,7 @@
+---
+aside: false
+---
+
 # API Overview
 
 Welcome to the Open Archiver API documentation. This section provides detailed information about the available API endpoints.

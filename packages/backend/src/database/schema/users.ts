@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import { pgTable, text, timestamp, uuid, primaryKey, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, primaryKey, jsonb, boolean } from 'drizzle-orm/pg-core';
 import type { CaslPolicy } from '@open-archiver/types';
 
 /**
@@ -13,6 +13,14 @@ export const users = pgTable('users', {
 	password: text('password'),
 	provider: text('provider').default('local'),
 	providerId: text('provider_id'),
+	/** AES-256 encrypted TOTP secret. Null when 2FA is not enrolled. */
+	totpSecret: text('totp_secret'),
+	/** Whether TOTP 2FA is currently active for this user. */
+	totpEnabled: boolean('totp_enabled').notNull().default(false),
+	/** Timestamp of when the user enrolled in TOTP 2FA. */
+	totpEnrolledAt: timestamp('totp_enrolled_at'),
+	/** Array of bcrypt-hashed single-use backup codes. */
+	totpBackupCodes: jsonb('totp_backup_codes').$type<string[]>(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

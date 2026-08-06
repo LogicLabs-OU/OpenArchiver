@@ -59,17 +59,26 @@ export class ArchivedEmailController {
 	};
 
 	public deleteArchivedEmail = async (req: Request, res: Response): Promise<Response> => {
+		// Guard: return 400 if deletion is disabled in system settings before touching anything else
 		try {
 			checkDeletionEnabled();
-			const { id } = req.params;
-			const userId = req.user?.sub;
-			if (!userId) {
-				return res.status(401).json({ message: req.t('errors.unauthorized') });
-			}
-			const actor = await this.userService.findById(userId);
-			if (!actor) {
-				return res.status(401).json({ message: req.t('errors.unauthorized') });
-			}
+		} catch (error) {
+			return res.status(400).json({
+				message: error instanceof Error ? error.message : req.t('errors.deletionDisabled'),
+			});
+		}
+
+		const { id } = req.params;
+		const userId = req.user?.sub;
+		if (!userId) {
+			return res.status(401).json({ message: req.t('errors.unauthorized') });
+		}
+		const actor = await this.userService.findById(userId);
+		if (!actor) {
+			return res.status(401).json({ message: req.t('errors.unauthorized') });
+		}
+
+		try {
 			await ArchivedEmailService.deleteArchivedEmail(id, actor, req.ip || 'unknown');
 			return res.status(204).send();
 		} catch (error) {
@@ -77,6 +86,10 @@ export class ArchivedEmailController {
 			if (error instanceof Error) {
 				if (error.message === 'Archived email not found') {
 					return res.status(404).json({ message: req.t('archivedEmail.notFound') });
+				}
+				// Retention policy / legal hold blocks are user-facing 400 errors
+				if (error.message.startsWith('Deletion blocked by retention policy')) {
+					return res.status(400).json({ message: error.message });
 				}
 				return res.status(500).json({ message: error.message });
 			}

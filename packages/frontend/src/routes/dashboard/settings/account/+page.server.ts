@@ -1,7 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { api } from '$lib/server/api';
 import { fail } from '@sveltejs/kit';
-import type { User } from '@open-archiver/types';
+import type { User, MfaStatus } from '@open-archiver/types';
 
 export const load: PageServerLoad = async (event) => {
 	const response = await api('/users/profile', event);
@@ -9,10 +9,20 @@ export const load: PageServerLoad = async (event) => {
 		const error = await response.json();
 		console.error('Failed to fetch profile:', error);
 		// Return null user if failed, handle in UI
-		return { user: null };
+		return { user: null, mfaStatus: null };
 	}
 	const user: User = await response.json();
-	return { user };
+
+	// Load MFA status only when running in enterprise mode
+	let mfaStatus: MfaStatus | null = null;
+	if (event.locals.enterpriseMode) {
+		const mfaRes = await api('/enterprise/advanced-security/mfa/status', event);
+		if (mfaRes.ok) {
+			mfaStatus = await mfaRes.json();
+		}
+	}
+
+	return { user, mfaStatus };
 };
 
 export const actions: Actions = {

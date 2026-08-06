@@ -1,14 +1,19 @@
 import 'dotenv/config';
+import { type ConnectionOptions } from 'bullmq';
 
 /**
  * @see https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/guide/connections.md
  */
-const connectionOptions: any = {
+const connectionOptions: ConnectionOptions = {
 	host: process.env.REDIS_HOST || 'localhost',
 	port: (process.env.REDIS_PORT && parseInt(process.env.REDIS_PORT, 10)) || 6379,
 	password: process.env.REDIS_PASSWORD,
 	enableReadyCheck: true,
 };
+
+if (process.env.REDIS_USER) {
+	connectionOptions.username = process.env.REDIS_USER;
+}
 
 if (process.env.REDIS_TLS_ENABLED === 'true') {
 	connectionOptions.tls = {

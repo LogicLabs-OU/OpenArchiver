@@ -1,0 +1,1 @@
+CREATE INDEX "msgid_header_source_idx" ON "archived_emails" USING btree ("message_id_header","ingestion_source_id");

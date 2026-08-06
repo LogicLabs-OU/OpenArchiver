@@ -1,0 +1,1 @@
+CREATE INDEX "storage_hash_source_idx" ON "archived_emails" USING btree ("storage_hash_sha256","ingestion_source_id");

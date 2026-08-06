@@ -17,7 +17,9 @@ function getMeliColumn(key: string): string {
 
 function quoteIfString(value: any): any {
 	if (typeof value === 'string') {
-		return `"${value}"`;
+		// Escape backslashes and double quotes so a value cannot break out of the
+		// quoted string or inject filter operators.
+		return `"${value.replace(/[\\"]/g, '\\$&')}"`;
 	}
 	return value;
 }
@@ -79,7 +81,9 @@ export async function mongoToMeli(query: Record<string, any>): Promise<string> {
 					conditions.push(`${column} ${operand ? 'EXISTS' : 'NOT EXISTS'}`);
 					break;
 				default:
-				// Unsupported operator
+					// Fail loud: silently dropping a clause could compile a restrictive
+					// permission query down to an empty (fail-open) filter string.
+					throw new Error(`mongoToMeli: unsupported operator "${operator}"`);
 			}
 		} else {
 			if (column === 'ingestionSource.userId') {

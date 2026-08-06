@@ -30,7 +30,19 @@ archive.zip
 2.  Click the **Create New** button.
 3.  Select **EML Import** as the provider.
 4.  Enter a name for the ingestion source.
-5.  Click the **Choose File** button and select the zip archive containing your EML files.
+5.  **Choose Import Method:**
+    - **Upload File:** Click **Choose File** and select the zip archive containing your EML files. (Best for smaller archives)
+    - **Local Path:** Enter the path to the zip file **inside the container**. (Best for large archives)
+
+    > **Note on Local Path:** When using Docker, the "Local Path" is relative to the container's filesystem.
+    >
+    > - **Recommended:** Place your zip file in a `temp` folder inside your configured storage directory (`STORAGE_LOCAL_ROOT_PATH`). This path is already mounted. For example, if your storage path is `/data`, put the file in `/data/temp/emails.zip` and enter `/data/temp/emails.zip` as the path.
+    > - **Alternative:** Mount a separate volume in `docker-compose.yml` (e.g., `- /host/path:/container/path`) and use the container path.
+
 6.  Click the **Submit** button.
+
+> **Upload feedback:** When you use the **Upload File** method, a progress bar shows the upload percentage while the file transfers, and a **Cancel** button lets you stop an in-progress upload. Once the upload finishes, a success panel confirms the stored file name and its path; if the upload fails, an error panel shows the reason so you can fix it and try again.
+
+![Uploading a file with a progress bar and cancel button](/screenshots/upload-progress.png)
 
 OpenArchiver will then start importing the EML files from the zip archive. The ingestion process may take some time, depending on the size of the archive.

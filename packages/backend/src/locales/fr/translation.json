@@ -14,7 +14,8 @@
 		"demoMode": "Cette opération n'est pas autorisée en mode démo.",
 		"unauthorized": "Non autorisé",
 		"unknown": "Une erreur inconnue s'est produite",
-		"noPermissionToAction": "Vous n'avez pas la permission d'effectuer l'action en cours."
+		"noPermissionToAction": "Vous n'avez pas la permission d'effectuer l'action en cours.",
+		"deletion_disabled": "La suppression est désactivée pour cette instance."
 	},
 	"user": {
 		"notFound": "Utilisateur non trouvé",
@@ -58,5 +59,19 @@
 		"invalidFilePath": "Chemin de fichier invalide",
 		"fileNotFound": "Fichier non trouvé",
 		"downloadError": "Erreur lors du téléchargement du fichier"
+	},
+	"apiKeys": {
+		"generateSuccess": "Clé API générée avec succès.",
+		"deleteSuccess": "Clé API supprimée avec succès."
+	},
+	"api": {
+		"requestBodyInvalid": "Corps de la requête invalide."
+	},
+	"upload": {
+		"invalid_request": "La demande d'envoi est invalide ou malformée.",
+		"stream_error": "Une erreur s'est produite lors de la réception du fichier. Veuillez réessayer.",
+		"parse_error": "Impossible de traiter les données du fichier envoyé.",
+		"storage_error": "Impossible d'enregistrer le fichier envoyé. Veuillez réessayer.",
+		"connection_error": "La connexion a été perdue pendant l'envoi."
 	}
 }

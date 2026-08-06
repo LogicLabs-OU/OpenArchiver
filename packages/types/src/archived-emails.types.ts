@@ -21,6 +21,7 @@ export interface ThreadEmail {
 	id: string; //the archivedemail id
 	subject: string | null;
 	sentAt: Date;
+	senderName: string | null;
 	senderEmail: string;
 }
 
@@ -30,6 +31,8 @@ export interface ThreadEmail {
 export interface ArchivedEmail {
 	id: string;
 	ingestionSourceId: string;
+	/** The ingestion source this email belongs to, when loaded (e.g. the detail view). */
+	ingestionSource?: { id: string; name: string } | null;
 	userEmail: string;
 	messageIdHeader: string | null;
 	sentAt: Date;
@@ -41,8 +44,12 @@ export interface ArchivedEmail {
 	storageHashSha256: string;
 	sizeBytes: number;
 	isIndexed: boolean;
+	/** Number of times indexing has been attempted and failed for this email.
+	 * Used by the reconcile job to stop retrying persistently-failing ("poison") emails. */
+	indexAttempts?: number;
 	hasAttachments: boolean;
 	isOnLegalHold: boolean;
+	isJournaled: boolean | null;
 	archivedAt: Date;
 	attachments?: Attachment[];
 	raw?: Buffer;

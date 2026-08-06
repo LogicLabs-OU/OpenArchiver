@@ -45,8 +45,10 @@ export interface EmailObject {
 	attachments: EmailAttachment[];
 	/** The date and time when the email was received. */
 	receivedAt: Date;
-	/** An optional buffer containing the full raw EML content of the email, which is useful for archival and compliance purposes. */
-	eml?: Buffer;
+	/** Path to a temporary file on disk containing the raw EML bytes.
+	 * Connectors write the raw email to tmpdir() and pass only the path,
+	 * keeping large buffers off the JS heap between yield and processEmail(). */
+	tempFilePath: string;
 	/** The email address of the user whose mailbox this email belongs to. */
 	userEmail?: string;
 	/** The folder path of the email in the source mailbox. */
@@ -71,7 +73,8 @@ export interface PendingEmail {
 export interface EmailDocument {
 	id: string; // The unique ID of the email
 	userEmail: string;
-	from: string;
+	from: string; // Sender email address (kept as the address so search/filter/facet by address works)
+	fromName: string; // Sender display name, indexed separately so it is searchable and displayable
 	to: string[];
 	cc: string[];
 	bcc: string[];
@@ -83,5 +86,8 @@ export interface EmailDocument {
 	}[];
 	timestamp: number;
 	ingestionSourceId: string;
+	/** Whether the email carries attachments. Optional because documents indexed before
+	 * this field existed lack it until a reindex backfills them. */
+	hasAttachments?: boolean;
 	// other metadata
 }

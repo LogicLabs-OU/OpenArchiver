@@ -5,19 +5,25 @@ import type {
 	SyncState,
 	MailboxUser,
 } from '@open-archiver/types';
-import type { IEmailConnector } from '../EmailProviderFactory';
+import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { config } from '../../config';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { writeEmailToTempFile } from './helpers/tempFile';
 
 export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
+	private options: ConnectorOptions;
 
-	constructor(private credentials: GenericImapCredentials) {
+	constructor(
+		private credentials: GenericImapCredentials,
+		options?: ConnectorOptions
+	) {
+		this.options = options ?? { preserveOriginalFile: false };
 		this.client = this.createClient();
 	}
 
@@ -27,7 +33,7 @@ export class ImapConnector implements IEmailConnector {
 			port: this.credentials.port,
 			secure: this.credentials.secure,
 			tls: {
-				rejectUnauthorized: this.credentials.allowInsecureCert,
+				rejectUnauthorized: !this.credentials.allowInsecureCert,
 				requestCert: true,
 			},
 			auth: {
@@ -142,7 +148,8 @@ export class ImapConnector implements IEmailConnector {
 
 	public async *fetchEmails(
 		userEmail: string,
-		syncState?: SyncState | null
+		syncState?: SyncState | null,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject | null> {
 		try {
 			// list all mailboxes first
@@ -196,7 +203,7 @@ export class ImapConnector implements IEmailConnector {
 
 					// Only fetch if the mailbox has messages, to avoid errors on empty mailboxes with some IMAP servers.
 					if (mailbox.exists > 0) {
-						const BATCH_SIZE = 250; // A configurable batch size
+						const BATCH_SIZE = 250;
 						let startUid = (lastUid || 0) + 1;
 						const maxUidToFetch = currentMaxUid;
 
@@ -204,10 +211,11 @@ export class ImapConnector implements IEmailConnector {
 							const endUid = Math.min(startUid + BATCH_SIZE - 1, maxUidToFetch);
 							const searchCriteria = { uid: `${startUid}:${endUid}` };
 
+							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
+							const uidsToFetch: number[] = [];
+
 							for await (const msg of this.client.fetch(searchCriteria, {
 								envelope: true,
-								source: true,
-								bodyStructure: true,
 								uid: true,
 							})) {
 								if (lastUid && msg.uid <= lastUid) {
@@ -218,18 +226,62 @@ export class ImapConnector implements IEmailConnector {
 									this.newMaxUids[mailboxPath] = msg.uid;
 								}
 
-								logger.debug({ mailboxPath, uid: msg.uid }, 'Processing message');
-
-								if (msg.envelope && msg.source) {
-									try {
-										yield await this.parseMessage(msg, mailboxPath);
-									} catch (err: any) {
-										logger.error(
-											{ err, mailboxPath, uid: msg.uid },
-											'Failed to parse message'
+								// Duplicate check against the Message-ID from the envelope.
+								// If a duplicate is found we skip fetching the full source entirely,
+								// avoiding loading attachment binary data into memory for known emails.
+								if (checkDuplicate && msg.envelope?.messageId) {
+									const isDuplicate = await checkDuplicate(
+										msg.envelope.messageId
+									);
+									if (isDuplicate) {
+										logger.debug(
+											{
+												mailboxPath,
+												uid: msg.uid,
+												messageId: msg.envelope.messageId,
+											},
+											'Skipping duplicate email (pre-check)'
 										);
-										throw err;
+										continue;
 									}
+								}
+
+								if (msg.envelope) {
+									uidsToFetch.push(msg.uid);
+								}
+							}
+
+							// --- Pass 2: fetch full source one message at a time for non-duplicate UIDs.
+							for (const uid of uidsToFetch) {
+								logger.debug(
+									{ mailboxPath, uid },
+									'Fetching full source for message'
+								);
+
+								try {
+									const fullMsg = await this.withRetry(
+										async () =>
+											await this.client.fetchOne(
+												String(uid),
+												{
+													envelope: true,
+													source: true,
+													bodyStructure: true,
+													uid: true,
+												},
+												{ uid: true }
+											)
+									);
+
+									if (fullMsg && fullMsg.envelope && fullMsg.source) {
+										yield await this.parseMessage(fullMsg, mailboxPath);
+									}
+								} catch (err: any) {
+									logger.error(
+										{ err, mailboxPath, uid },
+										'Failed to fetch or parse message'
+									);
+									throw err;
 								}
 							}
 
@@ -252,12 +304,21 @@ export class ImapConnector implements IEmailConnector {
 	}
 
 	private async parseMessage(msg: any, mailboxPath: string): Promise<EmailObject> {
+		// Write raw bytes to temp file to keep large buffers off the JS heap
+		const tempFilePath = await writeEmailToTempFile(msg.source);
+
+		// Parse only for metadata extraction (read-only)
 		const parsedEmail: ParsedMail = await simpleParser(msg.source);
+
+		// In preserve-original mode, skip extracting full attachment binary content
+		// to avoid unnecessary memory allocation — the raw EML on disk is the source of truth.
 		const attachments = parsedEmail.attachments.map((attachment: Attachment) => ({
 			filename: attachment.filename || 'untitled',
 			contentType: attachment.contentType,
 			size: attachment.size,
-			content: attachment.content as Buffer,
+			content: this.options.preserveOriginalFile
+				? Buffer.alloc(0)
+				: (attachment.content as Buffer),
 		}));
 
 		const mapAddresses = (
@@ -285,7 +346,7 @@ export class ImapConnector implements IEmailConnector {
 			headers: parsedEmail.headers,
 			attachments,
 			receivedAt: parsedEmail.date || new Date(),
-			eml: msg.source,
+			tempFilePath,
 			path: mailboxPath,
 		};
 	}

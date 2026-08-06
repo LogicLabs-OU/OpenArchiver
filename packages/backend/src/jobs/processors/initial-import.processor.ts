@@ -1,8 +1,9 @@
-import { Job, FlowChildJob } from 'bullmq';
+import { Job } from 'bullmq';
 import { IngestionService } from '../../services/IngestionService';
-import { IInitialImportJob, IngestionProvider } from '@open-archiver/types';
+import { IInitialImportJob, IngestionStatus } from '@open-archiver/types';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
-import { flowProducer } from '../queues';
+import { ingestionQueue } from '../queues';
+import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 
 export default async (job: Job<IInitialImportJob>) => {
@@ -22,66 +23,55 @@ export default async (job: Job<IInitialImportJob>) => {
 
 		const connector = EmailProviderFactory.createConnector(source);
 
-		// if (connector instanceof GoogleWorkspaceConnector || connector instanceof MicrosoftConnector) {
-		const jobs: FlowChildJob[] = [];
-		let userCount = 0;
+		// Phase 1: Collect user emails from the provider (async generator — no full buffering
+		// of FlowChildJob objects). Email strings are tiny (~30 bytes each) compared to the
+		// old FlowChildJob descriptors (~500 bytes each), and we need the count before we can
+		// create the session.
+		const userEmails: string[] = [];
 		for await (const user of connector.listAllUsers()) {
 			if (user.primaryEmail) {
-				jobs.push({
-					name: 'process-mailbox',
-					queueName: 'ingestion',
-					data: {
-						ingestionSourceId,
-						userEmail: user.primaryEmail,
-					},
-					opts: {
-						removeOnComplete: {
-							age: 60 * 10, // 10 minutes
-						},
-						removeOnFail: {
-							age: 60 * 30, // 30 minutes
-						},
-						attempts: 1,
-						// failParentOnFailure: true
-					},
-				});
-				userCount++;
+				userEmails.push(user.primaryEmail);
 			}
 		}
 
-		if (jobs.length > 0) {
-			logger.info(
-				{ ingestionSourceId, userCount },
-				'Adding sync-cycle-finished job to the queue'
-			);
-			await flowProducer.add({
-				name: 'sync-cycle-finished',
-				queueName: 'ingestion',
-				data: {
-					ingestionSourceId,
-					userCount,
-					isInitialImport: true,
-				},
-				children: jobs,
-				opts: {
-					removeOnComplete: true,
-					removeOnFail: true,
-				},
-			});
-		} else {
+		if (userEmails.length === 0) {
 			const fileBasedIngestions = IngestionService.returnFileBasedIngestions();
-			const finalStatus = fileBasedIngestions.includes(source.provider)
+			const finalStatus: IngestionStatus = fileBasedIngestions.includes(source.provider)
 				? 'imported'
 				: 'active';
-			// If there are no users, we can consider the import finished and set to active
 			await IngestionService.update(ingestionSourceId, {
 				status: finalStatus,
 				lastSyncFinishedAt: new Date(),
 				lastSyncStatusMessage: 'Initial import complete. No users found.',
 			});
+			logger.info({ ingestionSourceId }, 'No users found, initial import complete');
+			return;
 		}
 
-		logger.info({ ingestionSourceId }, 'Finished initial import master job');
+		// Phase 2: Create a session BEFORE dispatching any jobs to avoid a race condition
+		// where a process-mailbox job finishes before the session's totalMailboxes is set.
+		const sessionId = await SyncSessionService.create(
+			ingestionSourceId,
+			userEmails.length,
+			true
+		);
+
+		logger.info(
+			{ ingestionSourceId, userCount: userEmails.length, sessionId },
+			'Dispatching process-mailbox jobs for initial import'
+		);
+
+		// Phase 3: Enqueue individual process-mailbox jobs one at a time.
+		// No FlowProducer, no large atomic Redis write — jobs are enqueued in a loop.
+		for (const userEmail of userEmails) {
+			await ingestionQueue.add('process-mailbox', {
+				ingestionSourceId,
+				userEmail,
+				sessionId,
+			});
+		}
+
+		logger.info({ ingestionSourceId, sessionId }, 'Finished dispatching initial import jobs');
 	} catch (error) {
 		logger.error({ err: error, ingestionSourceId }, 'Error in initial import master job');
 		await IngestionService.update(ingestionSourceId, {

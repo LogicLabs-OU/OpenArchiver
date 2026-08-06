@@ -5,6 +5,10 @@
 	"license": "SEE LICENSE IN LICENSE file",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
+	"exports": {
+		".": "./dist/index.js",
+		"./*": "./dist/*.js"
+	},
 	"scripts": {
 		"build": "tsc && pnpm copy-assets",
 		"dev": "tsc --watch",
@@ -32,6 +36,7 @@
 		"bcryptjs": "^3.0.2",
 		"bullmq": "^5.56.3",
 		"busboy": "^1.6.0",
+		"cookie-parser": "^1.4.7",
 		"cors": "^2.8.5",
 		"cross-fetch": "^4.1.0",
 		"deepmerge-ts": "^7.1.5",
@@ -52,6 +57,7 @@
 		"mammoth": "^1.9.1",
 		"meilisearch": "^0.51.0",
 		"multer": "^2.0.2",
+		"nodemailer": "^8.0.2",
 		"pdf2json": "^3.1.6",
 		"pg": "^8.16.3",
 		"pino": "^9.7.0",
@@ -67,13 +73,17 @@
 	"devDependencies": {
 		"@types/archiver": "^6.0.3",
 		"@types/busboy": "^1.5.4",
+		"@types/cookie-parser": "^1.4.10",
 		"@types/cors": "^2.8.19",
 		"@types/express": "^5.0.3",
 		"@types/mailparser": "^3.4.6",
 		"@types/microsoft-graph": "^2.40.1",
 		"@types/multer": "^2.0.0",
 		"@types/node": "^24.0.12",
+		"@types/nodemailer": "^7.0.11",
+		"@types/swagger-jsdoc": "^6.0.4",
 		"@types/yauzl": "^2.10.3",
+		"swagger-jsdoc": "^6.2.8",
 		"ts-node-dev": "^2.0.0",
 		"tsconfig-paths": "^4.2.0",
 		"typescript": "^5.8.3"

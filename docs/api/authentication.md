@@ -1,19 +1,25 @@
+---
+aside: false
+---
+
 # API Authentication
 
-To access protected API endpoints, you need to include a user-generated API key in the `X-API-KEY` header of your requests.
+The API supports two authentication methods. Use whichever fits your use case.
 
-## 1. Creating an API Key
+## Method 1: JWT (User Login)
 
-You can create, manage, and view your API keys through the application's user interface.
+Obtain a short-lived JWT by calling `POST /v1/auth/login` with your email and password, then pass it as a Bearer token in the `Authorization` header.
 
-1.  Navigate to **Settings > API Keys** in the dashboard.
-2.  Click the **"Generate API Key"** button.
-3.  Provide a descriptive name for your key and select an expiration period.
-4.  The new API key will be displayed. **Copy this key immediately and store it in a secure location. You will not be able to see it again.**
+**Example:**
 
-## 2. Making Authenticated Requests
+```http
+GET /api/v1/dashboard/stats
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
 
-Once you have your API key, you must include it in the `X-API-KEY` header of all subsequent requests to protected API endpoints.
+## Method 2: API Key
+
+Long-lived API keys are suited for automated scripts and integrations. Create one in **Settings > API Keys**, then pass it in the `X-API-KEY` header.
 
 **Example:**
 
@@ -22,4 +28,13 @@ GET /api/v1/dashboard/stats
 X-API-KEY: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
 ```
 
-If the API key is missing, expired, or invalid, the API will respond with a `401 Unauthorized` status code.
+### Creating an API Key
+
+1. Navigate to **Settings > API Keys** in the dashboard.
+2. Click **"Generate API Key"**.
+3. Provide a descriptive name and select an expiration period (max 2 years).
+4. Copy the key immediately — it will not be shown again.
+
+---
+
+If the token or API key is missing, expired, or invalid, the API responds with `401 Unauthorized`.

@@ -136,10 +136,14 @@
 							<Table.Cell class="text-right">
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>
-										<Button variant="ghost" class="h-8 w-8 p-0">
-											<span class="sr-only">{$t('app.roles.open_menu')}</span>
-											<MoreHorizontal class="h-4 w-4" />
-										</Button>
+										{#snippet child({ props })}
+											<Button {...props} variant="ghost" class="h-8 w-8 p-0">
+												<span class="sr-only"
+													>{$t('app.roles.open_menu')}</span
+												>
+												<MoreHorizontal class="h-4 w-4" />
+											</Button>
+										{/snippet}
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content>
 										<DropdownMenu.Label
@@ -211,6 +215,15 @@
 				{selectedRole
 					? $t('app.roles.edit_description')
 					: $t('app.roles.create_description')}
+				<span
+					>{$t('app.roles.read')}{' '}
+					<a
+						class="text-primary underline underline-offset-2"
+						target="_blank"
+						href="https://docs.openarchiver.com/services/iam-service/iam-policy.html"
+						>{$t('app.roles.docs_here')}</a
+					>.</span
+				>
 			</Dialog.Description>
 		</Dialog.Header>
 		<RoleForm role={selectedRole} onSubmit={handleFormSubmit} />

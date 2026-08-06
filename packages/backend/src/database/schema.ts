@@ -9,3 +9,5 @@ export * from './schema/system-settings';
 export * from './schema/api-keys';
 export * from './schema/audit-logs';
 export * from './schema/enums';
+export * from './schema/sync-sessions';
+export * from './schema/journaling-sources';

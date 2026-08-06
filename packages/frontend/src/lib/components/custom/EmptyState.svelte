@@ -10,7 +10,7 @@
 		header: string;
 		text: string;
 		buttonText?: string;
-		click: () => void;
+		click?: () => void;
 	} = $props();
 </script>
 
@@ -35,15 +35,17 @@
 
 	<h3 class="0 mt-2 text-sm font-semibold">{header}</h3>
 	<p class="mt-1 text-sm">{text}</p>
-	<div>
-		<Button
-			variant="outline"
-			class="cursor-pointer"
-			onclick={() => {
-				click();
-			}}
-		>
-			{buttonText}
-		</Button>
-	</div>
+	{#if buttonText && click}
+		<div>
+			<Button
+				variant="outline"
+				class="cursor-pointer"
+				onclick={() => {
+					click?.();
+				}}
+			>
+				{buttonText}
+			</Button>
+		</div>
+	{/if}
 </div>

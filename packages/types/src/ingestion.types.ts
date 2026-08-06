@@ -24,7 +24,8 @@ export type IngestionProvider =
 	| 'generic_imap'
 	| 'pst_import'
 	| 'eml_import'
-	| 'mbox_import';
+	| 'mbox_import'
+	| 'smtp_journaling';
 
 export type IngestionStatus =
 	| 'active'
@@ -34,7 +35,8 @@ export type IngestionStatus =
 	| 'syncing'
 	| 'importing'
 	| 'auth_success'
-	| 'imported';
+	| 'imported'
+	| 'partially_active'; // For sources with merged children where some are active and others are not
 
 export interface BaseIngestionCredentials {
 	type: IngestionProvider;
@@ -72,20 +74,29 @@ export interface Microsoft365Credentials extends BaseIngestionCredentials {
 
 export interface PSTImportCredentials extends BaseIngestionCredentials {
 	type: 'pst_import';
-	uploadedFileName: string;
-	uploadedFilePath: string;
+	uploadedFileName?: string;
+	uploadedFilePath?: string;
+	localFilePath?: string;
 }
 
 export interface EMLImportCredentials extends BaseIngestionCredentials {
 	type: 'eml_import';
-	uploadedFileName: string;
-	uploadedFilePath: string;
+	uploadedFileName?: string;
+	uploadedFilePath?: string;
+	localFilePath?: string;
 }
 
 export interface MboxImportCredentials extends BaseIngestionCredentials {
 	type: 'mbox_import';
-	uploadedFileName: string;
-	uploadedFilePath: string;
+	uploadedFileName?: string;
+	uploadedFilePath?: string;
+	localFilePath?: string;
+}
+
+export interface SmtpJournalingCredentials extends BaseIngestionCredentials {
+	type: 'smtp_journaling';
+	/** The ID of the journaling_sources row that owns this ingestion source */
+	journalingSourceId: string;
 }
 
 // Discriminated union for all possible credential types
@@ -95,7 +106,8 @@ export type IngestionCredentials =
 	| Microsoft365Credentials
 	| PSTImportCredentials
 	| EMLImportCredentials
-	| MboxImportCredentials;
+	| MboxImportCredentials
+	| SmtpJournalingCredentials;
 
 export interface IngestionSource {
 	id: string;
@@ -109,6 +121,12 @@ export interface IngestionSource {
 	lastSyncFinishedAt?: Date | null;
 	lastSyncStatusMessage?: string | null;
 	syncState?: SyncState | null;
+	/** When true, the raw EML file is stored without any modification (no attachment
+	 * stripping). Required for GoBD / SEC 17a-4 compliance. Defaults to false. */
+	preserveOriginalFile: boolean;
+	/** The ID of the root ingestion source this child is merged into.
+	 *  Null or undefined when this source is a standalone root. */
+	mergedIntoId?: string | null;
 }
 
 /**
@@ -122,6 +140,10 @@ export interface CreateIngestionSourceDto {
 	name: string;
 	provider: IngestionProvider;
 	providerConfig: Record<string, any>;
+	/** Store the unmodified raw EML for GoBD compliance. Defaults to false. */
+	preserveOriginalFile?: boolean;
+	/** Merge this new source into an existing root source's group. */
+	mergedIntoId?: string;
 }
 
 export interface UpdateIngestionSourceDto {
@@ -133,6 +155,54 @@ export interface UpdateIngestionSourceDto {
 	lastSyncFinishedAt?: Date;
 	lastSyncStatusMessage?: string;
 	syncState?: SyncState;
+	/** Set or clear the merge parent. Use null to unmerge. */
+	mergedIntoId?: string | null;
+}
+
+/**
+ * Rich, read-only statistics for a single ingestion source, aggregated across its
+ * whole merge group. Backs the per-source statistics page. All counts/bytes are
+ * group-scoped; `emailBytes` is physical storage (deduplicated by file hash).
+ */
+export interface IngestionStats {
+	sourceId: string;
+	name: string;
+	provider: IngestionProvider;
+	status: IngestionStatus;
+	/** Total archived emails (all rows, including shared-file references). */
+	totalEmails: number;
+	/** Distinct mailbox owners (archived_emails.userEmail). */
+	mailboxCount: number;
+	/** Distinct email threads. */
+	threadCount: number;
+	/** Physical email storage in bytes, deduplicated by storage hash. */
+	emailBytes: number;
+	/** Deduplicated attachment storage in bytes. */
+	attachmentBytes: number;
+	/** emailBytes + attachmentBytes. */
+	totalBytes: number;
+	/** Distinct stored attachment files. */
+	attachmentCount: number;
+	/** Emails that have at least one attachment. */
+	emailsWithAttachments: number;
+	/** Documents present in the search index (Meilisearch) for this group. */
+	indexedCount: number;
+	/** Emails flagged as journaled. */
+	journaledCount: number;
+	/** Emails under a legal hold (enterprise feature — displayed only in enterprise mode). */
+	legalHoldCount: number;
+	/** Earliest / latest email sent date (ISO string) or null when empty. */
+	firstEmailAt: string | null;
+	lastEmailAt: string | null;
+	lastSyncStartedAt: Date | string | null;
+	lastSyncFinishedAt: Date | string | null;
+	lastSyncStatusMessage: string | null;
+	/** Per-mailbox breakdown, ordered by email count desc. */
+	mailboxes: { userEmail: string; emailCount: number; bytes: number }[];
+	/** Merge-group child sources (empty when this is a standalone source). */
+	children: { id: string; name: string; provider: IngestionProvider; status: IngestionStatus }[];
+	/** Emails archived per day over the last 30 days. */
+	recentActivity: { date: string; count: number }[];
 }
 
 export interface IContinuousSyncJob {
@@ -146,6 +216,8 @@ export interface IInitialImportJob {
 export interface IProcessMailboxJob {
 	ingestionSourceId: string;
 	userEmail: string;
+	/** ID of the SyncSession tracking this sync cycle's progress */
+	sessionId: string;
 }
 
 export interface IPstProcessingJob {
@@ -162,5 +234,15 @@ export type MailboxUser = {
 
 export type ProcessMailboxError = {
 	error: boolean;
+	message: string;
+};
+
+/**
+ * Returned by IngestionService.processEmail when archiving a single email fails.
+ * Distinguishes genuine per-message errors from `null`, which strictly means the
+ * email was deduplicated / intentionally skipped.
+ */
+export type ProcessEmailError = {
+	error: true;
 	message: string;
 };
