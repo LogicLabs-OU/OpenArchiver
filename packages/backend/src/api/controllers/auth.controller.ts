@@ -8,6 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 import 'dotenv/config';
 import { AuthorizationService } from '../../services/AuthorizationService';
 import { CaslPolicy } from '@open-archiver/types';
+import { logger } from '../../config/logger';
 
 export class AuthController {
 	#authService: AuthService;
@@ -100,7 +101,10 @@ export class AuthController {
 
 	public status = async (req: Request, res: Response): Promise<Response> => {
 		try {
-			const users = await db.select().from(schema.users);
+			// The frontend root layout calls this on every page load, so read no more than is
+			// needed to tell the three cases apart: no users (setup required), exactly one user
+			// (legacy role repair below), or more than one.
+			const users = await db.select({ id: schema.users.id }).from(schema.users).limit(2);
 
 			/**
 			 * Check the situation where the only user has "Super Admin" role, but they don't actually have Super Admin permission because the role was set up in an earlier version, we need to change that "Super Admin" role to the one used in the current version.
@@ -132,23 +136,11 @@ export class AuthController {
 					}
 				}
 			}
-			// in case user uses older version with admin user variables, we will create the admin user using those variables.
-			const needsSetupUser = users.length === 0;
-			if (needsSetupUser && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
-				await this.#userService.createAdminUser(
-					{
-						email: process.env.ADMIN_EMAIL,
-						password: process.env.ADMIN_PASSWORD,
-						first_name: 'Admin',
-						last_name: 'User',
-					},
-					true
-				);
-				return res.status(200).json({ needsSetup: false });
-			}
-			return res.status(200).json({ needsSetup: needsSetupUser });
+			// The first administrator is created exclusively through the /setup page. This endpoint
+			// is a read-only probe and must never provision an account as a side effect.
+			return res.status(200).json({ needsSetup: users.length === 0 });
 		} catch (error) {
-			console.error('Status check error:', error);
+			logger.error({ err: error }, 'Status check error');
 			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};

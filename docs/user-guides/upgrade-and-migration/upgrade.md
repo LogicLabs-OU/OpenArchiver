@@ -35,6 +35,14 @@ When you upgrade to a new version, database migrations are applied automatically
 
 No manual intervention is required for database migrations.
 
+## The `ADMIN_EMAIL` and `ADMIN_PASSWORD` variables are no longer used
+
+Very early versions of Open Archiver configured the administrator account through the `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables. A compatibility shim kept honouring them and created the account automatically on first start. That shim has been removed.
+
+The first administrator is now created only on the `/setup` page, which appears automatically the first time you open an instance that has no accounts yet. If your `.env` still defines `ADMIN_EMAIL` or `ADMIN_PASSWORD`, they are ignored and can be deleted.
+
+Instances that already completed the upgrade are unaffected, because the administrator account is stored in the database. Only an instance that has never had a user created — for example a reinstall against an empty database — will show the setup page again.
+
 ## Upgrading Meilisearch
 
 When an Open Archiver update includes a major version change for Meilisearch, you will need to manually migrate your search data. This process is not covered by the standard upgrade commands.
