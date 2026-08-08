@@ -8,6 +8,13 @@ const relationToTableMap: Record<string, string> = {
 	// TBD: Add other relations here as needed
 };
 
+/**
+ * Condition fields holding an email address, compared case-insensitively. Policy values are
+ * already lowercased by normalizeEmailConditions, so wrapping the column in lower() lets a
+ * policy naming `orders@example.com` match a row stored as `Orders@Example.com` — issue #439.
+ */
+const caseInsensitiveColumns = new Set(['userEmail']);
+
 function getDrizzleColumn(key: string): SQL {
 	const keyParts = key.split('.');
 	if (keyParts.length > 1) {
@@ -18,7 +25,8 @@ function getDrizzleColumn(key: string): SQL {
 			return sql.raw(`"${tableName}"."${columnName}"`);
 		}
 	}
-	return sql`${sql.identifier(camelToSnakeCase(key))}`;
+	const column = sql`${sql.identifier(camelToSnakeCase(key))}`;
+	return caseInsensitiveColumns.has(key) ? sql`lower(${column})` : column;
 }
 
 export function mongoToDrizzle(query: Record<string, any>): SQL | undefined {

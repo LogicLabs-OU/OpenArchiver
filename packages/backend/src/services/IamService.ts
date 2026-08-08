@@ -3,6 +3,7 @@ import { roles, userRoles, users } from '../database/schema/users';
 import type { Role, CaslPolicy, User } from '@open-archiver/types';
 import { eq } from 'drizzle-orm';
 import { createAbilityFor, AppAbility } from '../iam-policy/ability';
+import { normalizeEmailConditions } from '../iam-policy/normalize-conditions';
 
 export class IamService {
 	/**
@@ -73,7 +74,9 @@ export class IamService {
 			...user,
 			role: null,
 		} as User);
-		return createAbilityFor(interpolatedPolicies);
+		// Email conditions are compared exactly by CASL and Postgres but case-insensitively by
+		// Meilisearch. Lowercase them here, once, so every path agrees — see #439.
+		return createAbilityFor(normalizeEmailConditions(interpolatedPolicies));
 	}
 
 	private interpolatePolicies(policies: CaslPolicy[], user: User): CaslPolicy[] {
