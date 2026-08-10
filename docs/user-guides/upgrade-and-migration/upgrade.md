@@ -8,26 +8,28 @@ Open Archiver automatically checks for new versions and will display a notificat
 
 ## Upgrading Your Instance
 
-To upgrade your Open Archiver instance, follow these steps:
+To upgrade your Open Archiver instance, run the following commands from your deployment directory:
 
-1.  **Pull the latest changes from the repository**:
-
-    ```bash
-    git pull
-    ```
-
-2.  **Pull the latest Docker images**:
+1.  **Pull the latest Docker images**:
 
     ```bash
     docker compose pull
     ```
 
-3.  **Restart the services with the new images**:
+2.  **Restart the services with the new images**:
     ```bash
     docker compose up -d
     ```
 
 This will restart your Open Archiver instance with the latest version of the application.
+
+If a release announces changes to `compose.yaml` itself (for example a new service or a renamed volume), re-download it before restarting:
+
+```bash
+curl -O https://raw.githubusercontent.com/LogicLabs-OU/OpenArchiver/main/compose.yaml
+```
+
+The release notes will call this out explicitly when it is needed.
 
 ## Migrating Data
 
