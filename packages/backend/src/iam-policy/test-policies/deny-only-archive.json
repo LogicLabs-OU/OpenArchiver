@@ -1,0 +1,10 @@
+[
+	{
+		"inverted": true,
+		"action": ["read", "search"],
+		"subject": "archive",
+		"conditions": {
+			"userEmail": "dev@openarchiver.com"
+		}
+	}
+]

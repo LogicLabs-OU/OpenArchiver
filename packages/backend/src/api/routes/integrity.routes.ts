@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { IntegrityController } from '../controllers/integrity.controller';
 import { requireAuth } from '../middleware/requireAuth';
-import { requirePermission } from '../middleware/requirePermission';
+import { requirePermission, archivedEmailResource } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const integrityRoutes = (authService: AuthService): Router => {
@@ -53,7 +53,11 @@ export const integrityRoutes = (authService: AuthService): Router => {
 	 *       '500':
 	 *         $ref: '#/components/responses/InternalServerError'
 	 */
-	router.get('/:id', requirePermission('read', 'archive'), controller.checkIntegrity);
+	router.get(
+		'/:id',
+		requirePermission('read', 'archive', { loadResource: archivedEmailResource }),
+		controller.checkIntegrity
+	);
 
 	return router;
 };

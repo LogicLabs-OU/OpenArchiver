@@ -110,18 +110,75 @@ export class ArchivedEmailService {
 		};
 	}
 
+	/**
+	 * The stored row plus its source, for permission checks that need the record itself rather
+	 * than the resource type.
+	 */
+	public static async findRowById(emailId: string) {
+		return db.query.archivedEmails.findFirst({
+			where: eq(archivedEmails.id, emailId),
+			with: {
+				ingestionSource: true,
+			},
+		});
+	}
+
+	/**
+	 * Whether a file in the storage layer belongs to an email the user is allowed to read.
+	 *
+	 * The download endpoint takes a raw storage path, so the path has to be resolved back to a
+	 * record before the archive policy can be applied to it. Attachments are stored once and
+	 * shared by every message carrying the same bytes, so access is granted when *any* referencing
+	 * email is visible to the user.
+	 */
+	public static async canAccessStoragePath(
+		storagePath: string,
+		userId: string
+	): Promise<boolean> {
+		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+
+		const [email] = await db
+			.select({ id: archivedEmails.id })
+			.from(archivedEmails)
+			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id))
+			.where(and(eq(archivedEmails.storagePath, storagePath), drizzleFilter))
+			.limit(1);
+
+		if (email) {
+			return true;
+		}
+
+		// Resolved in two steps on purpose: `attachments` also has an `ingestion_source_id`
+		// column, and the permission filter names its columns unqualified, so joining that table
+		// into the filtered query would make the reference ambiguous.
+		const [attachment] = await db
+			.select({ id: attachments.id })
+			.from(attachments)
+			.where(eq(attachments.storagePath, storagePath))
+			.limit(1);
+
+		if (!attachment) {
+			return false;
+		}
+
+		const [carrier] = await db
+			.select({ id: archivedEmails.id })
+			.from(archivedEmails)
+			.innerJoin(emailAttachments, eq(emailAttachments.emailId, archivedEmails.id))
+			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id))
+			.where(and(eq(emailAttachments.attachmentId, attachment.id), drizzleFilter))
+			.limit(1);
+
+		return Boolean(carrier);
+	}
+
 	public static async getArchivedEmailById(
 		emailId: string,
 		userId: string,
 		actor: User,
 		actorIp: string
 	): Promise<ArchivedEmail | null> {
-		const email = await db.query.archivedEmails.findFirst({
-			where: eq(archivedEmails.id, emailId),
-			with: {
-				ingestionSource: true,
-			},
-		});
+		const email = await this.findRowById(emailId);
 
 		if (!email) {
 			return null;

@@ -34,7 +34,9 @@ export class IamService {
 			.insert(roles)
 			.values({
 				name: name,
-				slug: slug || name.toLocaleLowerCase().replaceAll('', '_'),
+				// `replaceAll('', '_')` used to sit here, which inserts an underscore between
+				// every character because the empty string matches at every position.
+				slug: slug || name.toLocaleLowerCase().replaceAll(' ', '_'),
 				policies: policy,
 			})
 			.returning();

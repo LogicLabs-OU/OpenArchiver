@@ -24,9 +24,27 @@ export class UserService {
 	 * @param id The ID of the user to find.
 	 * @returns The user object if found, otherwise null.
 	 */
+	/**
+	 * The columns that make up the public `User` shape.
+	 *
+	 * Spreading the whole row here would put `password`, `totpSecret` and `totpBackupCodes` on
+	 * every object these methods return — including the ones serialized straight back to the
+	 * client by `GET /users` and `GET /users/:id`. Credential material is read through
+	 * `findByEmail`, which deliberately returns the raw row.
+	 */
+	static readonly #publicColumns = {
+		id: true,
+		email: true,
+		first_name: true,
+		last_name: true,
+		createdAt: true,
+		totpEnabled: true,
+	} as const;
+
 	public async findById(id: string): Promise<User | null> {
 		const user = await db.query.users.findFirst({
 			where: eq(schema.users.id, id),
+			columns: UserService.#publicColumns,
 			with: {
 				userRoles: {
 					with: {
@@ -45,6 +63,7 @@ export class UserService {
 
 	public async findAll(): Promise<User[]> {
 		const users = await db.query.users.findMany({
+			columns: UserService.#publicColumns,
 			with: {
 				userRoles: {
 					with: {

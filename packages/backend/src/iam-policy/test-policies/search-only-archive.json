@@ -1,0 +1,9 @@
+[
+	{
+		"action": "search",
+		"subject": "archive",
+		"conditions": {
+			"userEmail": "dev@openarchiver.com"
+		}
+	}
+]

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { StorageService } from '../../services/StorageService';
+import { ArchivedEmailService } from '../../services/ArchivedEmailService';
 import * as path from 'path';
 import { storage as storageConfig } from '../../config/storage';
 import { logger } from '../../config/logger';
@@ -9,6 +10,12 @@ export class StorageController {
 
 	public downloadFile = async (req: Request, res: Response): Promise<void> => {
 		const unsafePath = req.query.path as string;
+		const userId = req.user?.sub;
+
+		if (!userId) {
+			res.status(401).json({ message: req.t('errors.unauthorized') });
+			return;
+		}
 
 		if (!unsafePath) {
 			res.status(400).send(req.t('storage.filePathRequired'));
@@ -33,6 +40,15 @@ export class StorageController {
 		const safePath = path.relative(basePath, fullPath);
 
 		try {
+			// The route only established that the role may read archived emails at all. The path
+			// still has to be tied back to a record the role's conditions actually cover,
+			// otherwise a mailbox-scoped role could fetch any file whose path it can guess.
+			const allowed = await ArchivedEmailService.canAccessStoragePath(safePath, userId);
+			if (!allowed) {
+				res.status(404).send(req.t('storage.fileNotFound'));
+				return;
+			}
+
 			const fileExists = await this.storageService.exists(safePath);
 			if (!fileExists) {
 				res.status(404).send(req.t('storage.fileNotFound'));

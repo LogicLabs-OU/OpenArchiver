@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { IngestionController } from '../controllers/ingestion.controller';
 import { requireAuth } from '../middleware/requireAuth';
-import { requirePermission } from '../middleware/requirePermission';
+import { requirePermission, ingestionResource } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const createIngestionRouter = (
@@ -206,11 +206,23 @@ export const createIngestionRouter = (
 	 *       '500':
 	 *         $ref: '#/components/responses/InternalServerError'
 	 */
-	router.get('/:id', requirePermission('read', 'ingestion'), ingestionController.findById);
+	router.get(
+		'/:id',
+		requirePermission('read', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.findById
+	);
 
-	router.put('/:id', requirePermission('update', 'ingestion'), ingestionController.update);
+	router.put(
+		'/:id',
+		requirePermission('update', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.update
+	);
 
-	router.delete('/:id', requirePermission('delete', 'ingestion'), ingestionController.delete);
+	router.delete(
+		'/:id',
+		requirePermission('delete', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.delete
+	);
 
 	/**
 	 * @openapi
@@ -247,7 +259,10 @@ export const createIngestionRouter = (
 	 */
 	router.post(
 		'/:id/import',
-		requirePermission('create', 'ingestion'),
+		// `sync`, not `create`: this re-runs the import for a source that already exists. An
+		// unconditional `create ingestion` rule (held by the End user role) would otherwise match
+		// every source and defeat the record check below.
+		requirePermission('sync', 'ingestion', { loadResource: ingestionResource }),
 		ingestionController.triggerInitialImport
 	);
 
@@ -284,7 +299,11 @@ export const createIngestionRouter = (
 	 *       '500':
 	 *         $ref: '#/components/responses/InternalServerError'
 	 */
-	router.post('/:id/pause', requirePermission('update', 'ingestion'), ingestionController.pause);
+	router.post(
+		'/:id/pause',
+		requirePermission('update', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.pause
+	);
 
 	/**
 	 * @openapi
@@ -321,7 +340,7 @@ export const createIngestionRouter = (
 	 */
 	router.post(
 		'/:id/sync',
-		requirePermission('sync', 'ingestion'),
+		requirePermission('sync', 'ingestion', { loadResource: ingestionResource }),
 		ingestionController.triggerForceSync
 	);
 
@@ -361,7 +380,11 @@ export const createIngestionRouter = (
 	 *       '404':
 	 *         $ref: '#/components/responses/NotFound'
 	 */
-	router.post('/:id/reindex', requirePermission('sync', 'ingestion'), ingestionController.reindex);
+	router.post(
+		'/:id/reindex',
+		requirePermission('sync', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.reindex
+	);
 
 	/**
 	 * @openapi
@@ -400,7 +423,7 @@ export const createIngestionRouter = (
 	 */
 	router.get(
 		'/:id/index-health',
-		requirePermission('read', 'ingestion'),
+		requirePermission('read', 'ingestion', { loadResource: ingestionResource }),
 		ingestionController.getIndexHealth
 	);
 
@@ -430,7 +453,11 @@ export const createIngestionRouter = (
 	 *       '404':
 	 *         $ref: '#/components/responses/NotFound'
 	 */
-	router.get('/:id/stats', requirePermission('read', 'ingestion'), ingestionController.getStats);
+	router.get(
+		'/:id/stats',
+		requirePermission('read', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.getStats
+	);
 
 	/**
 	 * @openapi
@@ -466,7 +493,7 @@ export const createIngestionRouter = (
 	 */
 	router.post(
 		'/:id/unmerge',
-		requirePermission('update', 'ingestion'),
+		requirePermission('update', 'ingestion', { loadResource: ingestionResource }),
 		ingestionController.unmerge
 	);
 

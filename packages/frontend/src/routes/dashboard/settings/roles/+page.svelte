@@ -205,7 +205,7 @@
 </Dialog.Root>
 
 <Dialog.Root bind:open={isFormDialogOpen}>
-	<Dialog.Content class="sm:max-w-lg">
+	<Dialog.Content class="sm:max-w-4xl">
 		<Dialog.Header>
 			<Dialog.Title
 				>{selectedRole ? $t('app.roles.edit') : $t('app.roles.create')}
@@ -226,7 +226,13 @@
 				>
 			</Dialog.Description>
 		</Dialog.Header>
-		<RoleForm role={selectedRole} onSubmit={handleFormSubmit} />
+		<RoleForm
+			role={selectedRole}
+			onSubmit={handleFormSubmit}
+			sources={data.sources}
+			users={data.users}
+			enterpriseMode={data.enterpriseMode}
+		/>
 	</Dialog.Content>
 </Dialog.Root>
 

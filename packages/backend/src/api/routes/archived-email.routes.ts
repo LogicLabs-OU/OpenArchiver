@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ArchivedEmailController } from '../controllers/archived-email.controller';
 import { requireAuth } from '../middleware/requireAuth';
-import { requirePermission } from '../middleware/requirePermission';
+import { requirePermission, archivedEmailResource } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const createArchivedEmailRouter = (
@@ -141,7 +141,7 @@ export const createArchivedEmailRouter = (
 
 	router.delete(
 		'/:id',
-		requirePermission('delete', 'archive'),
+		requirePermission('delete', 'archive', { loadResource: archivedEmailResource }),
 		archivedEmailController.deleteArchivedEmail
 	);
 

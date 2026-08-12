@@ -153,6 +153,22 @@ export class IngestionService {
 		});
 	}
 
+	/**
+	 * The stored row, without decrypting credentials.
+	 *
+	 * Permission checks only read plain columns (`id`, `userId`, `name`, `provider`, `status`), and
+	 * a source whose credentials fail to decrypt must still be authorized rather than error.
+	 */
+	public static async findRowById(
+		id: string
+	): Promise<typeof ingestionSources.$inferSelect | undefined> {
+		const [source] = await db
+			.select()
+			.from(ingestionSources)
+			.where(eq(ingestionSources.id, id));
+		return source;
+	}
+
 	public static async findById(id: string): Promise<IngestionSource> {
 		const [source] = await db
 			.select()

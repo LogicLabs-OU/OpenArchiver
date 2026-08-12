@@ -34,6 +34,26 @@ The following actions are available for use in IAM policies:
 - `search`: Allows the user to search for resources.
 - `sync`: Allows the user to synchronize a resource.
 
+### Which action/subject pairs are enforced
+
+Not every combination is checked by a route. Writing one that is not has no effect:
+
+| Subject     | Enforced actions                               |
+| ----------- | ---------------------------------------------- |
+| `archive`   | `read`, `search`, `delete`                     |
+| `ingestion` | `create`, `read`, `update`, `delete`, `sync`   |
+| `settings`  | `manage`                                       |
+| `users`     | `read` (all changes require `manage` on `all`) |
+| `roles`     | `read` (all changes require `manage` on `all`) |
+| `dashboard` | `read`                                         |
+| `all`       | `manage`                                       |
+
+`manage` always covers the enforced actions of its subject.
+
+An `export` action also exists and is accepted by the policy validator, but no route in the
+open-source edition checks it. It is reserved for the enterprise export flows; in an OSS-only
+deployment a rule granting `export` does nothing.
+
 ## Subjects
 
 The following subjects are available for use in IAM policies:
@@ -51,6 +71,24 @@ The following subjects are available for use in IAM policies:
 Conditions are the key to creating fine-grained access control rules. They are defined as a JSON object where each key represents a field on the subject, and the value defines the criteria for that field.
 
 All conditions within a single rule are implicitly joined with an **AND** logic. This means that for a permission to be granted, the resource must satisfy _all_ specified conditions.
+
+### Where conditions apply
+
+Conditions are only meaningful on `ingestion` and `archive`. The other subjects are checked against
+the resource type alone, so conditions on them are ignored.
+
+The usable fields are:
+
+- `ingestion`: `id`, `userId`, `name`, `provider`, `status`
+- `archive`: `userEmail`, `ingestionSourceId`, `ingestionSource.userId`
+
+An `archive` rule is compiled for the database **and** for the search engine. Only the three fields
+above exist as filterable attributes on the search index, so a condition on any other column (for
+example `sentAt` or `senderEmail`) makes every search for that role fail. The visual policy editor
+offers exactly these fields, which is why a hand-written policy using anything else can only be
+edited in JSON mode.
+
+`userEmail` is compared case-insensitively; every other field is compared exactly.
 
 The power of this system comes from its use of a subset of [MongoDB's query language](https://www.mongodb.com/docs/manual/), which provides a flexible and expressive way to define complex rules. These rules are translated into native queries for both the PostgreSQL database (via Drizzle ORM) and the Meilisearch engine.
 
@@ -106,31 +144,6 @@ Matches documents where the field value is not one of the values in the specifie
 
 **Use Case**: Hide all manual import sources from a specific user role.
 
-#### `$lt` / `$lte` (Less Than / Less Than or Equal)
-
-Matches documents where the field value is less than (`$lt`) or less than or equal to (`$lte`) the specified value. This is useful for numeric or date-based comparisons.
-
-```json
-{ "sentAt": { "$lt": "2024-01-01T00:00:00.000Z" } }
-```
-
-#### `$gt` / `$gte` (Greater Than / Greater Than or Equal)
-
-Matches documents where the field value is greater than (`$gt`) or greater than or equal to (`$gte`) the specified value.
-
-```json
-{ "sentAt": { "$lt": "2024-01-01T00:00:00.000Z" } }
-```
-
-#### `$exists`
-
-Matches documents that have (or do not have) the specified field.
-
-```json
-// Grant access only if a 'lastSyncStatusMessage' exists
-{ "lastSyncStatusMessage": { "$exists": true } }
-```
-
 ## Inverted Rules: Creating Exceptions with `cannot`
 
 By default, all rules are "can" rules, meaning they grant permissions. However, you can create a "cannot" rule by adding `"inverted": true` to a policy object. This is extremely useful for creating exceptions to broader permissions.
@@ -161,12 +174,22 @@ This is achieved with two rules:
 ]
 ```
 
+A `cannot` rule only carves out an exception; it never grants anything on its own. A role whose only
+rule for an action is a `cannot` rule sees nothing at all for that action, because there is no `can`
+rule left to narrow.
+
 ## Policy Evaluation Logic
 
 The system evaluates policies by combining all relevant rules for a user. The logic is simple:
 
 - A user has permission if at least one `can` rule allows it.
 - A permission is denied if a `cannot` (`"inverted": true`) rule explicitly forbids it, even if a `can` rule allows it. `cannot` rules always take precedence.
+
+Listings and searches are filtered by the same rules: the conditions of every matching `can` rule are
+combined with `OR`, and each `cannot` rule is negated and combined with `AND`. Routes that act on a
+single record — opening, updating, deleting or downloading one — load that record and evaluate the
+conditions against it, so a role scoped to one ingestion source or one mailbox cannot reach another
+by addressing it directly.
 
 ### Dynamic Policies with Placeholders
 
