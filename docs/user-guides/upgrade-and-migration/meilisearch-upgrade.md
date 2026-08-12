@@ -154,16 +154,18 @@ Now, you need to restart the services while telling Meilisearch to import from y
 
 Once the import is complete and you have verified that your search is working correctly, you should remove the `--import-dump` flag from your `docker-compose.yml` to prevent it from running on every startup.
 
-1.  **Restore the docker compose file**: Remove the  `command` section of the `meilisearch` service in `docker-compose.yml`**.
+1.  **Restore the docker compose file**: Remove the  `command` section of the `meilisearch` service in `docker-compose.yml`.
 2.  **Restart the services one last time**:
+
     ```bash
     docker compose up -d
     ```
+
 3.  **Delete the dump**:
+
     ```bash
     docker compose exec meilisearch rm /meili_data/dumps/YOUR_DUMP_FILE.dump
     ```
-
 
 Your Meilisearch instance is now upgraded and running with your migrated data.
 
