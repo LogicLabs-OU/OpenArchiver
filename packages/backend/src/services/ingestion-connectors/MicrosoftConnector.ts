@@ -7,6 +7,7 @@ import type {
 	MailboxUser,
 } from '@open-archiver/types';
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
+import { findByEmailKey } from '../../helpers/emailAddress';
 import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { writeEmailToTempFile } from './helpers/tempFile';
@@ -142,7 +143,10 @@ export class MicrosoftConnector implements IEmailConnector {
 		syncState?: SyncState | null,
 		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
-		this.newDeltaTokens = syncState?.microsoft?.[userEmail]?.deltaTokens || {};
+		// Looked up case-insensitively: the key was written from the user principal name, whose
+		// casing Graph reports as it was created, while `userEmail` now arrives normalized. A plain
+		// index would miss every pre-existing entry and restart the delta query for every folder.
+		this.newDeltaTokens = findByEmailKey(syncState?.microsoft, userEmail)?.deltaTokens || {};
 
 		try {
 			const folders = this.listAllFolders(userEmail);

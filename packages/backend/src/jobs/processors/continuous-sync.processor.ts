@@ -5,6 +5,7 @@ import { EmailProviderFactory } from '../../services/EmailProviderFactory';
 import { ingestionQueue } from '../queues';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
+import { normalizeEmailAddress } from '../../helpers/emailAddress';
 
 export default async (job: Job<IContinuousSyncJob>) => {
 	const { ingestionSourceId } = job.data;
@@ -32,7 +33,8 @@ export default async (job: Job<IContinuousSyncJob>) => {
 		const userEmails: string[] = [];
 		for await (const user of connector.listAllUsers()) {
 			if (user.primaryEmail) {
-				userEmails.push(user.primaryEmail);
+				// Normalized here so the mailbox identity is canonical before it is queued.
+				userEmails.push(normalizeEmailAddress(user.primaryEmail));
 			}
 		}
 

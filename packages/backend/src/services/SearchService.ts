@@ -21,7 +21,8 @@ import { IngestionService } from './IngestionService';
 import { logger } from '../config/logger';
 import { db } from '../database';
 import { archivedEmails } from '../database/schema';
-import { and, inArray, isNotNull } from 'drizzle-orm';
+import { and, inArray, isNotNull, sql } from 'drizzle-orm';
+import { normalizeEmailAddress } from '../helpers/emailAddress';
 
 export class SearchService {
 	private client: MeiliSearch;
@@ -373,17 +374,22 @@ export class SearchService {
 		// resolved names (e.g. Exchange senders whose address is an X.500 DN) instead of
 		// the raw address. The COUNTS remain Meilisearch's; names are labels only, resolved
 		// from the DB so this works on already-indexed data with no reindex (#413).
-		const addresses = sortedSenders.map((s) => s.sender);
+		// Matched on the normalized address: the facet values come from the search index while the
+		// names come from Postgres, and the two only agree byte-for-byte if the provider was
+		// consistent about casing. Without this the lookup silently misses and every sender falls
+		// back to showing its raw address.
+		const normalizedSenderEmail = sql<string>`lower(btrim(${archivedEmails.senderEmail}))`;
+		const addresses = sortedSenders.map((s) => normalizeEmailAddress(s.sender));
 		const nameRows = addresses.length
 			? await db
-					.selectDistinctOn([archivedEmails.senderEmail], {
-						senderEmail: archivedEmails.senderEmail,
+					.selectDistinctOn([normalizedSenderEmail], {
+						senderEmail: normalizedSenderEmail,
 						senderName: archivedEmails.senderName,
 					})
 					.from(archivedEmails)
 					.where(
 						and(
-							inArray(archivedEmails.senderEmail, addresses),
+							inArray(normalizedSenderEmail, addresses),
 							isNotNull(archivedEmails.senderName)
 						)
 					)
@@ -392,7 +398,7 @@ export class SearchService {
 
 		return sortedSenders.map((s) => ({
 			...s,
-			senderName: nameByAddress.get(s.sender) ?? null,
+			senderName: nameByAddress.get(normalizeEmailAddress(s.sender)) ?? null,
 		}));
 	}
 

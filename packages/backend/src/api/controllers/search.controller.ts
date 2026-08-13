@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { SearchService } from '../../services/SearchService';
 import { MatchingStrategies } from 'meilisearch';
 import type { SearchFilters, SearchScope, SearchSortOption } from '@open-archiver/types';
+import { normalizeEmailAddress } from '../../helpers/emailAddress';
 
 const SEARCH_SCOPES: SearchScope[] = [
 	'subject',
@@ -25,6 +26,9 @@ const csv = (value: unknown): string[] | undefined => {
 		.filter(Boolean);
 	return values.length > 0 ? values : undefined;
 };
+
+/** Same, for parameters holding email addresses, which are one identity regardless of case. */
+const addressCsv = (value: unknown): string[] | undefined => csv(value)?.map(normalizeEmailAddress);
 
 const isValidDate = (value: string): boolean => {
 	if (!DATE_PATTERN.test(value)) return false;
@@ -65,11 +69,13 @@ export class SearchController {
 			if (sources) filters.sources = sources;
 			if (excludeSources) filters.excludeSources = excludeSources;
 
-			const from = csv(req.query.from);
-			const notFrom = csv(req.query.notFrom);
-			const to = csv(req.query.to);
-			const notTo = csv(req.query.notTo);
-			const mailboxes = csv(req.query.mailboxes);
+			// Address filters are normalized so a typed or pasted address matches regardless of
+			// casing or padding, the same way the permission filter treats them.
+			const from = addressCsv(req.query.from);
+			const notFrom = addressCsv(req.query.notFrom);
+			const to = addressCsv(req.query.to);
+			const notTo = addressCsv(req.query.notTo);
+			const mailboxes = addressCsv(req.query.mailboxes);
 			if (from) filters.from = from;
 			if (notFrom) filters.notFrom = notFrom;
 			if (to) filters.to = to;

@@ -36,11 +36,29 @@ import { FilterBuilder } from './FilterBuilder';
 import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
+import { normalizeEmailAddress } from '../helpers/emailAddress';
 
 /** Placeholder used when an email has no parseable From address. sender_email is NOT NULL,
  * so inserting null (from a missing/unparseable sender, e.g. Exchange "Deleted Items"
  * system messages) would fail with Postgres 23502 and drop the email entirely. */
 const UNKNOWN_SENDER = 'unknown@no-sender.invalid';
+
+/**
+ * The mailbox column reduced to its canonical form.
+ *
+ * Rows archived before addresses were normalized on the way in still hold whatever casing and
+ * padding the provider sent, so the column is reduced the same way the value was. Used for grouping
+ * as well as matching: without it the same mailbox archived under two casings shows up as two rows
+ * in the per-mailbox table and inflates `mailboxCount`.
+ */
+const normalizedMailbox = sql<string>`lower(btrim(${archivedEmails.userEmail}))`;
+
+/**
+ * Matches the mailbox column against an already-normalized address. Without this a provider that
+ * changes the casing of a mailbox between syncs misses every dedup check and archives the whole
+ * mailbox a second time.
+ */
+const matchesMailbox = (normalizedAddress: string) => eq(normalizedMailbox, normalizedAddress);
 
 export class IngestionService {
 	private static auditService = new AuditService();
@@ -509,7 +527,9 @@ export class IngestionService {
 			db
 				.select({
 					totalEmails: count(),
-					mailboxCount: countDistinct(archivedEmails.userEmail),
+					// Counted on the normalized address so one mailbox archived under two
+					// casings is one mailbox, not two.
+					mailboxCount: countDistinct(normalizedMailbox),
 					threadCount: countDistinct(archivedEmails.threadId),
 					firstEmailAt: min(archivedEmails.sentAt),
 					lastEmailAt: max(archivedEmails.sentAt),
@@ -558,12 +578,12 @@ export class IngestionService {
 			// separately below with hash-dedup so it matches the group `emailBytes` basis.
 			db
 				.select({
-					userEmail: archivedEmails.userEmail,
+					userEmail: normalizedMailbox,
 					emailCount: count(),
 				})
 				.from(archivedEmails)
 				.where(emailFilter)
-				.groupBy(archivedEmails.userEmail)
+				.groupBy(normalizedMailbox)
 				.orderBy(desc(count())),
 			// Per-mailbox physical storage, deduplicated by file hash within each mailbox
 			// (same methodology as the group-level `emailBytes`). A file shared across
@@ -575,8 +595,11 @@ export class IngestionService {
 					userEmail: sql<string>`t.user_email`,
 					bytes: sql<number>`coalesce(sum(t.size_bytes), 0)`.mapWith(Number),
 				})
+				// Normalized to the same expression as the per-mailbox counts above: the two
+				// results are joined on this value in JS, so normalizing only one of them would
+				// make every lookup miss and report zero bytes for each mailbox.
 				.from(
-					sql`(select distinct ${archivedEmails.userEmail} as user_email, ${archivedEmails.storageHashSha256} as hash, ${archivedEmails.sizeBytes} as size_bytes from ${archivedEmails} where ${emailFilter}) as t`
+					sql`(select distinct ${normalizedMailbox} as user_email, ${archivedEmails.storageHashSha256} as hash, ${archivedEmails.sizeBytes} as size_bytes from ${archivedEmails} where ${emailFilter}) as t`
 				)
 				.groupBy(sql`t.user_email`),
 			// Merge-group children metadata.
@@ -747,7 +770,10 @@ export class IngestionService {
 			if (connector.listAllUsers) {
 				// For multi-mailbox providers, dispatch a job for each user
 				for await (const user of connector.listAllUsers()) {
-					const userEmail = user.primaryEmail;
+					// Normalized here so the mailbox identity is canonical before it is queued.
+					const userEmail = user.primaryEmail
+						? normalizeEmailAddress(user.primaryEmail)
+						: '';
 					if (userEmail) {
 						await ingestionQueue.add('process-mailbox', {
 							ingestionSourceId: source.id,
@@ -761,8 +787,8 @@ export class IngestionService {
 					ingestionSourceId: source.id,
 					userEmail:
 						source.credentials.type === 'generic_imap'
-							? source.credentials.username
-							: 'Default',
+							? normalizeEmailAddress(source.credentials.username)
+							: 'default',
 				});
 			}
 		} catch (error) {
@@ -795,8 +821,9 @@ export class IngestionService {
 	public static async doesEmailExist(
 		messageId: string,
 		ingestionSourceId: string,
-		userEmail: string
+		rawUserEmail: string
 	): Promise<boolean> {
+		const userEmail = normalizeEmailAddress(rawUserEmail);
 		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
 		const sourceFilter =
 			groupIds.length === 1
@@ -806,7 +833,7 @@ export class IngestionService {
 		const existingEmail = await db.query.archivedEmails.findFirst({
 			where: and(
 				sourceFilter,
-				eq(archivedEmails.userEmail, userEmail),
+				matchesMailbox(userEmail),
 				or(
 					eq(archivedEmails.providerMessageId, messageId),
 					eq(archivedEmails.messageIdHeader, messageId)
@@ -913,9 +940,12 @@ export class IngestionService {
 		email: EmailObject,
 		source: IngestionSource,
 		storage: StorageService,
-		userEmail: string,
+		rawUserEmail: string,
 		skipTempFileCleanup: boolean = false
 	): Promise<PendingEmail | ProcessEmailError | null> {
+		// Normalized once here so the dedup gates and all three inserts below agree on what
+		// counts as the same mailbox, whatever casing or padding the provider sent.
+		const userEmail = normalizeEmailAddress(rawUserEmail);
 		try {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
@@ -961,7 +991,7 @@ export class IngestionService {
 			const perMailboxDuplicate = await db.query.archivedEmails.findFirst({
 				where: and(
 					eq(archivedEmails.messageIdHeader, messageId),
-					eq(archivedEmails.userEmail, userEmail),
+					matchesMailbox(userEmail),
 					groupSourceFilter
 				),
 				columns: { id: true },
@@ -1083,7 +1113,7 @@ export class IngestionService {
 				const hashDuplicate = await db.query.archivedEmails.findFirst({
 					where: and(
 						eq(archivedEmails.storageHashSha256, emailHash),
-						eq(archivedEmails.userEmail, userEmail),
+						matchesMailbox(userEmail),
 						eq(archivedEmails.ingestionSourceId, effectiveSource.id)
 					),
 					columns: { id: true },

@@ -9,11 +9,15 @@ const relationToTableMap: Record<string, string> = {
 };
 
 /**
- * Condition fields holding an email address, compared case-insensitively. Policy values are
- * already lowercased by normalizeEmailConditions, so wrapping the column in lower() lets a
- * policy naming `orders@example.com` match a row stored as `Orders@Example.com` — issue #439.
+ * Condition fields holding an email address. Policy values are already trimmed and lowercased by
+ * normalizeEmailConditions, so the column has to be reduced the same way for the comparison to
+ * line up — that lets a policy naming `orders@example.com` match a row stored as
+ * `Orders@Example.com` or ` orders@example.com ` (issue #439).
+ *
+ * There is no index on `user_email` in any form, so this expression costs nothing that the query
+ * was not already paying.
  */
-const caseInsensitiveColumns = new Set(['userEmail']);
+const normalizedAddressColumns = new Set(['userEmail']);
 
 function getDrizzleColumn(key: string): SQL {
 	const keyParts = key.split('.');
@@ -26,7 +30,7 @@ function getDrizzleColumn(key: string): SQL {
 		}
 	}
 	const column = sql`${sql.identifier(camelToSnakeCase(key))}`;
-	return caseInsensitiveColumns.has(key) ? sql`lower(${column})` : column;
+	return normalizedAddressColumns.has(key) ? sql`lower(btrim(${column}))` : column;
 }
 
 export function mongoToDrizzle(query: Record<string, any>): SQL | undefined {

@@ -6,6 +6,7 @@ import type {
 	MailboxUser,
 } from '@open-archiver/types';
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
+import { normalizeEmailAddress } from '../../helpers/emailAddress';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { config } from '../../config';
@@ -113,8 +114,12 @@ export class ImapConnector implements IEmailConnector {
 		}
 	}
 
+	/**
+	 * The mailbox identity for an IMAP source is the username an administrator typed into the
+	 * connection form, so it is the value most likely to carry stray padding or unexpected casing.
+	 */
 	public returnImapUserEmail(): string {
-		return this.credentials.username;
+		return normalizeEmailAddress(this.credentials.username);
 	}
 
 	/**

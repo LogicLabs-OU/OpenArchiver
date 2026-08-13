@@ -1,8 +1,45 @@
 import { db } from '../database';
 import { syncSessions, ingestionSources } from '../database/schema';
-import { eq, lt, sql } from 'drizzle-orm';
+import { eq, lt, sql, type SQL } from 'drizzle-orm';
 import type { SyncState, ProcessMailboxError } from '@open-archiver/types';
 import { logger } from '../config/logger';
+
+/** Top-level SyncState keys whose value is a per-mailbox map and so must merge, not replace. */
+const NESTED_STATE_KEYS = new Set(['google', 'microsoft', 'imap']);
+
+/**
+ * The expression that folds one mailbox's sync state into the source's stored state.
+ *
+ * jsonb `||` is a shallow concat: writing `{ microsoft: { alice: ... } }` replaces the whole
+ * `microsoft` object, so with N mailboxes reporting in only the last job's tokens would survive
+ * and every other mailbox would re-enumerate on the next cycle. Concatenating inside each provider
+ * bucket keeps the other mailboxes' entries; scalar keys such as `lastSyncTimestamp` and
+ * `statusMessage` are meant to replace, so they stay on a plain top-level concat.
+ *
+ * Built as one expression rather than a read-modify-write because process-mailbox jobs run
+ * concurrently — reading the column in JS would need `SELECT ... FOR UPDATE` to avoid lost updates.
+ * The `->` reads the pre-update row, which is what an UPDATE SET expression sees.
+ */
+const buildSyncStateMerge = (state: SyncState): SQL => {
+	let expression: SQL = sql`COALESCE(${ingestionSources.syncState}, '{}'::jsonb)`;
+	const scalars: Record<string, unknown> = {};
+
+	for (const [key, value] of Object.entries(state)) {
+		if (NESTED_STATE_KEYS.has(key) && value && typeof value === 'object') {
+			// Both keys carry an explicit ::text — `jsonb -> $n` with an untyped parameter is
+			// ambiguous between the text and integer forms of the operator and fails to resolve.
+			expression = sql`${expression} || jsonb_build_object(${key}::text, COALESCE(${ingestionSources.syncState} -> ${key}::text, '{}'::jsonb) || ${JSON.stringify(value)}::jsonb)`;
+		} else {
+			scalars[key] = value;
+		}
+	}
+
+	if (Object.keys(scalars).length > 0) {
+		expression = sql`${expression} || ${JSON.stringify(scalars)}::jsonb`;
+	}
+
+	return expression;
+};
 
 export interface SyncSessionRecord {
 	id: string;
@@ -100,16 +137,15 @@ export class SyncSessionService {
 		}
 
 		// If the result is a successful SyncState with actual content, merge it into the
-		// ingestion source's syncState column using PostgreSQL's || jsonb merge operator.
-		// This is done incrementally per mailbox to avoid the large deepmerge at the end.
+		// ingestion source's syncState column in Postgres. This is done incrementally per mailbox
+		// to avoid the large deepmerge at the end — see buildSyncStateMerge for why the merge has
+		// to reach one level below the top.
 		if (!isError) {
 			const syncState = result as SyncState;
 			if (Object.keys(syncState).length > 0) {
 				await db
 					.update(ingestionSources)
-					.set({
-						syncState: sql`COALESCE(${ingestionSources.syncState}, '{}'::jsonb) || ${JSON.stringify(syncState)}::jsonb`,
-					})
+					.set({ syncState: buildSyncStateMerge(syncState) })
 					.where(eq(ingestionSources.id, updated.ingestionSourceId));
 			}
 		}

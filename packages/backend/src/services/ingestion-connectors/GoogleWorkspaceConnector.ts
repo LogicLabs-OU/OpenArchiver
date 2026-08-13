@@ -8,6 +8,7 @@ import type {
 	MailboxUser,
 } from '@open-archiver/types';
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
+import { findByEmailKey } from '../../helpers/emailAddress';
 import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { getThreadId } from './helpers/utils';
@@ -144,7 +145,10 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		const gmail = google.gmail({ version: 'v1', auth: authClient });
 		let pageToken: string | undefined = undefined;
 
-		const startHistoryId = syncState?.google?.[userEmail]?.historyId;
+		// Looked up case-insensitively so an entry stored under the casing the provider reported is
+		// still found now that `userEmail` arrives normalized. A miss here is not a cheap one: it
+		// falls through to the full-mailbox import below.
+		const startHistoryId = findByEmailKey(syncState?.google, userEmail)?.historyId;
 
 		// If no sync state is provided for this user, this is an initial import. Get all messages.
 		if (!startHistoryId) {
