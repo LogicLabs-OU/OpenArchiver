@@ -13,6 +13,54 @@ import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
+import {
+	isRetryableStatus,
+	isTransportError,
+	MessageFailureTally,
+	REQUEST_TIMEOUT_MS,
+	withRetry,
+} from './helpers/retry';
+
+/**
+ * The HTTP status behind a Gmail failure. Gaxios puts it on `status`, and mirrors the API's own
+ * numeric code onto `code` (AIP-193), which is what the original 404 checks in this file read.
+ */
+const statusOf = (error: any): number | undefined => {
+	if (typeof error?.status === 'number') return error.status;
+	if (typeof error?.code === 'number') return error.code;
+	if (typeof error?.response?.status === 'number') return error.response.status;
+	return undefined;
+};
+
+/** The `reason` strings Gmail attaches to a throttled request; none of them are 429. */
+const RATE_LIMIT_REASONS = /rateLimitExceeded|userRateLimitExceeded|backendError/i;
+
+const hasRateLimitReason = (error: any): boolean => {
+	const errors = error?.response?.data?.error?.errors;
+	if (!Array.isArray(errors)) return false;
+	return errors.some((entry: any) => RATE_LIMIT_REASONS.test(String(entry?.reason ?? '')));
+};
+
+/**
+ * Whether a Gmail failure is worth another attempt.
+ *
+ * `googleapis` already retries 408/429/5xx, so the cases that matter here are the two it leaves
+ * alone: `400 Precondition check failed`, which Gmail returns intermittently on a small share of
+ * requests (issue #441), and a 403 carrying a throttling reason.
+ */
+const isRetryableGoogleError = (error: unknown): boolean => {
+	const status = statusOf(error);
+	if (status === undefined) return isTransportError(error);
+	if (isRetryableStatus(status)) return true;
+	if (status === 400) {
+		return (
+			/precondition/i.test(String((error as any)?.message ?? '')) ||
+			String((error as any)?.response?.data?.error?.status ?? '') === 'FAILED_PRECONDITION'
+		);
+	}
+	if (status === 403) return hasRateLimitReason(error);
+	return false;
+};
 
 /**
  * A connector for Google Workspace that uses a service account with domain-wide delegation
@@ -23,6 +71,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 	private serviceAccountCreds: { client_email: string; private_key: string };
 	private newHistoryId: string | undefined;
 	private options: ConnectorOptions;
+	/** Messages skipped so the rest of the mailbox could finish. One connector serves one mailbox. */
+	private failures = new MessageFailureTally();
 
 	constructor(credentials: GoogleWorkspaceCredentials, options?: ConnectorOptions) {
 		this.credentials = credentials;
@@ -55,6 +105,11 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			key: this.serviceAccountCreds.private_key,
 			scopes,
 			subject,
+			// The token exchange runs on the auth client's own transport, which the `timeout` on the
+			// Gmail and Directory clients below does not reach — `AuthClient` builds its transporter
+			// from this and hands it to `gtoken`. Without it a quiet token endpoint would park the
+			// mailbox job forever, which is the one hang the per-service timeout leaves open.
+			transporterOptions: { timeout: REQUEST_TIMEOUT_MS },
 		});
 		return jwtClient;
 	}
@@ -72,6 +127,7 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			const admin = google.admin({
 				version: 'directory_v1',
 				auth: authClient,
+				timeout: REQUEST_TIMEOUT_MS,
 			});
 
 			// Perform a simple, low-impact read operation to verify credentials.
@@ -99,7 +155,11 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			'https://www.googleapis.com/auth/admin.directory.user.readonly',
 		]);
 
-		const admin = google.admin({ version: 'directory_v1', auth: authClient });
+		const admin = google.admin({
+			version: 'directory_v1',
+			auth: authClient,
+			timeout: REQUEST_TIMEOUT_MS,
+		});
 		let pageToken: string | undefined = undefined;
 
 		do {
@@ -142,7 +202,14 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		const authClient = this.getAuthClient(userEmail, [
 			'https://www.googleapis.com/auth/gmail.readonly',
 		]);
-		const gmail = google.gmail({ version: 'v1', auth: authClient });
+		// The timeout is what keeps a socket that never answers from parking this mailbox job
+		// indefinitely — see REQUEST_TIMEOUT_MS. It is deep-merged into every request this client
+		// makes, so each call is bounded individually rather than the run as a whole.
+		const gmail = google.gmail({
+			version: 'v1',
+			auth: authClient,
+			timeout: REQUEST_TIMEOUT_MS,
+		});
 		let pageToken: string | undefined = undefined;
 
 		// Looked up case-insensitively so an entry stored under the casing the provider reported is
@@ -157,117 +224,62 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		}
 
 		this.newHistoryId = startHistoryId;
+		let markerCaptured = false;
 
 		do {
-			const historyResponse: Common.GaxiosResponseWithHTTP2<gmail_v1.Schema$ListHistoryResponse> =
-				await gmail.users.history.list({
-					userId: userEmail,
-					startHistoryId: this.newHistoryId,
-					pageToken: pageToken,
-					historyTypes: ['messageAdded'],
-				});
-
-			const histories = historyResponse.data.history;
-			if (!histories || histories.length === 0) {
+			// `startHistoryId` stays fixed for every page. It used to be re-read from
+			// `this.newHistoryId`, which the loop advanced, so page two onwards asked for a
+			// different starting point while still carrying the first page's token.
+			let historyResponse: Common.GaxiosResponseWithHTTP2<gmail_v1.Schema$ListHistoryResponse>;
+			try {
+				historyResponse = await withRetry(
+					() =>
+						gmail.users.history.list({
+							userId: userEmail,
+							startHistoryId,
+							pageToken: pageToken,
+							historyTypes: ['messageAdded'],
+						}),
+					isRetryableGoogleError,
+					{ userEmail, call: 'history.list' }
+				);
+			} catch (error: any) {
+				if (statusOf(error) !== 404) {
+					throw error;
+				}
+				// Gmail keeps history records for a limited window. Once the stored marker falls
+				// outside it the API answers 404, and Google documents a full sync as the only
+				// recovery. Without this the mailbox failed on every cycle indefinitely, and
+				// nothing in the product clears a stored marker by hand (issue #443).
+				logger.warn(
+					{ userEmail, startHistoryId },
+					'Stored Gmail history marker is no longer valid, falling back to a full mailbox sync.'
+				);
+				this.newHistoryId = undefined;
+				yield* this.fetchAllMessagesForUser(gmail, userEmail, checkDuplicate);
 				return;
 			}
 
-			for (const historyRecord of histories) {
+			// Taken from the first page only, and read before the records are walked. The response
+			// carries the mailbox's marker whether or not any records matched, so a quiet mailbox
+			// still refreshes it instead of letting the stored one age out of Gmail's retention
+			// window while every sync reports success. Later pages report a newer marker, and
+			// adopting one would step over anything that arrived after the query began but never
+			// appeared in this result set. What arrives mid-pagination belongs to the next cycle,
+			// where the duplicate pre-check absorbs the overlap.
+			if (!markerCaptured && historyResponse.data.historyId) {
+				this.newHistoryId = historyResponse.data.historyId;
+				markerCaptured = true;
+			}
+
+			// A page can come back with no records and still carry a token, because
+			// `historyTypes` filters server-side. Stopping here would strand every page behind it
+			// under a marker that has already moved past them.
+			for (const historyRecord of historyResponse.data.history ?? []) {
 				if (historyRecord.messagesAdded) {
 					for (const messageAdded of historyRecord.messagesAdded) {
-						if (messageAdded.message?.id) {
-							try {
-								const messageId = messageAdded.message.id;
-
-								// Optimization: Check for existence before fetching full content
-								if (checkDuplicate && (await checkDuplicate(messageId))) {
-									logger.debug(
-										{ messageId, userEmail },
-										'Skipping duplicate email (pre-check)'
-									);
-									continue;
-								}
-
-								const metadataResponse = await gmail.users.messages.get({
-									userId: userEmail,
-									id: messageId,
-									format: 'METADATA',
-									fields: 'labelIds',
-								});
-								const labels = await this.getLabelDetails(
-									gmail,
-									userEmail,
-									metadataResponse.data.labelIds || []
-								);
-
-								const msgResponse = await gmail.users.messages.get({
-									userId: userEmail,
-									id: messageId,
-									format: 'RAW',
-								});
-
-								if (msgResponse.data.raw) {
-									const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
-									yield this.parseRawEmail(
-										rawEmail,
-										msgResponse.data.id!,
-										userEmail,
-										labels.path,
-										labels.tags
-									);
-								}
-							} catch (error: any) {
-								if (error.code === 404) {
-									logger.warn(
-										{ messageId: messageAdded.message.id, userEmail },
-										'Message not found, skipping.'
-									);
-								} else {
-									throw error;
-								}
-							}
-						}
-					}
-				}
-			}
-
-			pageToken = historyResponse.data.nextPageToken ?? undefined;
-			if (historyResponse.data.historyId) {
-				this.newHistoryId = historyResponse.data.historyId;
-			}
-		} while (pageToken);
-	}
-
-	private async *fetchAllMessagesForUser(
-		gmail: gmail_v1.Gmail,
-		userEmail: string,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
-	): AsyncGenerator<EmailObject> {
-		// Capture the history ID at the start to ensure no emails are missed during the import process.
-		// Any emails arriving during this import will be covered by the next sync starting from this point.
-		// Overlaps are handled by the duplicate check.
-		const profileResponse = await gmail.users.getProfile({ userId: userEmail });
-		if (profileResponse.data.historyId) {
-			this.newHistoryId = profileResponse.data.historyId;
-		}
-
-		let pageToken: string | undefined = undefined;
-		do {
-			const listResponse: Common.GaxiosResponseWithHTTP2<gmail_v1.Schema$ListMessagesResponse> =
-				await gmail.users.messages.list({
-					userId: userEmail,
-					pageToken: pageToken,
-				});
-
-			const messages = listResponse.data.messages;
-			if (!messages || messages.length === 0) {
-				return;
-			}
-
-			for (const message of messages) {
-				if (message.id) {
-					try {
-						const messageId = message.id;
+						const messageId = messageAdded.message?.id;
+						if (!messageId) continue;
 
 						// Optimization: Check for existence before fetching full content
 						if (checkDuplicate && (await checkDuplicate(messageId))) {
@@ -278,44 +290,173 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 							continue;
 						}
 
-						const metadataResponse = await gmail.users.messages.get({
-							userId: userEmail,
-							id: messageId,
-							format: 'METADATA',
-							fields: 'labelIds',
-						});
-						const labels = await this.getLabelDetails(
-							gmail,
-							userEmail,
-							metadataResponse.data.labelIds || []
-						);
-
-						const msgResponse = await gmail.users.messages.get({
-							userId: userEmail,
-							id: messageId,
-							format: 'RAW',
-						});
-
-						if (msgResponse.data.raw) {
-							const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
-							yield this.parseRawEmail(
-								rawEmail,
-								msgResponse.data.id!,
-								userEmail,
-								labels.path,
-								labels.tags
-							);
-						}
-					} catch (error: any) {
-						if (error.code === 404) {
-							logger.warn(
-								{ messageId: message.id, userEmail },
-								'Message not found during initial import, skipping.'
-							);
-						} else {
-							throw error;
+						const email = await this.fetchMessageOrSkip(gmail, userEmail, messageId);
+						if (email) {
+							yield email;
 						}
 					}
+				}
+			}
+
+			pageToken = historyResponse.data.nextPageToken ?? undefined;
+		} while (pageToken);
+	}
+
+	/**
+	 * Fetches one message and builds its EmailObject, or returns null when Gmail has no raw body
+	 * for it. Shared by the incremental and full-import paths so both treat Gmail identically.
+	 */
+	private async fetchMessage(
+		gmail: gmail_v1.Gmail,
+		userEmail: string,
+		messageId: string
+	): Promise<EmailObject | null> {
+		const metadataResponse = await withRetry(
+			() =>
+				gmail.users.messages.get({
+					userId: userEmail,
+					id: messageId,
+					format: 'METADATA',
+					fields: 'labelIds',
+				}),
+			isRetryableGoogleError,
+			{ userEmail, messageId, call: 'messages.get(METADATA)' }
+		);
+
+		const labels = await this.getLabelDetails(
+			gmail,
+			userEmail,
+			metadataResponse.data.labelIds || []
+		);
+
+		const msgResponse = await withRetry(
+			() =>
+				gmail.users.messages.get({
+					userId: userEmail,
+					id: messageId,
+					format: 'RAW',
+				}),
+			isRetryableGoogleError,
+			{ userEmail, messageId, call: 'messages.get(RAW)' }
+		);
+
+		if (!msgResponse.data.raw) {
+			return null;
+		}
+
+		const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
+		return this.parseRawEmail(
+			rawEmail,
+			msgResponse.data.id!,
+			userEmail,
+			labels.path,
+			labels.tags
+		);
+	}
+
+	/**
+	 * Decides what one message's failure costs.
+	 *
+	 * A 404 means the message was deleted between being listed and being fetched, so it is skipped
+	 * without counting against the mailbox. Anything else has already used up its retries; it is
+	 * counted and skipped so the remaining messages still reach the archive, instead of ending the
+	 * mailbox where it stands (issue #441). The tally throws if the failures stop looking isolated.
+	 */
+	private async fetchMessageOrSkip(
+		gmail: gmail_v1.Gmail,
+		userEmail: string,
+		messageId: string
+	): Promise<EmailObject | null> {
+		// The tally is only ever touched outside the try. `record` throws once the failures stop
+		// looking isolated, and inside the try that throw would be caught here and recorded a
+		// second time as though it were another bad message.
+		let email: EmailObject | null;
+		try {
+			email = await this.fetchMessage(gmail, userEmail, messageId);
+		} catch (error: any) {
+			if (statusOf(error) === 404) {
+				logger.warn({ messageId, userEmail }, 'Message not found, skipping.');
+				this.failures.succeeded();
+				return null;
+			}
+			logger.error(
+				{ err: error, messageId, userEmail },
+				'Giving up on message after retries, skipping it and continuing with the mailbox.'
+			);
+			this.failures.record(messageId, error);
+			return null;
+		}
+
+		if (!email) {
+			// Gmail answered, and the answer carried no raw body. Logged but not counted, for the
+			// same reason as the 404 above: an identical request returns the identical answer, so
+			// counting it would fail the mailbox on every cycle and hold the marker in place
+			// forever over one message — and for Gmail a marker held in place eventually ages out
+			// of the history window, turning every cycle into a full re-list.
+			logger.warn(
+				{ messageId, userEmail },
+				'Gmail returned no raw content for this message, skipping it.'
+			);
+			this.failures.succeeded();
+			return null;
+		}
+
+		this.failures.succeeded();
+		return email;
+	}
+
+	/** Messages this connector skipped, for the mailbox job to report. */
+	public getFetchFailures(): { count: number; samples: string[] } {
+		return this.failures.result;
+	}
+
+	private async *fetchAllMessagesForUser(
+		gmail: gmail_v1.Gmail,
+		userEmail: string,
+		checkDuplicate?: (messageId: string) => Promise<boolean>
+	): AsyncGenerator<EmailObject> {
+		// Capture the history ID at the start to ensure no emails are missed during the import process.
+		// Any emails arriving during this import will be covered by the next sync starting from this point.
+		// Overlaps are handled by the duplicate check.
+		const profileResponse = await withRetry(
+			() => gmail.users.getProfile({ userId: userEmail }),
+			isRetryableGoogleError,
+			{ userEmail, call: 'getProfile' }
+		);
+		if (profileResponse.data.historyId) {
+			this.newHistoryId = profileResponse.data.historyId;
+		}
+
+		let pageToken: string | undefined = undefined;
+		do {
+			const listResponse: Common.GaxiosResponseWithHTTP2<gmail_v1.Schema$ListMessagesResponse> =
+				await withRetry(
+					() =>
+						gmail.users.messages.list({
+							userId: userEmail,
+							pageToken: pageToken,
+						}),
+					isRetryableGoogleError,
+					{ userEmail, call: 'messages.list' }
+				);
+
+			// A page can come back empty and still carry a token, because the listing filters
+			// server-side. Stopping here would end the import early under a marker `getProfile`
+			// already set, so the run would report success and nothing behind that page would ever
+			// be imported or retried.
+			for (const message of listResponse.data.messages ?? []) {
+				const messageId = message.id;
+				if (!messageId) continue;
+
+				// Optimization: Check for existence before fetching full content
+				if (checkDuplicate && (await checkDuplicate(messageId))) {
+					logger.debug({ messageId, userEmail }, 'Skipping duplicate email (pre-check)');
+					continue;
+				}
+
+				const email = await this.fetchMessageOrSkip(gmail, userEmail, messageId);
+				if (email) {
+					yield email;
 				}
 			}
 			pageToken = listResponse.data.nextPageToken ?? undefined;
@@ -333,7 +474,6 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		path: string,
 		tags: string[]
 	): Promise<EmailObject> {
-		const tempFilePath = await writeEmailToTempFile(rawEmail);
 		const parsedEmail: ParsedMail = await simpleParser(rawEmail);
 
 		// In preserve-original mode, skip extracting full attachment binary content
@@ -358,16 +498,26 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		};
 
 		const threadId = getThreadId(parsedEmail.headers);
+		const from = mapAddresses(parsedEmail.from);
+		const to = mapAddresses(parsedEmail.to);
+		const cc = mapAddresses(parsedEmail.cc);
+		const bcc = mapAddresses(parsedEmail.bcc);
+
+		// Written last, once nothing left can throw. Only IngestionService.processEmail deletes
+		// this file, and it never sees a message that failed on the way here, so a file written
+		// before a throw stays on disk forever — one full copy of the email per failure, with no
+		// sweeper anywhere to collect it.
+		const tempFilePath = await writeEmailToTempFile(rawEmail);
 
 		return {
 			id: messageId,
 			threadId,
 			userEmail,
 			tempFilePath,
-			from: mapAddresses(parsedEmail.from),
-			to: mapAddresses(parsedEmail.to),
-			cc: mapAddresses(parsedEmail.cc),
-			bcc: mapAddresses(parsedEmail.bcc),
+			from,
+			to,
+			cc,
+			bcc,
 			subject: parsedEmail.subject || '',
 			body: parsedEmail.text || '',
 			html: parsedEmail.html || '',
@@ -405,8 +555,30 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		for (const labelId of labelIds) {
 			let label = this.labelCache.get(labelId);
 			if (!label) {
-				const res = await gmail.users.labels.get({ userId: userEmail, id: labelId });
-				label = res.data;
+				try {
+					const res = await withRetry(
+						() => gmail.users.labels.get({ userId: userEmail, id: labelId }),
+						isRetryableGoogleError,
+						{ userEmail, labelId, call: 'labels.get' }
+					);
+					label = res.data;
+				} catch (error: any) {
+					if (statusOf(error) !== 404) {
+						throw error;
+					}
+					// A label deleted between this message being listed and being fetched. Labels
+					// only supply the folder path and tags, so the message is archived without
+					// them rather than skipped — and letting this 404 reach the caller would have
+					// it reported as a missing message, uncounted, with the history marker moving
+					// past every message that carried the label.
+					logger.warn(
+						{ userEmail, labelId },
+						'Label no longer exists, archiving without it.'
+					);
+					// The empty entry is what stops the lookup repeating for every other message
+					// carrying the same label.
+					label = {};
+				}
 				this.labelCache.set(labelId, label);
 			}
 

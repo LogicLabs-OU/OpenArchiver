@@ -40,6 +40,12 @@ export interface IEmailConnector {
 	getUpdatedSyncState(userEmail?: string): SyncState;
 	listAllUsers(): AsyncGenerator<MailboxUser>;
 	returnImapUserEmail?(): string;
+	/**
+	 * Messages the connector retried, gave up on, and skipped so the rest of the mailbox could
+	 * still be archived. Read by the process-mailbox job after the fetch generator finishes, so
+	 * the skipped messages are reported instead of disappearing without a trace.
+	 */
+	getFetchFailures?(): { count: number; samples: string[] };
 }
 
 export class EmailProviderFactory {

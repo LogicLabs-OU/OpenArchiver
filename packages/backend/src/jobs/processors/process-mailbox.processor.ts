@@ -2,7 +2,7 @@ import { Job } from 'bullmq';
 import { IProcessMailboxJob, ProcessMailboxError, PendingEmail } from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
 import { logger } from '../../config/logger';
-import { EmailProviderFactory } from '../../services/EmailProviderFactory';
+import { EmailProviderFactory, type IEmailConnector } from '../../services/EmailProviderFactory';
 import { StorageService } from '../../services/StorageService';
 import { config } from '../../config';
 import { indexingQueue, ingestionQueue } from '../queues';
@@ -25,13 +25,18 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 
 	const storageService = new StorageService();
 
+	// Both are declared out here so the catch block can still read the connector's skipped-message
+	// tally, and so the heartbeat is stopped whichever way the job ends.
+	let connector: IEmailConnector | undefined;
+	let heartbeatTimer: NodeJS.Timeout | undefined;
+
 	try {
 		const source = await IngestionService.findById(ingestionSourceId);
 		if (!source) {
 			throw new Error(`Ingestion source with ID ${ingestionSourceId} not found`);
 		}
 
-		const connector = EmailProviderFactory.createConnector(source);
+		connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
 		// Pre-check for duplicates without fetching full email content.
@@ -54,7 +59,20 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 
 		// Must stay well under cleanStaleSessions()'s 30-minute inactivity threshold.
 		const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
-		let lastHeartbeatAt = Date.now();
+
+		// On a timer rather than inside the loop below, because the loop body only runs when the
+		// connector yields something. Long stretches legitimately yield nothing — a duplicate
+		// pre-check streak on re-sync, a message the connector retried and gave up on, an
+		// abandoned folder — and a heartbeat that waits for a yield starves in exactly those
+		// stretches. cleanStaleSessions() then marks the live import stale after 30 minutes, flips
+		// the source to 'error', and the next scheduler tick launches a SECOND concurrent import
+		// that races this one. A timer beats for as long as this process is alive and stops when
+		// it dies, which is the condition the staleness detector is actually testing for.
+		heartbeatTimer = setInterval(() => {
+			// heartbeat() swallows its own errors, so this cannot reject unhandled.
+			void SyncSessionService.heartbeat(sessionId);
+		}, HEARTBEAT_INTERVAL_MS);
+		heartbeatTimer.unref();
 
 		for await (const email of connector.fetchEmails(
 			userEmail,
@@ -83,22 +101,25 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 					}
 				}
 			}
-			// Heartbeat on wall-clock time, unconditionally. A single large mailbox can
-			// take hours, and long stretches legitimately archive nothing (dedup-skip
-			// streaks on re-sync, slow folders with large attachments), so a heartbeat
-			// tied to batch flushes starves in exactly those stretches —
-			// cleanStaleSessions() then marks the live import stale after 30 minutes,
-			// flips the source to 'error', and the next scheduler tick launches a SECOND
-			// concurrent import that races this one and duplicates the archive.
-			if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
-				await SyncSessionService.heartbeat(sessionId);
-				lastHeartbeatAt = Date.now();
-			}
 		}
 
 		if (emailBatch.length > 0) {
 			await indexingQueue.add('index-email-batch', { emails: emailBatch });
 			emailBatch = [];
+		}
+
+		// Messages the connector could not fetch and skipped so the rest of the mailbox could
+		// finish (#441). Counting them here is what discards this run's sync state, so the next
+		// cycle re-attempts them rather than advancing the marker past them and losing them.
+		const fetchFailures = connector.getFetchFailures?.();
+		if (fetchFailures && fetchFailures.count > 0) {
+			messagesSeen += fetchFailures.count;
+			messagesFailed += fetchFailures.count;
+			for (const sample of fetchFailures.samples) {
+				if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+					failureSamples.push(sample);
+				}
+			}
 		}
 
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
@@ -142,9 +163,19 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 
 		logger.error({ err: error, ingestionSourceId, userEmail }, 'Error processing mailbox');
 		const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+
+		// Messages the connector skipped before whatever ended the mailbox. The tally's own abort
+		// throw unwinds past the success path that normally reads this, so without it the count
+		// and samples gathered up to that point would never reach the report.
+		const fetchFailures = connector?.getFetchFailures?.();
+		const skipped =
+			fetchFailures && fetchFailures.count > 0
+				? ` ${fetchFailures.count} message(s) were skipped before this: ${fetchFailures.samples.join('; ')}`
+				: '';
+
 		const processMailboxError: ProcessMailboxError = {
 			error: true,
-			message: `Failed to process mailbox for ${userEmail}: ${errorMessage}`,
+			message: `Failed to process mailbox for ${userEmail}: ${errorMessage}.${skipped}`,
 		};
 
 		// Report failure to the session — this still counts towards the total
@@ -174,5 +205,9 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 
 		// Do not re-throw — a single failed mailbox should not mark the BullMQ job as failed
 		// and trigger retries that would double-count against the session counter.
+	} finally {
+		if (heartbeatTimer) {
+			clearInterval(heartbeatTimer);
+		}
 	}
 };

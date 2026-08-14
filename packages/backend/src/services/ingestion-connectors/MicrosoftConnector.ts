@@ -15,6 +15,51 @@ import { ConfidentialClientApplication, Configuration, LogLevel } from '@azure/m
 import { Client } from '@microsoft/microsoft-graph-client';
 import type { User, MailFolder } from 'microsoft-graph';
 import type { AuthProvider } from '@microsoft/microsoft-graph-client';
+import {
+	isRetryableStatus,
+	isTransportError,
+	MessageFailureTally,
+	REQUEST_TIMEOUT_MS,
+	withRetry,
+} from './helpers/retry';
+import { TimeboundMsalNetworkClient } from './helpers/msalNetworkClient';
+
+/** The HTTP status behind a Graph failure. `GraphError` carries it on `statusCode`. */
+const statusOf = (error: any): number | undefined =>
+	typeof error?.statusCode === 'number' ? error.statusCode : undefined;
+
+/**
+ * Whether a Graph failure is worth another attempt. A 410 is deliberately absent — that is an
+ * expired delta token, which needs a resync rather than a repeat of the same request.
+ *
+ * The client's own retry handler is narrower than it looks: it decides from `context.response` and
+ * calls the next middleware outside any `try`, so a request that never produced a response skips it
+ * entirely. Those arrive here as a `GraphError` carrying the `-1` status
+ * `GraphErrorHandler.getError` defaults to, with `code` set from the error's name rather than an
+ * errno, so the status is the only signal left to read. Retrying them is what keeps one connection
+ * reset from costing a message or a whole folder.
+ */
+const isRetryableGraphError = (error: unknown): boolean => {
+	const status = statusOf(error);
+	if (status === undefined) {
+		// Not a GraphError. `getStream` resolves once the headers arrive, so everything thrown while
+		// the body is being consumed — a reset connection, or the deadline firing mid-download —
+		// escapes the client untouched and reaches here in its original shape.
+		return isTransportError(error);
+	}
+	if (status === -1) return true;
+	return isRetryableStatus(status);
+};
+
+/**
+ * Whether Graph is telling us the stored delta token no longer resolves. Continuing to send it
+ * would fail on every cycle forever, so the folder has to restart from a full delta query.
+ */
+const isDeltaTokenExpired = (error: unknown): boolean =>
+	statusOf(error) === 410 ||
+	['resyncRequired', 'syncStateNotFound', 'syncStateInvalid'].includes(
+		String((error as any)?.code ?? '')
+	);
 
 /**
  * A connector for Microsoft 365 that uses the Microsoft Graph API with client credentials (app-only)
@@ -26,6 +71,8 @@ export class MicrosoftConnector implements IEmailConnector {
 	// Store delta tokens for each folder during a sync operation.
 	private newDeltaTokens: { [folderId: string]: string };
 	private options: ConnectorOptions;
+	/** Messages skipped so the rest of the mailbox could finish. One connector serves one mailbox. */
+	private failures = new MessageFailureTally();
 
 	constructor(credentials: Microsoft365Credentials, options?: ConnectorOptions) {
 		this.credentials = credentials;
@@ -60,6 +107,11 @@ export class MicrosoftConnector implements IEmailConnector {
 					piiLoggingEnabled: false,
 					logLevel: LogLevel.Warning,
 				},
+				// MSAL's own client leaves POSTs — which is what token acquisition is — with no
+				// timeout at all, so this is what keeps a quiet login endpoint from parking the
+				// mailbox job forever. The per-request signal in `request()` does not reach here:
+				// token acquisition happens inside the auth provider, on MSAL's own transport.
+				networkClient: new TimeboundMsalNetworkClient(),
 			},
 		};
 
@@ -84,12 +136,26 @@ export class MicrosoftConnector implements IEmailConnector {
 	}
 
 	/**
+	 * Starts a Graph request with a deadline attached.
+	 *
+	 * The Graph client sets no timeout of its own, so a socket that never answers would leave a
+	 * mailbox job awaiting forever — see REQUEST_TIMEOUT_MS. The signal has to be built per request:
+	 * one shared signal passed through `Client.init`'s `fetchOptions` would abort every later
+	 * request the moment the first deadline elapsed. `option()` lands in the fetch init the client
+	 * passes straight through, and an abort arrives back as a `GraphError` with the `-1` status
+	 * `isRetryableGraphError` already retries.
+	 */
+	private request(url: string) {
+		return this.graphClient.api(url).option('signal', AbortSignal.timeout(REQUEST_TIMEOUT_MS));
+	}
+
+	/**
 	 * Tests the connection and authentication by attempting to list the first user
 	 * from the directory.
 	 */
 	public async testConnection(): Promise<boolean> {
 		try {
-			await this.graphClient.api('/users').top(1).get();
+			await this.request('/users').top(1).get();
 			logger.info('Microsoft 365 connection test successful.');
 			return true;
 		} catch (error) {
@@ -104,7 +170,7 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * @returns An async generator that yields each user object.
 	 */
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		let request = this.graphClient.api('/users').select('id,userPrincipalName,displayName');
+		let request = this.request('/users').select('id,userPrincipalName,displayName');
 
 		try {
 			let response = await request.get();
@@ -120,7 +186,7 @@ export class MicrosoftConnector implements IEmailConnector {
 				}
 
 				if (response['@odata.nextLink']) {
-					response = await this.graphClient.api(response['@odata.nextLink']).get();
+					response = await this.request(response['@odata.nextLink']).get();
 				} else {
 					break;
 				}
@@ -186,7 +252,11 @@ export class MicrosoftConnector implements IEmailConnector {
 			: `/users/${userEmail}/mailFolders`;
 
 		try {
-			let response = await this.graphClient.api(requestUrl).get();
+			let response = await withRetry(
+				() => this.request(requestUrl).get(),
+				isRetryableGraphError,
+				{ userEmail, call: 'mailFolders' }
+			);
 
 			while (response) {
 				for (const folder of response.value as MailFolder[]) {
@@ -201,7 +271,12 @@ export class MicrosoftConnector implements IEmailConnector {
 				}
 
 				if (response['@odata.nextLink']) {
-					response = await this.graphClient.api(response['@odata.nextLink']).get();
+					const nextLink = response['@odata.nextLink'];
+					response = await withRetry(
+						() => this.request(nextLink).get(),
+						isRetryableGraphError,
+						{ userEmail, call: 'mailFolders(next)' }
+					);
 				} else {
 					break;
 				}
@@ -226,78 +301,131 @@ export class MicrosoftConnector implements IEmailConnector {
 		deltaToken?: string,
 		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
-		let requestUrl: string | undefined;
-
-		if (deltaToken) {
-			// Continuous sync
-			requestUrl = deltaToken;
-		} else {
-			// Initial sync
-			requestUrl = `/users/${userEmail}/mailFolders/${folderId}/messages/delta`;
-		}
+		const initialUrl = `/users/${userEmail}/mailFolders/${folderId}/messages/delta`;
+		let requestUrl: string | undefined = deltaToken || initialUrl;
+		let hasResynced = false;
 
 		while (requestUrl) {
+			let response: any;
 			try {
-				const response = await this.graphClient
-					.api(requestUrl)
-					.select('id,conversationId')
-					.get();
-
-				for (const message of response.value) {
-					if (message.id && !message['@removed']) {
-						// Skip fetching raw content for already-imported messages
-						if (checkDuplicate && (await checkDuplicate(message.id))) {
-							logger.debug(
-								{ messageId: message.id, userEmail },
-								'Skipping duplicate email (pre-check)'
-							);
-							continue;
-						}
-
-						const rawEmail = await this.getRawEmail(userEmail, message.id);
-						if (rawEmail) {
-							const emailObject = await this.parseEmail(
-								rawEmail,
-								message.id,
-								userEmail,
-								path
-							);
-							emailObject.threadId = message.conversationId;
-							yield emailObject;
-						}
-					}
-				}
-
-				if (response['@odata.deltaLink']) {
-					this.newDeltaTokens[folderId] = response['@odata.deltaLink'];
-				}
-
-				requestUrl = response['@odata.nextLink'];
+				response = await withRetry(
+					() => this.request(requestUrl!).select('id,conversationId').get(),
+					isRetryableGraphError,
+					{ userEmail, folderId, call: 'messages/delta' }
+				);
 			} catch (error) {
-				logger.error({ err: error, userEmail, folderId }, 'Failed to sync mail folder');
-				// Continue to the next folder if one fails
+				// Graph expires delta tokens, and the stored one is sent again on every cycle, so
+				// an expired token means the folder stops syncing permanently unless it restarts
+				// from a full delta query. Attempted once, so a genuine 410 on the fresh query
+				// is not retried in a loop.
+				if (!hasResynced && isDeltaTokenExpired(error)) {
+					hasResynced = true;
+					delete this.newDeltaTokens[folderId];
+					logger.warn(
+						{ userEmail, folderId },
+						'Delta token for this folder is no longer valid, restarting the folder from a full sync.'
+					);
+					requestUrl = initialUrl;
+					continue;
+				}
+				logger.error(
+					{ err: error, userEmail, folderId },
+					'Failed to sync mail folder, skipping the rest of it.'
+				);
+				// Counted so the mailbox reports the gap rather than finishing as a clean success.
+				// It is one entry standing for however many messages the folder still held, so the
+				// sample says so — the count alone would read as a single lost message.
+				this.failures.record(
+					`folder ${path} abandoned, remaining messages not fetched`,
+					error
+				);
 				return;
 			}
+
+			for (const message of response.value) {
+				if (message.id && !message['@removed']) {
+					// Skip fetching raw content for already-imported messages
+					if (checkDuplicate && (await checkDuplicate(message.id))) {
+						logger.debug(
+							{ messageId: message.id, userEmail },
+							'Skipping duplicate email (pre-check)'
+						);
+						continue;
+					}
+
+					const emailObject = await this.fetchMessageOrSkip(userEmail, message.id, path);
+					if (emailObject) {
+						emailObject.threadId = message.conversationId;
+						yield emailObject;
+					}
+				}
+			}
+
+			if (response['@odata.deltaLink']) {
+				this.newDeltaTokens[folderId] = response['@odata.deltaLink'];
+			}
+
+			requestUrl = response['@odata.nextLink'];
 		}
 	}
 
-	private async getRawEmail(userEmail: string, messageId: string): Promise<Buffer | null> {
+	/**
+	 * Decides what one message's failure costs.
+	 *
+	 * A 404 means the message was deleted between the delta query and the fetch, so it is skipped
+	 * without counting against the mailbox. Anything else has already used up its retries; it is
+	 * counted and skipped so the remaining messages still reach the archive. Previously every
+	 * failure here was swallowed and the message vanished from the archive with nothing recorded.
+	 */
+	private async fetchMessageOrSkip(
+		userEmail: string,
+		messageId: string,
+		path: string
+	): Promise<EmailObject | null> {
 		try {
-			const response = await this.graphClient
-				.api(`/users/${userEmail}/messages/${messageId}/$value`)
-				.getStream();
-			const chunks: any[] = [];
-			for await (const chunk of response) {
-				chunks.push(chunk);
-			}
-			return Buffer.concat(chunks);
-		} catch (error) {
-			logger.error(
-				{ err: error, userEmail, messageId },
-				'Failed to fetch raw email content.'
+			const rawEmail = await withRetry(
+				() => this.getRawEmail(userEmail, messageId),
+				isRetryableGraphError,
+				{ userEmail, messageId, call: 'messages/$value' }
 			);
+			const email = await this.parseEmail(rawEmail, messageId, userEmail, path);
+			// Only after parsing. Clearing the run before it would let a failure that repeats on
+			// every message — an unwritable temp directory, a full disk — reset the counter it is
+			// about to increment, so the brake below could never engage and the whole mailbox
+			// would be downloaded and discarded one message at a time.
+			this.failures.succeeded();
+			return email;
+		} catch (error) {
+			if (statusOf(error) === 404) {
+				logger.warn({ messageId, userEmail }, 'Message not found, skipping.');
+				this.failures.succeeded();
+				return null;
+			}
+			logger.error(
+				{ err: error, messageId, userEmail },
+				'Giving up on message after retries, skipping it and continuing with the mailbox.'
+			);
+			this.failures.record(messageId, error);
 			return null;
 		}
+	}
+
+	/** Messages this connector skipped, for the mailbox job to report. */
+	public getFetchFailures(): { count: number; samples: string[] } {
+		return this.failures.result;
+	}
+
+	private async getRawEmail(userEmail: string, messageId: string): Promise<Buffer> {
+		// The deadline covers the body read too, not just the response headers — an abort tears down
+		// the stream, so a download that stalls mid-message fails instead of hanging the job.
+		const response = await this.request(
+			`/users/${userEmail}/messages/${messageId}/$value`
+		).getStream();
+		const chunks: any[] = [];
+		for await (const chunk of response) {
+			chunks.push(chunk);
+		}
+		return Buffer.concat(chunks);
 	}
 
 	private async parseEmail(
@@ -306,7 +434,6 @@ export class MicrosoftConnector implements IEmailConnector {
 		userEmail: string,
 		path: string
 	): Promise<EmailObject> {
-		const tempFilePath = await writeEmailToTempFile(rawEmail);
 		const parsedEmail: ParsedMail = await simpleParser(rawEmail);
 
 		// In preserve-original mode, skip extracting full attachment binary content
@@ -329,14 +456,25 @@ export class MicrosoftConnector implements IEmailConnector {
 			);
 		};
 
+		const from = mapAddresses(parsedEmail.from);
+		const to = mapAddresses(parsedEmail.to);
+		const cc = mapAddresses(parsedEmail.cc);
+		const bcc = mapAddresses(parsedEmail.bcc);
+
+		// Written last, once nothing left can throw. Only IngestionService.processEmail deletes
+		// this file, and it never sees a message that failed on the way here, so a file written
+		// before a throw stays on disk forever — one full copy of the email per failure, with no
+		// sweeper anywhere to collect it.
+		const tempFilePath = await writeEmailToTempFile(rawEmail);
+
 		return {
 			id: messageId,
 			userEmail: userEmail,
 			tempFilePath,
-			from: mapAddresses(parsedEmail.from),
-			to: mapAddresses(parsedEmail.to),
-			cc: mapAddresses(parsedEmail.cc),
-			bcc: mapAddresses(parsedEmail.bcc),
+			from,
+			to,
+			cc,
+			bcc,
 			subject: parsedEmail.subject || '',
 			body: parsedEmail.text || '',
 			html: parsedEmail.html || '',
