@@ -819,10 +819,14 @@ export class IngestionService {
 	 * mailbox already has the email.
 	 */
 	public static async doesEmailExist(
-		messageId: string,
+		rawMessageId: string,
 		ingestionSourceId: string,
 		rawUserEmail: string
 	): Promise<boolean> {
+		// Bounded on the way in so this pre-fetch check compares against the same key processEmail
+		// stored. Without it an over-long id would look absent here and be downloaded again on
+		// every sync.
+		const messageId = IngestionService.boundMessageKey(rawMessageId);
 		const userEmail = normalizeEmailAddress(rawUserEmail);
 		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
 		const sourceFilter =
@@ -849,9 +853,10 @@ export class IngestionService {
 	 * The provider id / Message-ID becomes an actual filename, but Exchange-style ids can
 	 * exceed the 255-byte filename limit or contain '/', producing ENAMETOOLONG / bad-path
 	 * mkdir errors that drop the email (#405). When the id is unsafe we substitute its
-	 * sha256 hash; the real Message-ID is still preserved in
-	 * archived_emails.message_id_header. Short, safe ids are left as-is so common filenames
-	 * stay human-readable.
+	 * sha256 hash; archived_emails.message_id_header still holds the Message-ID, clamped by
+	 * boundMessageKey only in the pathological case, and the stored .eml always holds the header
+	 * exactly as it arrived. Short, safe ids are left as-is so common filenames stay
+	 * human-readable.
 	 *
 	 * Byte budget: the last folder segment of email.path is glued into the SAME path
 	 * component as this filename (`${sanitizedPath}${fileName}.eml` with no separator), so
@@ -870,6 +875,41 @@ export class IngestionService {
 	/** See buildEmailFileName's byte-budget comment for how these two limits interact. */
 	private static readonly EMAIL_ID_MAX_BYTES = 140;
 	private static readonly PATH_SEGMENT_MAX_BYTES = 100;
+
+	/**
+	 * RFC 5322 caps a header line at 998 octets, so a Message-ID longer than this is already
+	 * malformed. The number that actually matters is the ceiling it stays under: both dedup keys
+	 * sit in a btree (`msgid_header_source_idx`, `provider_msg_source_idx`), and PostgreSQL refuses
+	 * an index tuple over 8191 bytes and a btree tuple over roughly 2704. 998 plus the uuid beside
+	 * it clears both with room to spare.
+	 */
+	private static readonly MESSAGE_KEY_MAX_BYTES = 998;
+
+	/**
+	 * Clamps a value used as a deduplication key — the Message-ID header, or the provider id, which
+	 * for IMAP and the file-based connectors is the Message-ID header again.
+	 *
+	 * A hostile or malformed Message-ID can run to kilobytes. Stored raw it made the whole INSERT
+	 * fail with "index row requires N bytes, maximum size is 8191", so the email was never archived
+	 * and failed identically on every retry (#440). The column itself has no limit; the btree
+	 * indexes over it do.
+	 *
+	 * The sha256 suffix is the part that matters for correctness. Truncating alone would let two
+	 * different messages that share a long prefix collapse into one dedup key, and the second would
+	 * be discarded as a duplicate — a silent loss, which is the one outcome an archive must not
+	 * have. The full header is untouched in the stored .eml either way.
+	 */
+	private static boundMessageKey(value: string): string {
+		if (Buffer.byteLength(value) <= IngestionService.MESSAGE_KEY_MAX_BYTES) {
+			return value;
+		}
+		const digest = createHash('sha256').update(value).digest('hex');
+		const truncated = IngestionService.truncateToBytes(
+			value,
+			IngestionService.MESSAGE_KEY_MAX_BYTES - digest.length - 1
+		);
+		return `${truncated}-${digest}`;
+	}
 
 	/** Byte-truncates a string without splitting a multibyte character. */
 	private static truncateToBytes(value: string, maxBytes: number): string {
@@ -971,6 +1011,12 @@ export class IngestionService {
 					.update(rawEmlBuffer)
 					.digest('hex')}-${source.id}-${email.id}`;
 			}
+			// Both keys are bounded here, once, so the two dedup gates below and all three inserts
+			// agree on them (#440). The provider id needs it as much as the header does: for IMAP
+			// and the file-based connectors email.id IS the parsed Message-ID, and it lands in a
+			// btree of its own via provider_msg_source_idx.
+			messageId = IngestionService.boundMessageKey(messageId);
+			const providerMessageId = IngestionService.boundMessageKey(email.id);
 			// ── Three-gate deduplication ──────────────────────────────────────
 			// Gate 1: Per-mailbox idempotency — has THIS mailbox already archived
 			//         this email? If so, skip entirely (handles re-sync / retry).
@@ -1031,7 +1077,7 @@ export class IngestionService {
 						userEmail,
 						threadId: email.threadId,
 						messageIdHeader: messageId,
-						providerMessageId: email.id,
+						providerMessageId,
 						sentAt: email.receivedAt,
 						subject: email.subject,
 						senderName: email.from[0]?.name,
@@ -1152,7 +1198,7 @@ export class IngestionService {
 						userEmail,
 						threadId: email.threadId,
 						messageIdHeader: messageId,
-						providerMessageId: email.id,
+						providerMessageId,
 						sentAt: email.receivedAt,
 						subject: email.subject,
 						senderName: email.from[0]?.name,
@@ -1190,7 +1236,7 @@ export class IngestionService {
 					userEmail,
 					threadId: email.threadId,
 					messageIdHeader: messageId,
-					providerMessageId: email.id,
+					providerMessageId,
 					sentAt: email.receivedAt,
 					subject: email.subject,
 					senderName: email.from[0]?.name,

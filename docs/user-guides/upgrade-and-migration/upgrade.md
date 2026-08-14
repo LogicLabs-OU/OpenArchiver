@@ -35,6 +35,8 @@ When you upgrade to a new version, database migrations are applied automatically
 
 No manual intervention is required for database migrations.
 
+There is one exception, and it applies only when upgrading from v0.5.1. If the application fails to start with `index row requires N bytes, maximum size is 8191` in the migration output, see [Long Message-ID Headers](../troubleshooting/long-message-id.md).
+
 ## The `ADMIN_EMAIL` and `ADMIN_PASSWORD` variables are no longer used
 
 Very early versions of Open Archiver configured the administrator account through the `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables. A compatibility shim kept honouring them and created the account automatically on first start. That shim has been removed.

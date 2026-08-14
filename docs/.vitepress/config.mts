@@ -84,6 +84,20 @@ export default defineConfig({
 							},
 						],
 					},
+					{
+						text: 'Troubleshooting',
+						collapsed: true,
+						items: [
+							{
+								text: 'CORS Errors',
+								link: '/user-guides/troubleshooting/cors-errors',
+							},
+							{
+								text: 'Long Message-ID Headers',
+								link: '/user-guides/troubleshooting/long-message-id',
+							},
+						],
+					},
 				],
 			},
 			{
