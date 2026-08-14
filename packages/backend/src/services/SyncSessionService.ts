@@ -99,36 +99,8 @@ export class SyncSessionService {
 			throw new Error(`Sync session ${sessionId} not found when recording mailbox result.`);
 		}
 
-		// One-level deep merge so `{ google: { userB: … } }` does not replace the
-		// entire `google` object (Postgres `||` is shallow and would drop userA).
 		if (!isError) {
-			const syncState = result as SyncState;
-			if (Object.keys(syncState).length > 0) {
-				const incomingJson = JSON.stringify(syncState);
-				await db
-					.update(ingestionSources)
-					.set({
-						syncState: sql`COALESCE(
-							(
-								SELECT jsonb_object_agg(
-									COALESCE(old_kv.key, new_kv.key),
-									CASE
-										WHEN jsonb_typeof(new_kv.value) = 'object'
-											AND jsonb_typeof(COALESCE(old_kv.value, 'null'::jsonb)) = 'object'
-										THEN COALESCE(old_kv.value, '{}'::jsonb) || new_kv.value
-										WHEN new_kv.value IS NOT NULL THEN new_kv.value
-										ELSE old_kv.value
-									END
-								)
-								FROM jsonb_each(COALESCE(${ingestionSources.syncState}, '{}'::jsonb)) AS old_kv
-								FULL OUTER JOIN jsonb_each(CAST(${incomingJson} AS jsonb)) AS new_kv
-									ON old_kv.key = new_kv.key
-							),
-							'{}'::jsonb
-						)`,
-					})
-					.where(eq(ingestionSources.id, updated.ingestionSourceId));
-			}
+			await this.mergeSourceSyncState(updated.ingestionSourceId, result as SyncState);
 		}
 
 		const totalProcessed = updated.completedMailboxes + updated.failedMailboxes;
@@ -151,6 +123,45 @@ export class SyncSessionService {
 			totalFailed: updated.failedMailboxes,
 			errorMessages: updated.errorMessages,
 		};
+	}
+
+	/**
+	 * Merges SyncState into the ingestion source without touching session counters.
+	 * Used to persist a Gmail historyId / backfill page token mid-mailbox so a
+	 * crash does not force the next cycle back into a full import.
+	 */
+	public static async mergeSourceSyncState(
+		ingestionSourceId: string,
+		syncState: SyncState
+	): Promise<void> {
+		if (Object.keys(syncState).length === 0) {
+			return;
+		}
+
+		const incomingJson = JSON.stringify(syncState);
+		await db
+			.update(ingestionSources)
+			.set({
+				syncState: sql`COALESCE(
+					(
+						SELECT jsonb_object_agg(
+							COALESCE(old_kv.key, new_kv.key),
+							CASE
+								WHEN jsonb_typeof(new_kv.value) = 'object'
+									AND jsonb_typeof(COALESCE(old_kv.value, 'null'::jsonb)) = 'object'
+								THEN COALESCE(old_kv.value, '{}'::jsonb) || new_kv.value
+								WHEN new_kv.value IS NOT NULL THEN new_kv.value
+								ELSE old_kv.value
+							END
+						)
+						FROM jsonb_each(COALESCE(${ingestionSources.syncState}, '{}'::jsonb)) AS old_kv
+						FULL OUTER JOIN jsonb_each(CAST(${incomingJson} AS jsonb)) AS new_kv
+							ON old_kv.key = new_kv.key
+					),
+					'{}'::jsonb
+				)`,
+			})
+			.where(eq(ingestionSources.id, ingestionSourceId));
 	}
 
 	/**

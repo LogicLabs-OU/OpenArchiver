@@ -36,7 +36,8 @@ export interface IEmailConnector {
 		userEmail: string,
 		syncState?: SyncState | null,
 		checkDuplicate?: (messageId: string) => Promise<boolean>,
-		checkGroupHasMessageId?: (rfcMessageId: string) => boolean | Promise<boolean>
+		checkGroupHasMessageId?: (rfcMessageId: string) => boolean | Promise<boolean>,
+		onSyncStateProgress?: (state: SyncState) => void | Promise<void>
 	): AsyncGenerator<EmailObject | null>;
 	getUpdatedSyncState(userEmail?: string): SyncState;
 	listAllUsers(): AsyncGenerator<MailboxUser>;

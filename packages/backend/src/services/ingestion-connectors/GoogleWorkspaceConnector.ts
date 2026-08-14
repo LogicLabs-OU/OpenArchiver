@@ -12,6 +12,12 @@ import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
+import { MAX_GMAIL_RAW_BYTES, rawBase64ExceedsLimit } from '../../helpers/gmailLimits';
+
+function isHttpNotFound(error: unknown): boolean {
+	const e = error as { code?: unknown; status?: unknown; response?: { status?: unknown } };
+	return [e.code, e.status, e.response?.status].some((value) => value === 404 || value === '404');
+}
 
 /**
  * A connector for Google Workspace that uses a service account with domain-wide delegation
@@ -21,6 +27,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 	private credentials: GoogleWorkspaceCredentials;
 	private serviceAccountCreds: { client_email: string; private_key: string };
 	private newHistoryId: string | undefined;
+	private backfillPending = false;
+	private backfillPageToken: string | null = null;
 	private options: ConnectorOptions;
 
 	constructor(credentials: GoogleWorkspaceCredentials, options?: ConnectorOptions) {
@@ -137,37 +145,89 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		userEmail: string,
 		syncState?: SyncState | null,
 		checkDuplicate?: (messageId: string) => Promise<boolean>,
-		checkGroupHasMessageId?: (rfcMessageId: string) => boolean | Promise<boolean>
+		checkGroupHasMessageId?: (rfcMessageId: string) => boolean | Promise<boolean>,
+		onSyncStateProgress?: (state: SyncState) => void | Promise<void>
 	): AsyncGenerator<EmailObject> {
 		const authClient = this.getAuthClient(userEmail, [
 			'https://www.googleapis.com/auth/gmail.readonly',
 		]);
 		const gmail = google.gmail({ version: 'v1', auth: authClient });
-		let pageToken: string | undefined = undefined;
 
-		const startHistoryId = syncState?.google?.[userEmail]?.historyId;
+		const mailboxState = syncState?.google?.[userEmail];
+		const startHistoryId = mailboxState?.historyId;
+		const backfillPending = mailboxState?.backfillPending === true;
+		const backfillPageToken = mailboxState?.backfillPageToken ?? undefined;
 
-		// If no sync state is provided for this user, this is an initial import. Get all messages.
-		if (!startHistoryId) {
+		if (!startHistoryId || backfillPending) {
 			yield* this.fetchAllMessagesForUser(
 				gmail,
 				userEmail,
 				checkDuplicate,
-				checkGroupHasMessageId
+				checkGroupHasMessageId,
+				onSyncStateProgress,
+				{
+					resumePageToken: backfillPageToken || undefined,
+					existingHistoryId: startHistoryId,
+				}
 			);
 			return;
 		}
 
 		this.newHistoryId = startHistoryId;
+		this.backfillPending = false;
+		this.backfillPageToken = null;
+
+		try {
+			yield* this.fetchHistoryMessages(
+				gmail,
+				userEmail,
+				startHistoryId,
+				checkDuplicate,
+				checkGroupHasMessageId
+			);
+		} catch (error: unknown) {
+			if (isHttpNotFound(error)) {
+				logger.warn(
+					{ userEmail, startHistoryId },
+					'Gmail history expired; falling back to messages.list backfill'
+				);
+				yield* this.fetchAllMessagesForUser(
+					gmail,
+					userEmail,
+					checkDuplicate,
+					checkGroupHasMessageId,
+					onSyncStateProgress,
+					{ existingHistoryId: undefined }
+				);
+				return;
+			}
+			throw error;
+		}
+	}
+
+	private async *fetchHistoryMessages(
+		gmail: gmail_v1.Gmail,
+		userEmail: string,
+		startHistoryId: string,
+		checkDuplicate?: (messageId: string) => Promise<boolean>,
+		checkGroupHasMessageId?: (rfcMessageId: string) => boolean | Promise<boolean>
+	): AsyncGenerator<EmailObject> {
+		let pageToken: string | undefined = undefined;
 
 		do {
 			const historyResponse: Common.GaxiosResponseWithHTTP2<gmail_v1.Schema$ListHistoryResponse> =
 				await gmail.users.history.list({
 					userId: userEmail,
-					startHistoryId: this.newHistoryId,
+					// Keep the original startHistoryId for every page. Updating it mid-pagination
+					// to the response historyId (the mailbox tip) breaks the range.
+					startHistoryId,
 					pageToken: pageToken,
 					historyTypes: ['messageAdded'],
 				});
+
+			if (historyResponse.data.historyId) {
+				this.newHistoryId = historyResponse.data.historyId;
+			}
 
 			const histories = historyResponse.data.history;
 			if (!histories || histories.length === 0) {
@@ -202,9 +262,6 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			}
 
 			pageToken = historyResponse.data.nextPageToken ?? undefined;
-			if (historyResponse.data.historyId) {
-				this.newHistoryId = historyResponse.data.historyId;
-			}
 		} while (pageToken);
 	}
 
@@ -212,27 +269,46 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		gmail: gmail_v1.Gmail,
 		userEmail: string,
 		checkDuplicate?: (messageId: string) => Promise<boolean>,
-		checkGroupHasMessageId?: (rfcMessageId: string) => boolean | Promise<boolean>
+		checkGroupHasMessageId?: (rfcMessageId: string) => boolean | Promise<boolean>,
+		onSyncStateProgress?: (state: SyncState) => void | Promise<void>,
+		resume?: { resumePageToken?: string; existingHistoryId?: string }
 	): AsyncGenerator<EmailObject> {
-		// Capture the history ID at the start to ensure no emails are missed during the import process.
-		// Any emails arriving during this import will be covered by the next sync starting from this point.
-		// Overlaps are handled by the duplicate check.
-		const profileResponse = await gmail.users.getProfile({ userId: userEmail });
-		if (profileResponse.data.historyId) {
-			this.newHistoryId = profileResponse.data.historyId;
+		// Capture the history ID at the start so a crash mid-backfill still leaves
+		// a valid incremental cursor. Persist immediately — waiting until the mailbox
+		// job finishes is what forced a full re-import of the same mailbox every cycle.
+		if (resume?.existingHistoryId) {
+			this.newHistoryId = resume.existingHistoryId;
+		} else {
+			const profileResponse = await gmail.users.getProfile({ userId: userEmail });
+			if (profileResponse.data.historyId) {
+				this.newHistoryId = profileResponse.data.historyId;
+			}
 		}
 
-		let pageToken: string | undefined = undefined;
+		this.backfillPending = true;
+		this.backfillPageToken = resume?.resumePageToken ?? null;
+		await onSyncStateProgress?.(this.getUpdatedSyncState(userEmail));
+		logger.warn(
+			{
+				userEmail,
+				historyId: this.newHistoryId,
+				resumePageToken: this.backfillPageToken,
+			},
+			'Starting Gmail messages.list backfill; historyId persisted'
+		);
+
+		let pageToken: string | undefined = resume?.resumePageToken;
 		do {
 			const listResponse: Common.GaxiosResponseWithHTTP2<gmail_v1.Schema$ListMessagesResponse> =
 				await gmail.users.messages.list({
 					userId: userEmail,
 					pageToken: pageToken,
+					maxResults: 100,
 				});
 
 			const messages = listResponse.data.messages;
 			if (!messages || messages.length === 0) {
-				return;
+				break;
 			}
 
 			for (const message of messages) {
@@ -258,7 +334,14 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 				}
 			}
 			pageToken = listResponse.data.nextPageToken ?? undefined;
+			this.backfillPageToken = pageToken ?? null;
+			await onSyncStateProgress?.(this.getUpdatedSyncState(userEmail));
 		} while (pageToken);
+
+		this.backfillPending = false;
+		this.backfillPageToken = null;
+		await onSyncStateProgress?.(this.getUpdatedSyncState(userEmail));
+		logger.warn({ userEmail, historyId: this.newHistoryId }, 'Gmail messages.list backfill finished');
 	}
 
 	private async *fetchSingleMessage(
@@ -309,6 +392,18 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		});
 
 		if (msgResponse.data.raw) {
+			if (rawBase64ExceedsLimit(msgResponse.data.raw)) {
+				logger.warn(
+					{
+						messageId,
+						userEmail,
+						rawChars: msgResponse.data.raw.length,
+						maxBytes: MAX_GMAIL_RAW_BYTES,
+					},
+					'Skipping oversized Gmail RAW message to avoid heap OOM'
+				);
+				return;
+			}
 			const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
 			yield await this.parseRawEmail(
 				rawEmail,
@@ -342,6 +437,18 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			format: 'RAW',
 		});
 		if (!msgResponse.data.raw) {
+			return null;
+		}
+		if (rawBase64ExceedsLimit(msgResponse.data.raw)) {
+			logger.warn(
+				{
+					messageId,
+					userEmail,
+					rawChars: msgResponse.data.raw.length,
+					maxBytes: MAX_GMAIL_RAW_BYTES,
+				},
+				'Skipping oversized Gmail RAW fallback to avoid heap OOM'
+			);
 			return null;
 		}
 		return this.parseRawEmail(
@@ -477,6 +584,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			google: {
 				[userEmail]: {
 					historyId: this.newHistoryId,
+					backfillPending: this.backfillPending,
+					backfillPageToken: this.backfillPageToken,
 				},
 			},
 		};

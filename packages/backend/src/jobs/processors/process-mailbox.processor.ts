@@ -86,7 +86,8 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			userEmail,
 			source.syncState,
 			checkDuplicate,
-			checkGroupHasMessageId
+			checkGroupHasMessageId,
+			(state) => SyncSessionService.mergeSourceSyncState(ingestionSourceId, state)
 		)) {
 			if (email) {
 				messagesSeen++;
@@ -148,8 +149,17 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		}
 
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
-		logger.info(
-			{ ingestionSourceId, userEmail, messagesSeen, messagesArchived, messagesFailed },
+		const heap = process.memoryUsage();
+		logger.warn(
+			{
+				ingestionSourceId,
+				userEmail,
+				messagesSeen,
+				messagesArchived,
+				messagesFailed,
+				heapUsedMb: Math.round(heap.heapUsed / 1024 / 1024),
+				rssMb: Math.round(heap.rss / 1024 / 1024),
+			},
 			`Finished processing mailbox for user`
 		);
 
