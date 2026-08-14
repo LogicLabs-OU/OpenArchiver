@@ -12,11 +12,28 @@ import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
-import { MAX_GMAIL_RAW_BYTES, rawBase64ExceedsLimit } from '../../helpers/gmailLimits';
+import {
+	MAX_GMAIL_RAW_BYTES,
+	gmailSizeEstimateExceedsLimit,
+	rawBase64ExceedsLimit,
+} from '../../helpers/gmailLimits';
 
 function isHttpNotFound(error: unknown): boolean {
 	const e = error as { code?: unknown; status?: unknown; response?: { status?: unknown } };
 	return [e.code, e.status, e.response?.status].some((value) => value === 404 || value === '404');
+}
+
+function gmailPayloadHasAttachments(message: gmail_v1.Schema$Message): boolean {
+	const walk = (part?: gmail_v1.Schema$MessagePart): boolean => {
+		if (!part) {
+			return false;
+		}
+		if (part.filename) {
+			return true;
+		}
+		return (part.parts ?? []).some(walk);
+	};
+	return walk(message.payload);
 }
 
 /**
@@ -311,6 +328,12 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 				break;
 			}
 
+			// Persist the *next* page token before processing this page. If the worker
+			// OOMs mid-page, the next cycle must not retry the same 100 IDs forever.
+			pageToken = listResponse.data.nextPageToken ?? undefined;
+			this.backfillPageToken = pageToken ?? null;
+			await onSyncStateProgress?.(this.getUpdatedSyncState(userEmail));
+
 			for (const message of messages) {
 				if (message.id) {
 					try {
@@ -333,9 +356,6 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 					}
 				}
 			}
-			pageToken = listResponse.data.nextPageToken ?? undefined;
-			this.backfillPageToken = pageToken ?? null;
-			await onSyncStateProgress?.(this.getUpdatedSyncState(userEmail));
 		} while (pageToken);
 
 		this.backfillPending = false;
@@ -385,33 +405,29 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			return;
 		}
 
-		const msgResponse = await gmail.users.messages.get({
-			userId: userEmail,
-			id: messageId,
-			format: 'RAW',
-		});
-
-		if (msgResponse.data.raw) {
-			if (rawBase64ExceedsLimit(msgResponse.data.raw)) {
-				logger.warn(
-					{
-						messageId,
-						userEmail,
-						rawChars: msgResponse.data.raw.length,
-						maxBytes: MAX_GMAIL_RAW_BYTES,
-					},
-					'Skipping oversized Gmail RAW message to avoid heap OOM'
-				);
-				return;
-			}
-			const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
-			yield await this.parseRawEmail(
-				rawEmail,
-				msgResponse.data.id!,
-				userEmail,
-				labels.path,
-				labels.tags
+		if (gmailSizeEstimateExceedsLimit(metadataResponse.data.sizeEstimate)) {
+			logger.warn(
+				{
+					messageId,
+					userEmail,
+					sizeEstimate: metadataResponse.data.sizeEstimate,
+					maxBytes: MAX_GMAIL_RAW_BYTES,
+				},
+				'Skipping oversized Gmail message (sizeEstimate) to avoid heap OOM'
 			);
+			return;
+		}
+
+		const email = await this.downloadRawWithoutFullParse(
+			gmail,
+			userEmail,
+			messageId,
+			metadataResponse.data,
+			labels.path,
+			labels.tags
+		);
+		if (email) {
+			yield email;
 		}
 	}
 
@@ -426,11 +442,46 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			format: 'METADATA',
 			metadataHeaders: ['Message-ID', 'Subject', 'From', 'To', 'Cc', 'Date'],
 		});
+		if (gmailSizeEstimateExceedsLimit(metadataResponse.data.sizeEstimate)) {
+			logger.warn(
+				{
+					messageId,
+					userEmail,
+					sizeEstimate: metadataResponse.data.sizeEstimate,
+					maxBytes: MAX_GMAIL_RAW_BYTES,
+				},
+				'Skipping oversized Gmail RAW fallback (sizeEstimate) to avoid heap OOM'
+			);
+			return null;
+		}
 		const labels = await this.getLabelDetails(
 			gmail,
 			userEmail,
 			metadataResponse.data.labelIds || []
 		);
+		return this.downloadRawWithoutFullParse(
+			gmail,
+			userEmail,
+			messageId,
+			metadataResponse.data,
+			labels.path,
+			labels.tags
+		);
+	}
+
+	/**
+	 * Writes RAW bytes to a temp file and builds the EmailObject from METADATA
+	 * headers only. simpleParser on the full MIME body is what triggers
+	 * `invalid array length` on a single malformed/huge message.
+	 */
+	private async downloadRawWithoutFullParse(
+		gmail: gmail_v1.Gmail,
+		userEmail: string,
+		messageId: string,
+		metadata: gmail_v1.Schema$Message,
+		path: string,
+		tags: string[]
+	): Promise<EmailObject | null> {
 		const msgResponse = await gmail.users.messages.get({
 			userId: userEmail,
 			id: messageId,
@@ -447,17 +498,32 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 					rawChars: msgResponse.data.raw.length,
 					maxBytes: MAX_GMAIL_RAW_BYTES,
 				},
-				'Skipping oversized Gmail RAW fallback to avoid heap OOM'
+				'Skipping oversized Gmail RAW message to avoid heap OOM'
 			);
 			return null;
 		}
-		return this.parseRawEmail(
-			Buffer.from(msgResponse.data.raw, 'base64url'),
+
+		const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
+		const tempFilePath = await writeEmailToTempFile(rawEmail);
+		const email = await this.parseMetadataOnly(
 			msgResponse.data.id ?? messageId,
 			userEmail,
-			labels.path,
-			labels.tags
+			metadata,
+			path,
+			tags
 		);
+		email.tempFilePath = tempFilePath;
+		if (gmailPayloadHasAttachments(metadata)) {
+			email.attachments = [
+				{
+					filename: 'attachment',
+					contentType: 'application/octet-stream',
+					size: 0,
+					content: Buffer.alloc(0),
+				},
+			];
+		}
+		return email;
 	}
 
 	private extractRfcMessageId(message: gmail_v1.Schema$Message): string | undefined {

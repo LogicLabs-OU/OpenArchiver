@@ -1,5 +1,12 @@
-/** Skip RAW parse above this decoded size. Larger buffers trigger V8 `invalid array length`. */
-export const MAX_GMAIL_RAW_BYTES = 64 * 1024 * 1024;
+/** Skip RAW download/parse above this decoded size. Larger buffers trigger V8 `invalid array length`. */
+export const MAX_GMAIL_RAW_BYTES = 32 * 1024 * 1024;
+
+export function gmailSizeEstimateExceedsLimit(
+	sizeEstimate: number | null | undefined,
+	maxBytes: number = MAX_GMAIL_RAW_BYTES
+): boolean {
+	return typeof sizeEstimate === 'number' && sizeEstimate > maxBytes;
+}
 
 /**
  * Gmail `messages.get(format=RAW)` returns base64url. Decoded size is ~length * 3/4.
