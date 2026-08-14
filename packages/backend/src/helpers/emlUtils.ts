@@ -137,7 +137,18 @@ function addressToString(
  * @param emlBuffer The raw .eml file as a Buffer.
  * @returns A new Buffer with non-inline attachments removed, or the original if nothing was stripped.
  */
+/** simpleParser on large MIME bodies can throw V8 `invalid array length` (uncaughtable). */
+const MAX_STRIP_PARSE_BYTES = 8 * 1024 * 1024;
+
 export async function stripAttachmentsFromEml(emlBuffer: Buffer): Promise<Buffer> {
+	if (emlBuffer.length > MAX_STRIP_PARSE_BYTES) {
+		logger.warn(
+			{ sizeBytes: emlBuffer.length, maxBytes: MAX_STRIP_PARSE_BYTES },
+			'Skipping attachment strip for large .eml — storing original to avoid heap OOM'
+		);
+		return emlBuffer;
+	}
+
 	try {
 		const parsed = await simpleParser(emlBuffer);
 
