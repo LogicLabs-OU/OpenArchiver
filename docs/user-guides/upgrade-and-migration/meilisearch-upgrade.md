@@ -66,23 +66,40 @@ Before upgrading, you must create a dump of your existing Meilisearch data. You 
     docker compose ps
     ```
 
-    Look for the service name that corresponds to Meilisearch, usually `meilisearch`.
+    Look for the service name that corresponds to Meilisearch, usually `meilisearch`. If it differs, replace it in the exec commands below.
 
 2.  **Execute the dump command**:
     You will need your Meilisearch Admin API key, which can be found in your `.env` file as `MEILI_MASTER_KEY`.
 
     ```bash
-    curl -X POST 'http://localhost:7700/dumps' \
+    docker compose exec meilisearch curl -X POST 'http://localhost:7700/dumps' \
       -H "Authorization: Bearer YOUR_MEILI_MASTER_KEY"
     ```
 
     This will start the dump creation process. The dump file will be created inside the `meili_data` volume used by the Meilisearch container.
 
 3.  **Monitor the dump status**:
-    The dump creation request returns a `taskUid`. You can use this to check the status of the dump.
+    The dump creation request returns a `taskUid`. You can use this to check the status of the dump:
+
+    ```bash
+    docker compose exec meilisearch curl 'http://localhost:7700/tasks/YOUR_TASK_UID' \
+    -H "Authorization: Bearer YOUR_MEILI_MASTER_KEY"     
+    ```
+
+    Once the task `status` field reads `succeeded`, you can continue with the next steps.
+
+4.  **Get the Dump file name**:
+    To import the dump, you will need the filename:
+
+    ```bash
+    docker compose exec meilisearch ls /meili_data/dumps
+
+    ```
+
+    If there are multiple files returned, the filenames will be a datestamps, so the most recent one will be the correct one to use.
 
     For more details on dump and import, see the [official Meilisearch documentation](https://www.meilisearch.com/docs/learn/update_and_migration/updating).
-
+    
 ### Step 2: Upgrade Your Open Archiver Instance
 
 Once the dump is successfully created, you can proceed with the standard Open Archiver upgrade process.
@@ -104,9 +121,7 @@ Once the dump is successfully created, you can proceed with the standard Open Ar
 Now, you need to restart the services while telling Meilisearch to import from your dump file.
 
 1.  **Modify `docker-compose.yml`**:
-    You need to temporarily add the `--import-dump` flag to the Meilisearch service command. Find the `meilisearch` service in your `docker-compose.yml` and modify the `command` section.
-
-    You will need the name of your dump file. It will be a `.dump` file located in the directory mapped to `/meili_data` inside the container.
+    You need to temporarily add the `--import-dump` flag to the Meilisearch service command. Find the `meilisearch` service in your `docker-compose.yml` and add a `command` section:
 
     ```yaml
     services:
@@ -114,13 +129,22 @@ Now, you need to restart the services while telling Meilisearch to import from y
             # ... other service config
             command:
                 [
+                    '/bin/meilisearch',
                     '--master-key=${MEILI_MASTER_KEY}',
                     '--env=production',
                     '--import-dump=/meili_data/dumps/YOUR_DUMP_FILE.dump',
                 ]
     ```
+2.  **Remove the old DB**
+    Meilisearch will not import a dump while the existing DB is in place, so it must be removed before starting the container. You can remove it from the host system now while the container is not running. Find where the meilisearch volume is mounted on the host:
 
-2.  **Restart the services**:
+    ```bash
+    docker volume inspect openarchiver_meilidata
+    ```
+
+    In the output for this will be a field labeled `"Mountpoint"`. Navigate to that folder, and delete or rename the `data.ms` folder from within it.
+    
+3.  **Restart the services**:
     ```bash
     docker compose up -d
     ```
@@ -130,10 +154,17 @@ Now, you need to restart the services while telling Meilisearch to import from y
 
 Once the import is complete and you have verified that your search is working correctly, you should remove the `--import-dump` flag from your `docker-compose.yml` to prevent it from running on every startup.
 
-1.  **Remove the `--import-dump` line** from the `command` section of the `meilisearch` service in `docker-compose.yml`.
-2.  **Restart the services** one last time:
+1.  **Restore the docker compose file**: Remove the  `command` section of the `meilisearch` service in `docker-compose.yml`.
+2.  **Restart the services one last time**:
+
     ```bash
     docker compose up -d
+    ```
+
+3.  **Delete the dump**:
+
+    ```bash
+    docker compose exec meilisearch rm /meili_data/dumps/YOUR_DUMP_FILE.dump
     ```
 
 Your Meilisearch instance is now upgraded and running with your migrated data.
