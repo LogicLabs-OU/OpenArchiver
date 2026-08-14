@@ -2,6 +2,13 @@ export type SyncState = {
 	google?: {
 		[userEmail: string]: {
 			historyId: string;
+			/**
+			 * When true, messages.list backfill is still in progress. Survives worker
+			 * crashes so the next cycle resumes instead of starting a full import again.
+			 */
+			backfillPending?: boolean;
+			/** Gmail messages.list page token for a crash-resumable backfill. */
+			backfillPageToken?: string | null;
 		};
 	};
 	microsoft?: {
