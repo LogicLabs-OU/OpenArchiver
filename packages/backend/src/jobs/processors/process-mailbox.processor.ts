@@ -1,5 +1,10 @@
 import { Job } from 'bullmq';
-import { IProcessMailboxJob, ProcessMailboxError, PendingEmail } from '@open-archiver/types';
+import {
+	IProcessMailboxJob,
+	ProcessMailboxError,
+	PendingEmail,
+	EmailObject,
+} from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
 import { logger } from '../../config/logger';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
@@ -34,47 +39,95 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		const connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
-		// Pre-check for duplicates without fetching full email content.
-		// Scoped to this specific mailbox (userEmail) so that different recipients
-		// of the same email each get their own archived row — only skipping when
-		// THIS mailbox already has the email (re-sync idempotency).
+		const { idCache, groupSourceIds } = await IngestionService.preloadMailboxDuplicateIds(
+			ingestionSourceId,
+			userEmail
+		);
+		logger.info(
+			{
+				ingestionSourceId,
+				userEmail,
+				preloadedProviderIds: idCache.mailboxProviderIds.size,
+				preloadedRfcIds: idCache.mailboxRfcIds.size,
+			},
+			'Pre-loaded per-mailbox IDs for duplicate checking'
+		);
+
 		const checkDuplicate = async (messageId: string) => {
-			return await IngestionService.doesEmailExist(messageId, ingestionSourceId, userEmail);
+			return IngestionService.isMailboxDuplicate(messageId, idCache);
 		};
 
-		// Per-message accounting: processEmail returns a ProcessEmailError object on
-		// genuine failures (parse/storage/DB) and null only for dedup skips. Failures
-		// must count towards the mailbox result — treating them as skips let imports
-		// drop messages while still reporting success (#403).
+		const checkGroupHasMessageId = (rfcMessageId: string) => {
+			return IngestionService.groupHasRfcMessageId(rfcMessageId, groupSourceIds, idCache);
+		};
+
 		let messagesSeen = 0;
 		let messagesArchived = 0;
 		let messagesFailed = 0;
 		const failureSamples: string[] = [];
 		const MAX_FAILURE_SAMPLES = 5;
 
-		// Must stay well under cleanStaleSessions()'s 30-minute inactivity threshold.
 		const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 		let lastHeartbeatAt = Date.now();
+
+		const processOne = async (email: EmailObject) => {
+			return ingestionService.processEmail(
+				email,
+				source,
+				storageService,
+				userEmail,
+				false,
+				groupSourceIds,
+				idCache
+			);
+		};
 
 		for await (const email of connector.fetchEmails(
 			userEmail,
 			source.syncState,
-			checkDuplicate
+			checkDuplicate,
+			checkGroupHasMessageId
 		)) {
 			if (email) {
 				messagesSeen++;
-				const processedEmail = await ingestionService.processEmail(
-					email,
-					source,
-					storageService,
-					userEmail
-				);
-				if (processedEmail && 'error' in processedEmail) {
+				let processedEmail = await processOne(email);
+
+				if (processedEmail === 'needs_raw') {
+					if (!connector.fetchRawEmail) {
+						messagesFailed++;
+						if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+							failureSamples.push(
+								`Email ${email.id}: METADATA-only miss and no RAW fallback`
+							);
+						}
+					} else {
+						const rawEmail = await connector.fetchRawEmail(userEmail, email.id);
+						if (!rawEmail) {
+							messagesFailed++;
+							if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+								failureSamples.push(`Email ${email.id}: RAW fallback empty`);
+							}
+						} else {
+							processedEmail = await processOne(rawEmail);
+							if (processedEmail === 'needs_raw') {
+								messagesFailed++;
+								if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+									failureSamples.push(
+										`Email ${email.id}: RAW fallback still needs_raw`
+									);
+								}
+								processedEmail = null;
+							}
+						}
+					}
+				}
+
+				if (processedEmail && typeof processedEmail === 'object' && 'error' in processedEmail) {
 					messagesFailed++;
 					if (failureSamples.length < MAX_FAILURE_SAMPLES) {
 						failureSamples.push(processedEmail.message);
 					}
-				} else if (processedEmail) {
+				} else if (processedEmail && processedEmail !== 'needs_raw') {
 					messagesArchived++;
 					emailBatch.push(processedEmail);
 					if (emailBatch.length >= BATCH_SIZE) {
@@ -83,13 +136,6 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 					}
 				}
 			}
-			// Heartbeat on wall-clock time, unconditionally. A single large mailbox can
-			// take hours, and long stretches legitimately archive nothing (dedup-skip
-			// streaks on re-sync, slow folders with large attachments), so a heartbeat
-			// tied to batch flushes starves in exactly those stretches —
-			// cleanStaleSessions() then marks the live import stale after 30 minutes,
-			// flips the source to 'error', and the next scheduler tick launches a SECOND
-			// concurrent import that races this one and duplicates the archive.
 			if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
 				await SyncSessionService.heartbeat(sessionId);
 				lastHeartbeatAt = Date.now();
@@ -107,12 +153,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			`Finished processing mailbox for user`
 		);
 
-		// Report the result to the session and check if this is the last job.
-		// Any per-message failure marks the mailbox as failed so the source ends the
-		// cycle in 'error' status with the counts visible, instead of a silent success.
-		// The sync state for this run is discarded on failure; the next sync re-scans
-		// and dedup skips what was already archived.
-		const { isLast, totalFailed } = await SyncSessionService.recordMailboxResult(
+		const { isLast } = await SyncSessionService.recordMailboxResult(
 			sessionId,
 			messagesFailed > 0
 				? {
@@ -134,7 +175,6 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			});
 		}
 	} catch (error) {
-		// Flush any buffered emails before reporting failure
 		if (emailBatch.length > 0) {
 			await indexingQueue.add('index-email-batch', { emails: emailBatch });
 			emailBatch = [];
@@ -147,7 +187,6 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			message: `Failed to process mailbox for ${userEmail}: ${errorMessage}`,
 		};
 
-		// Report failure to the session — this still counts towards the total
 		try {
 			const { isLast } = await SyncSessionService.recordMailboxResult(
 				sessionId,
@@ -171,8 +210,5 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 				'Failed to record mailbox error in sync session'
 			);
 		}
-
-		// Do not re-throw — a single failed mailbox should not mark the BullMQ job as failed
-		// and trigger retries that would double-count against the session counter.
 	}
 };

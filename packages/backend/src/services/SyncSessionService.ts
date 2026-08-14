@@ -99,16 +99,33 @@ export class SyncSessionService {
 			throw new Error(`Sync session ${sessionId} not found when recording mailbox result.`);
 		}
 
-		// If the result is a successful SyncState with actual content, merge it into the
-		// ingestion source's syncState column using PostgreSQL's || jsonb merge operator.
-		// This is done incrementally per mailbox to avoid the large deepmerge at the end.
+		// One-level deep merge so `{ google: { userB: … } }` does not replace the
+		// entire `google` object (Postgres `||` is shallow and would drop userA).
 		if (!isError) {
 			const syncState = result as SyncState;
 			if (Object.keys(syncState).length > 0) {
+				const incomingJson = JSON.stringify(syncState);
 				await db
 					.update(ingestionSources)
 					.set({
-						syncState: sql`COALESCE(${ingestionSources.syncState}, '{}'::jsonb) || ${JSON.stringify(syncState)}::jsonb`,
+						syncState: sql`COALESCE(
+							(
+								SELECT jsonb_object_agg(
+									COALESCE(old_kv.key, new_kv.key),
+									CASE
+										WHEN jsonb_typeof(new_kv.value) = 'object'
+											AND jsonb_typeof(COALESCE(old_kv.value, 'null'::jsonb)) = 'object'
+										THEN COALESCE(old_kv.value, '{}'::jsonb) || new_kv.value
+										WHEN new_kv.value IS NOT NULL THEN new_kv.value
+										ELSE old_kv.value
+									END
+								)
+								FROM jsonb_each(COALESCE(${ingestionSources.syncState}, '{}'::jsonb)) AS old_kv
+								FULL OUTER JOIN jsonb_each(CAST(${incomingJson} AS jsonb)) AS new_kv
+									ON old_kv.key = new_kv.key
+							),
+							'{}'::jsonb
+						)`,
 					})
 					.where(eq(ingestionSources.id, updated.ingestionSourceId));
 			}

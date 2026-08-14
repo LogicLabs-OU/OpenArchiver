@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install pnpm
 RUN --mount=type=cache,target=/root/.npm \
-    npm install -g pnpm
+    npm install -g pnpm@10.13.1
 
 # Copy manifests and lockfile
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
