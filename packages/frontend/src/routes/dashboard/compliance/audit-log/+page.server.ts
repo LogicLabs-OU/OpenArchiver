@@ -3,12 +3,13 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type { GetAuditLogsResponse } from '@open-archiver/types';
 import { error } from '@sveltejs/kit';
+import { enterpriseOnly } from '$lib/server/enterprise-gate';
 
 export const load: PageServerLoad = async (event) => {
 	if (!event.locals.enterpriseMode) {
-		throw error(
-			403,
-			'This feature is only available in the Enterprise Edition. Please contact Open Archiver to upgrade.'
+		enterpriseOnly(
+			'app.audit_log.title',
+			'app.components.enterprise_feature_notice.pitch.audit_log'
 		);
 	}
 	// Forward search params from the page URL to the API request

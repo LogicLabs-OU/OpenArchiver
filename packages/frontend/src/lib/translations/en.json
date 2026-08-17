@@ -474,7 +474,16 @@
 				"badge": "Enterprise Edition",
 				"description": "This feature is only available in the Enterprise Edition.",
 				"upgrade": "Upgrade to unlock it along with the other enterprise features.",
-				"cta": "Compare editions"
+				"cta": "Compare editions",
+				"pitch": {
+					"audit_log": "Records who did what: logins, searches, downloads and settings changes, with the account and the time. Entries are chained, so edits to the history show up.",
+					"retention_policies": "Rules that delete archived mail once it reaches an age you set, limited to the sources or conditions you choose.",
+					"retention_labels": "Named retention periods you apply to single emails, for messages that should be kept longer or shorter than the rules give them.",
+					"legal_holds": "Marks emails as exempt from deletion. While a hold is active, neither retention policies nor manual deletion can remove them.",
+					"journaling": "Takes a copy of each message straight from your mail server over SMTP as it is sent and received, so mail a user deletes is still archived.",
+					"security_policy": "Turns on two-factor authentication for sign-in, and can require it on every account with a grace period to enrol.",
+					"license_status": "This instance runs the open-source edition, so there is no license to show here."
+				}
 			}
 		},
 		"setup": {
@@ -505,6 +514,7 @@
 			"index_admin": "Index",
 			"license_status": "License Status",
 			"security_policy": "Security Policy",
+			"compliance": "Compliance",
 			"two_factor_auth": "Two-Factor Auth"
 		},
 		"api_keys_page": {

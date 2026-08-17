@@ -1,13 +1,16 @@
 import { api } from '$lib/server/api';
+import { enterpriseOnly } from '$lib/server/enterprise-gate';
 import type { PageServerLoad } from './$types';
 import type { ConsolidatedLicenseStatus } from '@open-archiver/types';
 import { error } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async (event) => {
 	if (!event.locals.enterpriseMode) {
-		throw error(
-			403,
-			'This feature is only available in the Enterprise Edition. Please contact Open Archiver to upgrade.'
+		// The only one of these that has nothing to sell — an open-source instance has no license
+		// to display, so the copy says so rather than pitching.
+		enterpriseOnly(
+			'app.layout.license_status',
+			'app.components.enterprise_feature_notice.pitch.license_status'
 		);
 	}
 	try {

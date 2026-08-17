@@ -1,13 +1,14 @@
 import { api } from '$lib/server/api';
+import { enterpriseOnly } from '$lib/server/enterprise-gate';
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { RetentionLabel } from '@open-archiver/types';
 
 export const load: PageServerLoad = async (event) => {
 	if (!event.locals.enterpriseMode) {
-		throw error(
-			403,
-			'This feature is only available in the Enterprise Edition. Please contact Open Archiver to upgrade.'
+		enterpriseOnly(
+			'app.retention_labels.title',
+			'app.components.enterprise_feature_notice.pitch.retention_labels'
 		);
 	}
 

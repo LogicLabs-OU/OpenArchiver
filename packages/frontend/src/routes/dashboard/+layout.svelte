@@ -19,11 +19,16 @@
 			href: string;
 			label: string;
 		}[];
-		position: number; // represents the position of the item in the navigation menu
 	}
 
-	const baseNavItems: NavItem[] = [
-		{ href: '/dashboard', label: $t('app.layout.dashboard'), position: 0 },
+	/**
+	 * One list for both editions. Enterprise pages used to be spliced in only when
+	 * `data.enterpriseMode` was set, which left an open-source user with no way to find them; they
+	 * are now always listed, and the page itself explains the edition difference through
+	 * EnterpriseFeatureNotice.
+	 */
+	const navItems: NavItem[] = [
+		{ href: '/dashboard', label: $t('app.layout.dashboard') },
 		{
 			label: $t('app.archive.title'),
 			subMenu: [
@@ -32,11 +37,32 @@
 					href: '/dashboard/archived-emails',
 					label: $t('app.layout.archived_emails'),
 				},
+				{
+					href: '/dashboard/ingestions/journaling',
+					label: $t('app.journaling.title'),
+				},
 			],
-			position: 1,
 		},
 
-		{ href: '/dashboard/search', label: $t('app.layout.search'), position: 2 },
+		{ href: '/dashboard/search', label: $t('app.layout.search') },
+		{
+			label: $t('app.layout.compliance'),
+			subMenu: [
+				{ href: '/dashboard/compliance/audit-log', label: $t('app.audit_log.title') },
+				{
+					href: '/dashboard/compliance/retention-policies',
+					label: $t('app.retention_policies.title'),
+				},
+				{
+					href: '/dashboard/compliance/retention-labels',
+					label: $t('app.retention_labels.title'),
+				},
+				{
+					href: '/dashboard/compliance/legal-holds',
+					label: $t('app.legal_holds.title'),
+				},
+			],
+		},
 		{
 			label: $t('app.layout.admin'),
 			subMenu: [
@@ -56,8 +82,9 @@
 					href: '/dashboard/settings/roles',
 					label: $t('app.layout.roles'),
 				},
+				{ href: '/dashboard/admin/security', label: $t('app.layout.security_policy') },
+				{ href: '/dashboard/admin/license', label: $t('app.layout.license_status') },
 			],
-			position: 4,
 		},
 		{
 			label: $t('app.layout.settings'),
@@ -75,83 +102,9 @@
 					label: $t('app.layout.account'),
 				},
 			],
-			position: 5,
 		},
 	];
 
-	const enterpriseNavItems: NavItem[] = [
-		{
-			label: $t('app.archive.title'),
-			subMenu: [
-				{
-					href: '/dashboard/ingestions/journaling',
-					label: $t('app.journaling.title'),
-				},
-			],
-			position: 1,
-		},
-		{
-			label: 'Compliance',
-			subMenu: [
-				{ href: '/dashboard/compliance/audit-log', label: $t('app.audit_log.title') },
-				{
-					href: '/dashboard/compliance/retention-policies',
-					label: $t('app.retention_policies.title'),
-				},
-				{
-					href: '/dashboard/compliance/retention-labels',
-					label: $t('app.retention_labels.title'),
-				},
-				{
-					href: '/dashboard/compliance/legal-holds',
-					label: $t('app.legal_holds.title'),
-				},
-			],
-			position: 3,
-		},
-		{
-			label: $t('app.layout.admin'),
-			subMenu: [
-				{ href: '/dashboard/admin/security', label: $t('app.layout.security_policy') },
-				{ href: '/dashboard/admin/license', label: $t('app.layout.license_status') },
-			],
-			position: 4,
-		},
-	];
-
-	function mergeNavItems(baseItems: NavItem[], enterpriseItems: NavItem[]): NavItem[] {
-		const mergedItemsMap = new Map<number, NavItem>();
-
-		for (const item of baseItems) {
-			mergedItemsMap.set(item.position, {
-				...item,
-				subMenu: item.subMenu ? [...item.subMenu] : undefined,
-			});
-		}
-
-		for (const enterpriseItem of enterpriseItems) {
-			const existingItem = mergedItemsMap.get(enterpriseItem.position);
-
-			if (existingItem) {
-				if (existingItem.subMenu && enterpriseItem.subMenu) {
-					existingItem.subMenu = [...existingItem.subMenu, ...enterpriseItem.subMenu];
-				}
-			} else {
-				mergedItemsMap.set(enterpriseItem.position, {
-					...enterpriseItem,
-					subMenu: enterpriseItem.subMenu ? [...enterpriseItem.subMenu] : undefined,
-				});
-			}
-		}
-
-		const mergedItems = Array.from(mergedItemsMap.values());
-		return mergedItems.sort((a, b) => a.position - b.position);
-	}
-
-	let navItems: NavItem[] = $state(baseNavItems);
-	if (data.enterpriseMode) {
-		navItems = mergeNavItems(baseNavItems, enterpriseNavItems);
-	}
 	function handleLogout() {
 		authStore.logout();
 		goto('/signin');

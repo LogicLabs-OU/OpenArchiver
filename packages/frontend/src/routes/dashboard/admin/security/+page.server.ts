@@ -1,13 +1,14 @@
 import { api } from '$lib/server/api';
+import { enterpriseOnly } from '$lib/server/enterprise-gate';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type { AdvancedSecurityPolicy } from '@open-archiver/types';
 
 export const load: PageServerLoad = async (event) => {
 	if (!event.locals.enterpriseMode) {
-		throw error(
-			403,
-			'Advanced security settings are only available in the Enterprise Edition.'
+		enterpriseOnly(
+			'app.layout.security_policy',
+			'app.components.enterprise_feature_notice.pitch.security_policy'
 		);
 	}
 
