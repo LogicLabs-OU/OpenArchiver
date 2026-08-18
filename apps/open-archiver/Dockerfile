@@ -6,16 +6,20 @@ ARG BASE_IMAGE=node:22-alpine
 FROM ${BASE_IMAGE} AS base
 WORKDIR /app
 
-# Install pnpm
-RUN --mount=type=cache,target=/root/.npm \
-    npm install -g pnpm
-
 # Copy manifests and lockfile
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/types/package.json ./packages/types/
 COPY apps/open-archiver/package.json ./apps/open-archiver/
+
+# Install the exact pnpm the repo pins. Unversioned, this installed whatever npm called latest, and
+# pnpm 11 answers the packageManager field by fetching @pnpm/exe to switch itself back down to
+# 10.13.1 — a download its own integrity check then refuses, because pnpm-lock.yaml has no entry for
+# it. Installing the pinned version outright leaves nothing to switch to. Read from packageManager so
+# the version lives in one place rather than two.
+RUN --mount=type=cache,target=/root/.npm \
+    npm install -g "pnpm@$(node -p 'require("/app/package.json").packageManager.split("@")[1]')"
 
 # 1. Build Stage: Install all dependencies and build the project
 FROM base AS build
