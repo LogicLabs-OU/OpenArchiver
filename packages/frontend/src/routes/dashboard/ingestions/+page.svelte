@@ -14,6 +14,7 @@
 		CreateIngestionSourceDto,
 		IndexHealth,
 		ReindexMode,
+		IReindexResponse,
 	} from '@open-archiver/types';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
@@ -146,52 +147,91 @@
 		});
 	};
 
-	const handleReindex = async (id: string) => {
-		const res = await api(`/ingestion-sources/${id}/reindex`, { method: 'POST' });
-		if (!res.ok) {
-			const errorBody = await res.json();
+	/**
+	 * Reports what a reindex actually achieved rather than that the request was accepted.
+	 *
+	 * A 202 only means the job reached the queue. It says nothing about whether an indexing worker
+	 * exists to run it, or whether there was anything to do — and both of those have silently been
+	 * false in practice, leaving a success message on screen while nothing happened.
+	 */
+	const runReindex = async (path: string, mode: ReindexMode, scope: 'source' | 'all') => {
+		let body: Partial<IReindexResponse>;
+
+		try {
+			const res = await api(path, { method: 'POST', body: JSON.stringify({ mode }) });
+			// Not res.json() straight into a variable: a proxy answering with an HTML 502 body makes
+			// this reject, and an unhandled rejection inside a menu onclick closes the menu with no
+			// alert at all — the user sees a click that did nothing.
+			body = await res.json().catch(() => ({}));
+
+			if (!res.ok) {
+				setAlert({
+					type: 'error',
+					title: $t('app.ingestions.reindex_failed'),
+					message: (body as { message?: string }).message ?? `HTTP ${res.status}`,
+					duration: 5000,
+					show: true,
+				});
+				return;
+			}
+		} catch (error) {
 			setAlert({
 				type: 'error',
-				title: 'Failed to trigger reindex',
-				message: errorBody.message || JSON.stringify(errorBody),
+				title: $t('app.ingestions.reindex_failed'),
+				message: error instanceof Error ? error.message : String(error),
 				duration: 5000,
 				show: true,
 			});
 			return;
 		}
+
+		const count = body.pending ?? 0;
+
+		if (body.pending === 0) {
+			setAlert({
+				type: 'warning',
+				title: $t('app.ingestions.reindex_nothing_title'),
+				message: $t(
+					scope === 'all'
+						? 'app.ingestions.reindex_nothing_all'
+						: mode === 'full'
+							? 'app.ingestions.reindex_nothing_full'
+							: 'app.ingestions.reindex_nothing'
+				),
+				duration: 8000,
+				show: true,
+			});
+			return;
+		}
+
+		// A warning, not an error, and reported after the count: the job IS durably queued — the
+		// enqueue happens before the liveness check — so telling the user it failed would be wrong and
+		// would invite a repeat click that stacks another full rebuild.
+		if (body.workerAlive === false) {
+			setAlert({
+				type: 'warning',
+				title: $t('app.ingestions.reindex_no_worker_title'),
+				message: $t('app.ingestions.reindex_no_worker', { count } as any),
+				duration: 10000,
+				show: true,
+			});
+			return;
+		}
+
 		setAlert({
 			type: 'success',
 			title: $t('app.ingestions.reindex_success'),
-			message: '',
-			duration: 3000,
+			message: $t('app.ingestions.reindex_queued', { count } as any),
+			duration: 5000,
 			show: true,
 		});
 	};
 
-	const handleReindexAll = async (mode: ReindexMode) => {
-		const res = await api(`/ingestion-sources/reindex-all`, {
-			method: 'POST',
-			body: JSON.stringify({ mode }),
-		});
-		if (!res.ok) {
-			const errorBody = await res.json();
-			setAlert({
-				type: 'error',
-				title: 'Failed to trigger reindex',
-				message: errorBody.message || JSON.stringify(errorBody),
-				duration: 5000,
-				show: true,
-			});
-			return;
-		}
-		setAlert({
-			type: 'success',
-			title: $t('app.ingestions.reindex_success'),
-			message: '',
-			duration: 3000,
-			show: true,
-		});
-	};
+	const handleReindex = (id: string, mode: ReindexMode) =>
+		runReindex(`/ingestion-sources/${id}/reindex`, mode, 'source');
+
+	const handleReindexAll = (mode: ReindexMode) =>
+		runReindex('/ingestion-sources/reindex-all', mode, 'all');
 
 	// Index-health per source, loaded lazily when the status hover card opens.
 	let indexHealth = $state<Record<string, IndexHealth | 'loading' | 'error'>>({});
@@ -604,10 +644,12 @@
 												{:else if indexHealth[source.id] === 'error'}
 													{$t('app.ingestions.index_health_error')}
 												{:else}
-													{@const h = indexHealth[source.id] as IndexHealth}
+													{@const h = indexHealth[
+														source.id
+													] as IndexHealth}
 													{$t('app.ingestions.index_health_summary', {
 														indexed: h.indexedCount,
-														total: h.archivedCount
+														total: h.archivedCount,
 													} as any)}
 												{/if}
 											</p>
@@ -643,7 +685,8 @@
 											>{$t('app.ingestions.actions')}</DropdownMenu.Label
 										>
 										<DropdownMenu.Item
-											onclick={() => goto(`/dashboard/ingestions/${source.id}`)}
+											onclick={() =>
+												goto(`/dashboard/ingestions/${source.id}`)}
 											>{$t('app.ingestions.view_stats')}</DropdownMenu.Item
 										>
 										<DropdownMenu.Item onclick={() => openEditDialog(source)}
@@ -652,9 +695,31 @@
 										<DropdownMenu.Item onclick={() => handleSync(source.id)}
 											>{$t('app.ingestions.force_sync')}</DropdownMenu.Item
 										>
-										<DropdownMenu.Item onclick={() => handleReindex(source.id)}
-											>{$t('app.ingestions.reindex')}</DropdownMenu.Item
-										>
+										<!-- Both modes, because "missing only" cannot repair the case
+										     where the database believes a row is indexed and the
+										     search index does not hold it. -->
+										<DropdownMenu.Sub>
+											<DropdownMenu.SubTrigger
+												>{$t(
+													'app.ingestions.reindex'
+												)}</DropdownMenu.SubTrigger
+											>
+											<DropdownMenu.SubContent>
+												<DropdownMenu.Item
+													onclick={() =>
+														handleReindex(source.id, 'missing')}
+													>{$t(
+														'app.ingestions.reindex_missing'
+													)}</DropdownMenu.Item
+												>
+												<DropdownMenu.Item
+													onclick={() => handleReindex(source.id, 'full')}
+													>{$t(
+														'app.ingestions.reindex_full'
+													)}</DropdownMenu.Item
+												>
+											</DropdownMenu.SubContent>
+										</DropdownMenu.Sub>
 										<DropdownMenu.Separator />
 										<DropdownMenu.Item
 											class="text-red-600"
@@ -751,7 +816,8 @@
 													)}</DropdownMenu.Label
 												>
 												<DropdownMenu.Item
-													onclick={() => goto(`/dashboard/ingestions/${child.id}`)}
+													onclick={() =>
+														goto(`/dashboard/ingestions/${child.id}`)}
 													>{$t(
 														'app.ingestions.view_stats'
 													)}</DropdownMenu.Item

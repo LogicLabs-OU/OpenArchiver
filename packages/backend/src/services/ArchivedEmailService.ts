@@ -63,10 +63,7 @@ export class ArchivedEmailService {
 
 		// Expand to the full merge group so emails from children appear when browsing a root source
 		const groupIds = await IngestionService.findGroupSourceIds(ingestionSourceId);
-		const sourceFilter =
-			groupIds.length === 1
-				? eq(archivedEmails.ingestionSourceId, groupIds[0])
-				: inArray(archivedEmails.ingestionSourceId, groupIds);
+		const sourceFilter = IngestionService.groupScopeFilter(groupIds);
 		const where = and(sourceFilter, drizzleFilter);
 
 		const countQuery = db
@@ -205,10 +202,7 @@ export class ArchivedEmailService {
 		// Expand thread query to the full merge group so threads can span across merged sources
 		if (email.threadId) {
 			const groupIds = await IngestionService.findGroupSourceIds(email.ingestionSourceId);
-			const sourceFilter =
-				groupIds.length === 1
-					? eq(archivedEmails.ingestionSourceId, groupIds[0])
-					: inArray(archivedEmails.ingestionSourceId, groupIds);
+			const sourceFilter = IngestionService.groupScopeFilter(groupIds);
 			threadEmails = await db.query.archivedEmails.findMany({
 				where: and(eq(archivedEmails.threadId, email.threadId), sourceFilter),
 				orderBy: [asc(archivedEmails.sentAt)],

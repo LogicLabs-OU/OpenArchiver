@@ -65,14 +65,23 @@ Already-ingested emails from the partial sync are preserved. The next sync skips
 | `SYNC_FREQUENCY`               | `* * * * *` | Cron pattern for continuous sync scheduling           |
 | `INGESTION_WORKER_CONCURRENCY` | `5`         | Number of `process-mailbox` jobs that run in parallel |
 | `MEILI_INDEXING_BATCH`         | `500`       | Number of emails per `index-email-batch` job          |
+| `MEILI_INDEXING_CHUNK`         | `25`        | Documents built and sent to Meilisearch at a time     |
+| `INDEXING_MAX_TEXT_BYTES`      | `1000000`   | Extracted text kept per attachment and per body       |
+| `MAX_INDEX_ATTEMPTS`           | `8`         | Failed attempts before an email is left out of search |
 
 ### Tuning `INGESTION_WORKER_CONCURRENCY`
 
 Each `process-mailbox` job holds at most one parsed email in memory at a time during the ingestion loop. At typical email sizes (~50KB average), memory pressure per concurrent job is low. Increase this value on servers with more RAM to process multiple mailboxes in parallel and reduce total sync time.
 
-### Tuning `MEILI_INDEXING_BATCH`
+### Tuning indexing memory
 
-Each `index-email-batch` job loads the `.eml` file and all attachments from storage into memory for text extraction before sending to Meilisearch. Reduce this value if the indexing worker experiences memory pressure on deployments with large attachments.
+Two settings look similar and do different jobs.
+
+`MEILI_INDEXING_CHUNK` is the memory dial. Building a document reads the whole `.eml` from storage, parses it, and extracts the text of every attachment, so this is the number of those that are resident at once. It is what to reduce when the indexing worker is under memory pressure — a deployment with large attachments may want 10 or less.
+
+`MEILI_INDEXING_BATCH` is queue granularity: how many email ids travel in one job. It does **not** drive memory, because a job processes its ids one chunk at a time. It does drive self-healing throughput, since the reconcile pass enqueues at most `INDEX_RECONCILE_PAGE_CAP` **jobs** per tick — so lowering it lowers how fast a backlog drains.
+
+`INDEXING_WORKER_MAX_OLD_SPACE_MB` (default `2048`) sets the worker's V8 heap ceiling. An explicit limit makes V8 collect harder as it approaches the limit rather than sizing itself from host RAM.
 
 ## Resilience
 

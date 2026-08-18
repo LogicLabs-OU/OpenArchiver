@@ -6,6 +6,7 @@ import scheduleContinuousSyncProcessor from '../jobs/processors/schedule-continu
 import { processMailboxProcessor } from '../jobs/processors/process-mailbox.processor';
 import syncCycleFinishedProcessor from '../jobs/processors/sync-cycle-finished.processor';
 import { logger } from '../config/logger';
+import { superviseWorker } from './supervision';
 
 const processor = async (job: any) => {
 	switch (job.name) {
@@ -49,21 +50,20 @@ const worker = new Worker('ingestion', processor, {
 	},
 });
 
+superviseWorker(worker);
+
 logger.info('Ingestion worker started');
 
-// Last-resort telemetry net for rejections/throws that ESCAPE a job's promise chain. Without
-// it, Node crashes the worker, which `concurrently` never restarts, stalling all ingestion.
-// Ordinary errors thrown inside a job are rejected and retried by BullMQ as usual, and
-// source-stream errors (e.g. EACCES on a locked file) are now surfaced at the connector so
-// they reject the job too — so this net only catches genuinely-escaped async failures. It
-// does NOT re-run the offending job (an escaped rejection is disconnected from BullMQ), so it
-// logs and keeps the worker alive rather than letting one dropped job take the process down.
+// Last-resort telemetry net for rejections/throws that ESCAPE a job's promise chain. Without it,
+// one such failure takes the process down. Ordinary errors thrown inside a job are rejected and
+// retried by BullMQ as usual, and source-stream errors (e.g. EACCES on a locked file) are raised at
+// the connector so they reject the job too — so this net only catches genuinely-escaped async
+// failures. It does NOT re-run the offending job (an escaped rejection is disconnected from BullMQ),
+// and it does NOT keep the worker alive — only the process. superviseWorker() above handles a
+// stopped run loop by exiting so the supervisor can restart.
 process.on('unhandledRejection', (reason) => {
 	logger.error({ reason }, 'Unhandled promise rejection in ingestion worker - continuing');
 });
 process.on('uncaughtException', (err) => {
 	logger.error({ err }, 'Uncaught exception in ingestion worker - continuing');
 });
-
-process.on('SIGINT', () => worker.close());
-process.on('SIGTERM', () => worker.close());

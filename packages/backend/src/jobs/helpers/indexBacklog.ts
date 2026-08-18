@@ -1,9 +1,32 @@
-import { and, asc, gt, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, type SQL } from 'drizzle-orm';
 import { db } from '../../database';
 import { archivedEmails } from '../../database/schema';
 import { indexingQueue } from '../queues';
 import { config } from '../../config';
-import type { PendingEmail } from '@open-archiver/types';
+import type { PendingEmail, ReindexMode } from '@open-archiver/types';
+
+/**
+ * The set of rows a reindex will hand to the indexer.
+ *
+ * `full` rebuilds everything in scope; `missing` only what the database believes is absent. Shared so
+ * the count reported on the API response and the scan the processor actually runs cannot drift apart
+ * — they were identical only by inspection, and a user-facing "0 emails queued" that disagreed with
+ * the job would be worse than no number at all.
+ *
+ * Note the asymmetry: the processor resets `is_indexed` to false across the scope BEFORE running this
+ * for `full`, so both modes end up scanning for unindexed rows. The count runs before that reset,
+ * which is why it needs the mode to know what to expect.
+ */
+export const buildReindexWhere = (mode: ReindexMode, scopeFilter?: SQL): SQL | undefined => {
+	const conditions: SQL[] = [];
+	if (scopeFilter) {
+		conditions.push(scopeFilter);
+	}
+	if (mode !== 'full') {
+		conditions.push(eq(archivedEmails.isIndexed, false));
+	}
+	return conditions.length ? and(...conditions) : undefined;
+};
 
 interface EnqueueBacklogOptions {
 	/** Extra filter combined (AND) with the keyset cursor, e.g. is_indexed = false

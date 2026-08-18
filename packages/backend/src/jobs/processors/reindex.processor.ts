@@ -1,9 +1,9 @@
 import { Job } from 'bullmq';
-import { and, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, eq, type SQL } from 'drizzle-orm';
 import { IReindexJob } from '@open-archiver/types';
 import { archivedEmails } from '../../database/schema';
 import { IngestionService } from '../../services/IngestionService';
-import { enqueueIndexBacklog } from '../helpers/indexBacklog';
+import { buildReindexWhere, enqueueIndexBacklog } from '../helpers/indexBacklog';
 import { resetIndexedFlagChunked } from '../helpers/resetIndexedFlag';
 import { logger } from '../../config/logger';
 
@@ -34,10 +34,7 @@ export default async function reindexProcessor(job: Job<IReindexJob>) {
 		}
 		// Include the whole merge group so children reindex with their root.
 		const groupIds = await IngestionService.findGroupSourceIds(ingestionSourceId);
-		scopeFilter =
-			groupIds.length === 1
-				? eq(archivedEmails.ingestionSourceId, groupIds[0])
-				: inArray(archivedEmails.ingestionSourceId, groupIds);
+		scopeFilter = IngestionService.groupScopeFilter(groupIds);
 	}
 
 	logger.info({ scope, ingestionSourceId, mode }, 'Starting reindex job');
@@ -61,14 +58,13 @@ export default async function reindexProcessor(job: Job<IReindexJob>) {
 		});
 	}
 
-	// Both modes now enqueue the scoped, unindexed rows. No pageCap — a user-triggered
-	// reindex should drain the full backlog (each job holds up to indexingBatchSize ids,
-	// so even millions of emails is only a few thousand small jobs).
-	const where: SQL = scopeFilter
-		? and(scopeFilter, eq(archivedEmails.isIndexed, false))!
-		: eq(archivedEmails.isIndexed, false);
-
-	const enqueued = await enqueueIndexBacklog({ where });
+	// Both modes now enqueue the scoped, unindexed rows — `full` reset them above, so 'missing' is
+	// the right predicate for both at this point. No pageCap: a user-triggered reindex should drain
+	// the full backlog (each job holds up to indexingBatchSize ids, so even millions of emails is
+	// only a few thousand small jobs).
+	const enqueued = await enqueueIndexBacklog({
+		where: buildReindexWhere('missing', scopeFilter),
+	});
 
 	logger.info({ scope, ingestionSourceId, mode, enqueued }, 'Reindex job finished dispatching');
 }

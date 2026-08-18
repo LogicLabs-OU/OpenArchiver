@@ -34,6 +34,25 @@ export interface IReindexJob {
 export interface IReconcileIndexJob {}
 
 /**
+ * What a reindex request actually achieved, beyond "the job reached the queue".
+ *
+ * Enqueuing succeeds whether or not anything will ever consume the queue, so a bare 202 told users
+ * their reindex had started when in fact nothing was listening. These two fields are what let the
+ * UI say something true.
+ */
+export interface IReindexDispatch {
+	/** How many emails the dispatched job will hand to the indexer. Zero means there was nothing to do. */
+	pending: number;
+	/** Whether an indexing worker has reported a heartbeat recently enough to be doing the work. */
+	workerAlive: boolean;
+}
+
+/** Body returned by both reindex endpoints. */
+export interface IReindexResponse extends IReindexDispatch {
+	message: string;
+}
+
+/**
  * A detailed representation of a job, providing essential information for monitoring and debugging.
  */
 export interface IJob {

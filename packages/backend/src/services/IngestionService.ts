@@ -9,7 +9,20 @@ import type {
 	PendingEmail,
 	ProcessEmailError,
 } from '@open-archiver/types';
-import { and, count, countDistinct, desc, eq, gte, inArray, max, min, or, sql } from 'drizzle-orm';
+import {
+	and,
+	count,
+	countDistinct,
+	desc,
+	eq,
+	gte,
+	inArray,
+	max,
+	min,
+	or,
+	sql,
+	type SQL,
+} from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
 import { ingestionQueue, indexingQueue } from '../jobs/queues';
@@ -19,6 +32,7 @@ import type {
 	IInitialImportJob,
 	EmailObject,
 	ReindexMode,
+	IReindexDispatch,
 	IngestionStats,
 } from '@open-archiver/types';
 import { stripAttachmentsFromEml } from '../helpers/emlUtils';
@@ -37,6 +51,8 @@ import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
+import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
+import { buildReindexWhere } from '../jobs/helpers/indexBacklog';
 
 /** Placeholder used when an email has no parseable From address. sender_email is NOT NULL,
  * so inserting null (from a missing/unparseable sender, e.g. Exchange "Deleted Items"
@@ -269,8 +285,13 @@ export class IngestionService {
 	 * Returns all ingestionSourceId values in a merge group given any member's ID.
 	 * If the source is standalone (no parent, no children), returns just its own ID.
 	 */
-	public static async findGroupSourceIds(sourceId: string): Promise<string[]> {
-		const source = await this.findById(sourceId);
+	public static async findGroupSourceIds(
+		sourceId: string,
+		known?: Pick<IngestionSource, 'id' | 'mergedIntoId'>
+	): Promise<string[]> {
+		// `known` lets a caller that already holds the row skip a second SELECT — and, more to the
+		// point, a second AES decrypt of its credentials, which findById does on every call.
+		const source = known ?? (await this.findById(sourceId));
 		const rootId = source.mergedIntoId ?? source.id;
 
 		const children = await db
@@ -279,6 +300,16 @@ export class IngestionService {
 			.where(eq(ingestionSources.mergedIntoId, rootId));
 
 		return [rootId, ...children.map((c) => c.id)];
+	}
+
+	/**
+	 * Restricts a query to one merge group's archived emails.
+	 *
+	 * `inArray` handles a single-element list perfectly well, so the `length === 1 ? eq : inArray`
+	 * ternary this replaces was branching for no reason — in nine separate copies.
+	 */
+	public static groupScopeFilter(sourceIds: string[]): SQL {
+		return inArray(archivedEmails.ingestionSourceId, sourceIds);
 	}
 
 	/**
@@ -430,11 +461,22 @@ export class IngestionService {
 	 * @param mode 'missing' (default) reindexes only emails not yet in the index;
 	 *   'full' rebuilds every document for the source.
 	 */
-	public static async triggerReindex(id: string, mode: ReindexMode = 'missing'): Promise<void> {
+	public static async triggerReindex(
+		id: string,
+		mode: ReindexMode = 'missing'
+	): Promise<IReindexDispatch> {
 		const source = await this.findById(id);
 		if (!source) {
 			throw new Error('Ingestion source not found');
 		}
+
+		const groupIds = await this.findGroupSourceIds(id, source);
+		const scopeFilter = this.groupScopeFilter(groupIds);
+		const [pending, workerAlive] = await Promise.all([
+			this.countReindexTargets(mode, scopeFilter),
+			isIndexingWorkerAlive(),
+		]);
+
 		// attempts: 1 — the master reindex resets is_indexed=false before dispatching, so an
 		// auto-retry would re-reset rows workers already re-indexed. A failed dispatch is
 		// re-triggerable by hand and the periodic reconcile job backstops any gap. The
@@ -448,15 +490,47 @@ export class IngestionService {
 			},
 			{ attempts: 1 }
 		);
+
+		return { pending, workerAlive };
 	}
 
 	/**
 	 * Enqueues a reindex of the entire archive across all sources.
 	 * @param mode 'missing' (default) or 'full'.
 	 */
-	public static async triggerReindexAll(mode: ReindexMode = 'missing'): Promise<void> {
+	public static async triggerReindexAll(
+		mode: ReindexMode = 'missing'
+	): Promise<IReindexDispatch> {
+		const [pending, workerAlive] = await Promise.all([
+			this.countReindexTargets(mode),
+			isIndexingWorkerAlive(),
+		]);
+
 		// attempts: 1 — see triggerReindex; the destructive is_indexed reset must not auto-retry.
 		await indexingQueue.add('reindex', { scope: 'all', mode }, { attempts: 1 });
+
+		return { pending, workerAlive };
+	}
+
+	/**
+	 * How many emails the dispatched reindex job will hand to the indexer, using the same predicate
+	 * the processor applies: `full` rebuilds everything in scope, `missing` only what the database
+	 * believes is absent from the index.
+	 *
+	 * Counted here rather than reported by the job so the answer can travel back on the HTTP
+	 * response. It is a snapshot — ingestion may add rows between this count and the job running —
+	 * but the distinction that matters to a user, "some" versus "none at all", is exact.
+	 */
+	private static async countReindexTargets(
+		mode: ReindexMode,
+		scopeFilter?: SQL
+	): Promise<number> {
+		const [row] = await db
+			.select({ total: count() })
+			.from(archivedEmails)
+			.where(buildReindexWhere(mode, scopeFilter));
+
+		return row?.total ?? 0;
 	}
 
 	/**
@@ -468,10 +542,7 @@ export class IngestionService {
 		id: string
 	): Promise<{ archivedCount: number; indexedCount: number }> {
 		const groupIds = await this.findGroupSourceIds(id);
-		const sourceFilter =
-			groupIds.length === 1
-				? eq(archivedEmails.ingestionSourceId, groupIds[0])
-				: inArray(archivedEmails.ingestionSourceId, groupIds);
+		const sourceFilter = IngestionService.groupScopeFilter(groupIds);
 
 		// Count archived rows vs. rows the DB knows are indexed in a single scan.
 		// `is_indexed` is set by IndexingService.markIndexed only after Meilisearch
@@ -501,14 +572,8 @@ export class IngestionService {
 		const rootId = source.mergedIntoId ?? source.id;
 		const groupIds = await this.findGroupSourceIds(id);
 
-		const emailFilter =
-			groupIds.length === 1
-				? eq(archivedEmails.ingestionSourceId, groupIds[0])
-				: inArray(archivedEmails.ingestionSourceId, groupIds);
-		const attachmentFilter =
-			groupIds.length === 1
-				? eq(attachmentsSchema.ingestionSourceId, groupIds[0])
-				: inArray(attachmentsSchema.ingestionSourceId, groupIds);
+		const emailFilter = IngestionService.groupScopeFilter(groupIds);
+		const attachmentFilter = inArray(attachmentsSchema.ingestionSourceId, groupIds);
 
 		const thirtyDaysAgo = new Date();
 		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -829,10 +894,7 @@ export class IngestionService {
 		const messageId = IngestionService.boundMessageKey(rawMessageId);
 		const userEmail = normalizeEmailAddress(rawUserEmail);
 		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
-		const sourceFilter =
-			groupIds.length === 1
-				? eq(archivedEmails.ingestionSourceId, groupIds[0])
-				: inArray(archivedEmails.ingestionSourceId, groupIds);
+		const sourceFilter = IngestionService.groupScopeFilter(groupIds);
 
 		const existingEmail = await db.query.archivedEmails.findFirst({
 			where: and(
@@ -1028,10 +1090,7 @@ export class IngestionService {
 			// ─────────────────────────────────────────────────────────────────
 
 			const groupIds = await IngestionService.findGroupSourceIds(source.id);
-			const groupSourceFilter =
-				groupIds.length === 1
-					? eq(archivedEmails.ingestionSourceId, groupIds[0])
-					: inArray(archivedEmails.ingestionSourceId, groupIds);
+			const groupSourceFilter = IngestionService.groupScopeFilter(groupIds);
 
 			// Gate 1: Per-mailbox duplicate check (idempotency guard for re-sync)
 			const perMailboxDuplicate = await db.query.archivedEmails.findFirst({

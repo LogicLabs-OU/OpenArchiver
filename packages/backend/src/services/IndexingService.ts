@@ -10,10 +10,13 @@ import { StorageService } from './StorageService';
 import { extractText } from '../helpers/textExtractor';
 import { DatabaseService } from './DatabaseService';
 import { archivedEmails, attachments, emailAttachments } from '../database/schema';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
+import { truncateToBytes } from '../helpers/truncateToBytes';
 import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
 import { logger } from '../config/logger';
+import { config } from '../config';
+import { MeiliSearchApiError } from 'meilisearch';
 
 interface DbRecipients {
 	to: { name: string; address: string }[];
@@ -41,23 +44,21 @@ function sanitizeText(text: string): string {
 }
 
 /**
- * Recursively sanitize all string values in an object to prevent JSON issues
+ * Whether Meilisearch refused the request because of what was sent, rather than because the engine
+ * was unreachable or busy.
+ *
+ * Only `MeiliSearchApiError` carries an HTTP response — a connection failure raises
+ * `MeiliSearchRequestError` and a slow task raises `MeiliSearchTaskTimeOutError`, neither of which
+ * has one. A 4xx means retrying the identical payload will fail identically (413 for an oversized
+ * chunk, 400 for a malformed document), so it is the document's fault and counts. A 5xx is the
+ * engine's, and does not.
  */
-function sanitizeObject<T>(obj: T): T {
-	if (typeof obj === 'string') {
-		return sanitizeText(obj) as unknown as T;
-	} else if (Array.isArray(obj)) {
-		return obj.map(sanitizeObject) as unknown as T;
-	} else if (obj !== null && typeof obj === 'object') {
-		const sanitized: any = {};
-		for (const key in obj) {
-			if (Object.prototype.hasOwnProperty.call(obj, key)) {
-				sanitized[key] = sanitizeObject((obj as any)[key]);
-			}
-		}
-		return sanitized;
+function isDocumentRejection(error: unknown): boolean {
+	if (!(error instanceof MeiliSearchApiError)) {
+		return false;
 	}
-	return obj;
+	const status = error.response?.status;
+	return typeof status === 'number' && status >= 400 && status < 500;
 }
 
 export class IndexingService {
@@ -76,7 +77,16 @@ export class IndexingService {
 	}
 
 	/**
-	 * Index multiple emails in a single batch operation for better performance
+	 * Indexes a batch of archived emails.
+	 *
+	 * Documents are built and shipped in chunks rather than all at once. That is what bounds the
+	 * worker's memory: building a document reads the whole .eml into a Buffer, parses it, and
+	 * extracts attachment text, so holding a full batch of them at once is what exhausted the heap
+	 * in production ("Ineffective mark-compacts near heap limit" after eight 500-email jobs). Peak
+	 * usage now follows `indexingChunkSize`, not how many ids the job happens to carry.
+	 *
+	 * Marking is per chunk too, so a crash part-way through keeps the progress already confirmed by
+	 * Meilisearch instead of discarding the whole job's work.
 	 */
 	public async indexEmailBatch(emails: PendingEmail[]): Promise<void> {
 		if (emails.length === 0) {
@@ -85,35 +95,55 @@ export class IndexingService {
 
 		logger.info({ batchSize: emails.length }, 'Starting batch indexing of emails');
 
-		const CONCURRENCY_LIMIT = 10;
-		const rawDocuments: EmailDocument[] = [];
-		// Emails whose document could not be BUILT (corrupt EML, parse error, etc.).
-		// These are email-specific ("poison") failures — increment index_attempts so
-		// the reconcile job eventually stops retrying them. They are NOT thrown, so the
-		// rest of the batch still indexes.
-		const buildFailedIds: string[] = [];
+		const chunkSize = Math.max(1, config.meili.indexingChunkSize);
+		// Building is I/O-bound (storage read, parse, text extraction) and independent of how many
+		// documents travel to Meilisearch together, so it keeps its own cap instead of inheriting the
+		// payload size. Tying the two meant raising the chunk to reduce round trips also raised how
+		// many .eml buffers were resident at once — the opposite of what the chunk exists to control.
+		const buildConcurrency = Math.min(10, chunkSize);
 
-		for (let i = 0; i < emails.length; i += CONCURRENCY_LIMIT) {
-			const batch = emails.slice(i, i + CONCURRENCY_LIMIT);
+		const pending = await this.skipAlreadyIndexed(emails);
+		let buildFailed = 0;
+		let invalid = 0;
+		let indexed = 0;
 
-			const batchResults = await Promise.allSettled(
-				batch.map(async (pendingEmail) => {
-					const document = await this.indexEmailById(pendingEmail.archivedEmailId);
-					return { id: pendingEmail.archivedEmailId, document };
-				})
-			);
+		for (let i = 0; i < pending.length; i += chunkSize) {
+			const chunk = pending.slice(i, i + chunkSize);
 
-			for (let j = 0; j < batchResults.length; j++) {
-				const result = batchResults[j];
-				const pendingEmail = batch[j];
-				if (result.status === 'fulfilled' && result.value.document) {
-					rawDocuments.push(result.value.document);
+			const results: PromiseSettledResult<EmailDocument | null>[] = [];
+			for (let k = 0; k < chunk.length; k += buildConcurrency) {
+				results.push(
+					...(await Promise.allSettled(
+						chunk
+							.slice(k, k + buildConcurrency)
+							.map((pendingEmail) =>
+								this.indexEmailById(pendingEmail.archivedEmailId)
+							)
+					))
+				);
+			}
+
+			// Emails whose document could not be BUILT (corrupt EML, parse error, missing file).
+			// These are email-specific ("poison") failures: count them against index_attempts so the
+			// reconcile job eventually stops retrying them, and do not throw, so their chunk-mates
+			// still index.
+			const buildFailedIds: string[] = [];
+			const documents: EmailDocument[] = [];
+
+			for (let j = 0; j < results.length; j++) {
+				const result = results[j];
+				const emailId = chunk[j].archivedEmailId;
+
+				if (result.status === 'fulfilled' && result.value) {
+					// One pass: sanitize and fill required fields together. Doing them as two
+					// chained .map() calls rebuilt every object and every string twice over.
+					documents.push(this.normalizeEmailDocument(result.value));
 				} else {
-					buildFailedIds.push(pendingEmail.archivedEmailId);
+					buildFailedIds.push(emailId);
 					if (result.status === 'rejected') {
 						logger.error(
 							{
-								emailId: pendingEmail.archivedEmailId,
+								emailId,
 								error:
 									result.reason instanceof Error
 										? result.reason.message
@@ -124,25 +154,90 @@ export class IndexingService {
 					}
 				}
 			}
+
+			if (buildFailedIds.length > 0) {
+				buildFailed += buildFailedIds.length;
+				await this.incrementIndexAttempts(buildFailedIds);
+			}
+
+			if (documents.length === 0) {
+				continue;
+			}
+
+			const { indexed: chunkIndexed, invalid: chunkInvalid } =
+				await this.flushDocuments(documents);
+			indexed += chunkIndexed;
+			invalid += chunkInvalid;
 		}
 
-		if (buildFailedIds.length > 0) {
-			await this.incrementIndexAttempts(buildFailedIds);
+		// One neutral line with the counters, rather than a cheerful "Successfully indexed" that also
+		// printed when every document in the batch failed to build.
+		logger.info(
+			{
+				batchSize: emails.length,
+				alreadyIndexed: emails.length - pending.length,
+				successfulDocuments: indexed,
+				buildFailed,
+				invalidDocuments: invalid,
+			},
+			'Finished indexing email batch'
+		);
+	}
+
+	/**
+	 * Drops ids already marked indexed.
+	 *
+	 * BullMQ retries a failed job with its original payload, so a chunk that died part-way through
+	 * came back with every id — including those Meilisearch had already confirmed and `markIndexed`
+	 * had committed. Rebuilding those means re-reading and re-parsing each .eml for nothing. Safe to
+	 * skip: the reindex processor clears `is_indexed` before enqueueing, so a set flag inside a live
+	 * job can only mean this run already did the work.
+	 */
+	private async skipAlreadyIndexed(emails: PendingEmail[]): Promise<PendingEmail[]> {
+		if (emails.length === 0) {
+			return emails;
 		}
 
-		if (rawDocuments.length === 0) {
-			logger.warn('No documents created from email batch');
-			return;
+		const ids = emails.map((e) => e.archivedEmailId);
+		const done = await this.dbService.db
+			.select({ id: archivedEmails.id })
+			.from(archivedEmails)
+			.where(and(inArray(archivedEmails.id, ids), eq(archivedEmails.isIndexed, true)));
+
+		if (done.length === 0) {
+			return emails;
 		}
 
-		// Sanitize, fill required fields, and drop anything that cannot be serialized.
-		const completeDocuments = rawDocuments
-			.map((doc) => sanitizeObject(doc))
-			.map((doc) => this.ensureEmailDocumentFields(doc));
+		const doneIds = new Set(done.map((r) => r.id));
+		return emails.filter((e) => !doneIds.has(e.archivedEmailId));
+	}
 
+	/**
+	 * Sends one chunk of built documents to Meilisearch and records the outcome.
+	 *
+	 * The counter this feeds, `index_attempts`, is what lets the reconcile scan give up on a row and
+	 * move its keyset cursor forward. Getting the accounting wrong breaks the archive in one of two
+	 * ways, and this method has to thread between them:
+	 *
+	 * - Count nothing on a throw, and a row that always fails stays at zero attempts forever. The
+	 *   reconcile scan restarts at the front every tick, re-enqueues it, and never advances. Both
+	 *   production and dev showed exactly that signature: every unindexed row at zero attempts.
+	 * - Count everything on a throw, and a thirty-second Meilisearch restart is fatal. One job burns
+	 *   its five BullMQ attempts in ~15s of exponential backoff, so the whole chunk reaches the
+	 *   exclusion threshold and silently leaves the archive's search index for good.
+	 *
+	 * So the error decides. A deterministic rejection (4xx: the document is wrong) goes to
+	 * per-document isolation, which counts only the ids Meilisearch actually refuses — a single
+	 * oversized attachment must not drag its chunk-mates out of the index with it. Anything else is
+	 * treated as infrastructure trouble and rethrown untouched, for BullMQ to retry.
+	 */
+	private async flushDocuments(
+		documents: EmailDocument[]
+	): Promise<{ indexed: number; invalid: number }> {
 		const validDocuments: EmailDocument[] = [];
 		const invalidIds: string[] = [];
-		for (const doc of completeDocuments) {
+
+		for (const doc of documents) {
 			if (this.isValidEmailDocument(doc)) {
 				validDocuments.push(doc);
 			} else {
@@ -156,43 +251,52 @@ export class IndexingService {
 		}
 
 		if (validDocuments.length === 0) {
-			logger.warn('No valid documents to index in batch.');
-			return;
+			return { indexed: 0, invalid: invalidIds.length };
 		}
 
-		logger.debug({ documentCount: validDocuments.length }, 'Sending batch to Meilisearch');
+		logger.debug({ documentCount: validDocuments.length }, 'Sending chunk to Meilisearch');
 
-		// Enqueue the write, then WAIT for Meilisearch to actually process the task.
-		// Retrying is safe/idempotent because Meilisearch upserts by the `id` primary key.
-		const enqueued = await this.searchService.addDocuments('emails', validDocuments, 'id');
-		const task = await this.searchService.waitForTask(enqueued.taskUid);
+		try {
+			// Enqueue the write, then WAIT for Meilisearch to actually process the task.
+			// Retrying is safe/idempotent because Meilisearch upserts by the `id` primary key.
+			const enqueued = await this.searchService.addDocuments('emails', validDocuments, 'id');
+			const task = await this.searchService.waitForTask(enqueued.taskUid);
 
-		if (task.status === 'succeeded') {
-			// Durably mark these emails as indexed only AFTER Meilisearch confirmed the write.
-			await this.markIndexed(validDocuments.map((d) => d.id));
-		} else {
-			// The batch task failed as a whole — Meilisearch fails a document-addition task
-			// atomically, so one bad ("poison") document rejects all 500. Fall back to
-			// indexing each document on its own to isolate the offender: the healthy ones
-			// still get indexed, and only the genuinely-rejected ids have index_attempts
-			// bumped (so the reconcile job eventually stops retrying them instead of the
-			// poison wedging its whole keyset page forever).
+			if (task.status === 'succeeded') {
+				// Durably mark these emails as indexed only AFTER Meilisearch confirmed the write.
+				await this.markIndexed(validDocuments.map((d) => d.id));
+				return { indexed: validDocuments.length, invalid: invalidIds.length };
+			}
+
+			// The chunk task failed as a whole — Meilisearch fails a document-addition task
+			// atomically, so one bad ("poison") document rejects all of them. Fall back to indexing
+			// each document on its own to isolate the offender: the healthy ones still get indexed,
+			// and only the genuinely-rejected ids have index_attempts bumped.
 			logger.warn(
 				{ taskUid: enqueued.taskUid, status: task.status, error: task.error ?? {} },
-				'Batch indexing task failed; falling back to per-document indexing to isolate poison'
+				'Chunk indexing task failed; falling back to per-document indexing to isolate poison'
 			);
-			await this.indexDocumentsIndividually(validDocuments);
-		}
+			const isolated = await this.indexDocumentsIndividually(validDocuments);
+			return { indexed: isolated, invalid: invalidIds.length };
+		} catch (error) {
+			if (!isDocumentRejection(error)) {
+				// Connection refused, timed out, 5xx: the documents are probably fine and the engine
+				// is not. Rethrow without counting, so BullMQ retries and the reconcile pass keeps
+				// ownership of these rows.
+				throw error;
+			}
 
-		logger.info(
-			{
-				batchSize: emails.length,
-				successfulDocuments: validDocuments.length,
-				buildFailed: buildFailedIds.length,
-				invalidDocuments: invalidIds.length,
-			},
-			'Successfully indexed email batch'
-		);
+			// Meilisearch refused the request itself rather than failing the task (a 413 on an
+			// oversized payload, a malformed document). Deterministic, so retrying the chunk whole
+			// achieves nothing — isolate instead, which indexes the healthy documents and counts
+			// only the ids actually refused.
+			logger.warn(
+				{ error: error instanceof Error ? error.message : String(error) },
+				'Meilisearch rejected the chunk; isolating per document'
+			);
+			const isolated = await this.indexDocumentsIndividually(validDocuments);
+			return { indexed: isolated, invalid: invalidIds.length };
+		}
 	}
 
 	/**
@@ -225,38 +329,65 @@ export class IndexingService {
 	}
 
 	/**
-	 * Slow fallback used only when a whole-batch Meilisearch task fails: re-add each
-	 * document on its own so the poison document is isolated.
+	 * Slow fallback used when a whole chunk is refused: re-add each document on its own so the
+	 * offending one is isolated.
 	 *
-	 * - A per-document task that returns `failed` is a real poison → bump its
-	 *   index_attempts (and do NOT throw, so its healthy batch-mates still commit).
-	 * - A thrown error (network/timeout) is transient infrastructure trouble → it
-	 *   propagates so BullMQ retries the whole batch, and index_attempts is untouched.
+	 * - A per-document task that returns `failed` is a real poison → bump its index_attempts, and do
+	 *   NOT throw, so its healthy chunk-mates still commit.
+	 * - A thrown error is infrastructure trouble → it propagates to flushDocuments, which decides
+	 *   whether it counts. The bookkeeping below runs in a `finally` so a throw half-way through the
+	 *   loop still commits the documents already confirmed; without that, a Meilisearch restart
+	 *   mid-isolation discarded every success that preceded it and the whole chunk was rebuilt.
+	 *
+	 * @returns how many documents Meilisearch accepted.
 	 */
-	private async indexDocumentsIndividually(documents: EmailDocument[]): Promise<void> {
+	private async indexDocumentsIndividually(documents: EmailDocument[]): Promise<number> {
 		const succeeded: string[] = [];
 		const failed: string[] = [];
 
-		for (const doc of documents) {
-			const enqueued = await this.searchService.addDocuments('emails', [doc], 'id');
-			const task = await this.searchService.waitForTask(enqueued.taskUid);
-			if (task.status === 'succeeded') {
-				succeeded.push(doc.id);
-			} else {
-				failed.push(doc.id);
-				logger.error(
-					{ emailId: doc.id, taskUid: enqueued.taskUid, error: task.error ?? {} },
-					'Document rejected by Meilisearch; bumping index_attempts (poison)'
-				);
+		try {
+			for (const doc of documents) {
+				try {
+					const enqueued = await this.searchService.addDocuments('emails', [doc], 'id');
+					const task = await this.searchService.waitForTask(enqueued.taskUid);
+					if (task.status === 'succeeded') {
+						succeeded.push(doc.id);
+					} else {
+						failed.push(doc.id);
+						logger.error(
+							{ emailId: doc.id, taskUid: enqueued.taskUid, error: task.error ?? {} },
+							'Document rejected by Meilisearch; bumping index_attempts (poison)'
+						);
+					}
+				} catch (error) {
+					if (!isDocumentRejection(error)) {
+						throw error;
+					}
+					// Refused on its own, deterministically — an oversized document comes back as a
+					// 413 from the HTTP layer rather than as a failed task, so it never reaches the
+					// branch above. Counting it here is what lets the reconcile scan eventually pass
+					// over it; letting it propagate would leave it at zero attempts forever, which is
+					// the exact loop this whole mechanism exists to break.
+					failed.push(doc.id);
+					logger.error(
+						{
+							emailId: doc.id,
+							error: error instanceof Error ? error.message : String(error),
+						},
+						'Document refused by Meilisearch; bumping index_attempts (poison)'
+					);
+				}
+			}
+		} finally {
+			if (succeeded.length > 0) {
+				await this.markIndexed(succeeded);
+			}
+			if (failed.length > 0) {
+				await this.incrementIndexAttempts(failed);
 			}
 		}
 
-		if (succeeded.length > 0) {
-			await this.markIndexed(succeeded);
-		}
-		if (failed.length > 0) {
-			await this.incrementIndexAttempts(failed);
-		}
+		return succeeded.length;
 	}
 
 	private async indexEmailById(emailId: string): Promise<EmailDocument | null> {
@@ -293,152 +424,11 @@ export class IndexingService {
 	}
 
 	/**
-	 * @deprecated
+	 * Note: two commented-out `@deprecated` helpers and an unreferenced `createEmailDocumentFromRaw`
+	 * used to sit here. They were removed rather than maintained — a code review read the call
+	 * inside the commented block as live and reported a missing text cap on a path nothing can
+	 * reach. Dead code that still looks reachable costs more than it saves.
 	 */
-	/* 	private async indexByEmail(pendingEmail: PendingEmail): Promise<void> {
-		const attachments: AttachmentsType = [];
-		if (pendingEmail.email.attachments && pendingEmail.email.attachments.length > 0) {
-			for (const attachment of pendingEmail.email.attachments) {
-				attachments.push({
-					buffer: attachment.content,
-					filename: attachment.filename,
-					mimeType: attachment.contentType,
-				});
-			}
-		}
-		const document = await this.createEmailDocumentFromRaw(
-			pendingEmail.email,
-			attachments,
-			pendingEmail.sourceId,
-			pendingEmail.archivedId,
-			pendingEmail.email.userEmail || ''
-		);
-		// console.log(document);
-		await this.searchService.addDocuments('emails', [document], 'id');
-	} */
-
-	/**
-	 * Creates a search document from a raw email object and its attachments.
-	 */
-	/* private async createEmailDocumentFromRawForBatch(
-		email: EmailObject,
-		ingestionSourceId: string,
-		archivedEmailId: string,
-		userEmail: string
-	): Promise<EmailDocument> {
-		const extractedAttachments: { filename: string; content: string }[] = [];
-
-		if (email.attachments && email.attachments.length > 0) {
-			const ATTACHMENT_CONCURRENCY = 3;
-
-			for (let i = 0; i < email.attachments.length; i += ATTACHMENT_CONCURRENCY) {
-				const attachmentBatch = email.attachments.slice(i, i + ATTACHMENT_CONCURRENCY);
-
-				const attachmentResults = await Promise.allSettled(
-					attachmentBatch.map(async (attachment) => {
-						try {
-							if (!this.shouldExtractText(attachment.contentType)) {
-								return null;
-							}
-
-							const textContent = await extractText(
-								attachment.content,
-								attachment.contentType || ''
-							);
-
-							return {
-								filename: attachment.filename,
-								content: textContent || '',
-							};
-						} catch (error) {
-							logger.warn(
-								{
-									filename: attachment.filename,
-									mimeType: attachment.contentType,
-									emailId: archivedEmailId,
-									error: error instanceof Error ? error.message : String(error),
-								},
-								'Failed to extract text from attachment'
-							);
-							return null;
-						}
-					})
-				);
-
-				for (const result of attachmentResults) {
-					if (result.status === 'fulfilled' && result.value) {
-						extractedAttachments.push(result.value);
-					}
-				}
-			}
-		}
-
-		const allAttachmentText = extractedAttachments
-			.map((att) => sanitizeText(att.content))
-			.join(' ');
-
-		const enhancedBody = [sanitizeText(email.body || email.html || ''), allAttachmentText]
-			.filter(Boolean)
-			.join('\n\n--- Attachments ---\n\n');
-
-		return {
-			id: archivedEmailId,
-			userEmail: userEmail,
-			from: email.from[0]?.address || '',
-			to: email.to?.map((addr: EmailAddress) => addr.address) || [],
-			cc: email.cc?.map((addr: EmailAddress) => addr.address) || [],
-			bcc: email.bcc?.map((addr: EmailAddress) => addr.address) || [],
-			subject: email.subject || '',
-			body: enhancedBody,
-			attachments: extractedAttachments,
-			timestamp: new Date(email.receivedAt).getTime(),
-			ingestionSourceId: ingestionSourceId,
-		};
-	} */
-
-	private async createEmailDocumentFromRaw(
-		email: EmailObject,
-		attachments: AttachmentsType,
-		ingestionSourceId: string,
-		archivedEmailId: string,
-		userEmail: string //the owner of the email inbox
-	): Promise<EmailDocument> {
-		const extractedAttachments = [];
-		for (const attachment of attachments) {
-			try {
-				const textContent = await extractText(attachment.buffer, attachment.mimeType || '');
-				extractedAttachments.push({
-					filename: attachment.filename,
-					content: textContent,
-				});
-			} catch (error) {
-				logger.error(
-					{
-						filename: attachment.filename,
-						mimeType: attachment.mimeType,
-						error: error instanceof Error ? error.message : String(error),
-					},
-					'Failed to extract text from attachment'
-				);
-			}
-		}
-		// console.log('email.userEmail', userEmail);
-		return {
-			id: archivedEmailId,
-			userEmail: userEmail,
-			from: email.from[0]?.address,
-			fromName: email.from[0]?.name ?? '',
-			to: email.to.map((i: EmailAddress) => i.address) || [],
-			cc: email.cc?.map((i: EmailAddress) => i.address) || [],
-			bcc: email.bcc?.map((i: EmailAddress) => i.address) || [],
-			subject: email.subject || '',
-			body: email.body || email.html || '',
-			attachments: extractedAttachments,
-			timestamp: new Date(email.receivedAt).getTime(),
-			ingestionSourceId: ingestionSourceId,
-			hasAttachments: email.attachments.length > 0,
-		};
-	}
 
 	private async createEmailDocument(
 		email: typeof archivedEmails.$inferSelect,
@@ -448,11 +438,15 @@ export class IndexingService {
 		const emailBodyStream = await this.storageService.get(email.storagePath);
 		const emailBodyBuffer = await streamToBuffer(emailBodyStream);
 		const parsedEmail = await simpleParser(emailBodyBuffer);
-		const emailBodyText =
+		// Capped here rather than only at normalization so the oversized string is released now,
+		// instead of being retained for as long as the chunk is in flight.
+		const emailBodyText = truncateToBytes(
 			parsedEmail.text ||
-			parsedEmail.html ||
-			(await extractText(emailBodyBuffer, 'text/plain')) ||
-			'';
+				parsedEmail.html ||
+				(await extractText(emailBodyBuffer, 'text/plain')) ||
+				'',
+			config.indexing.maxTextBytes
+		);
 
 		// If there are linked attachment records, extract text from storage (default mode).
 		// Otherwise, if the email has attachments but no records (preserve original file mode),
@@ -505,7 +499,7 @@ export class IndexingService {
 				);
 				extracted.push({
 					filename: attachment.filename || 'untitled',
-					content: textContent,
+					content: truncateToBytes(textContent, config.indexing.maxTextBytes),
 				});
 			} catch (error) {
 				logger.warn(
@@ -532,7 +526,7 @@ export class IndexingService {
 				const textContent = await extractText(fileBuffer, attachment.mimeType || '');
 				extractedAttachments.push({
 					filename: attachment.filename,
-					content: textContent,
+					content: truncateToBytes(textContent, config.indexing.maxTextBytes),
 				});
 			} catch (error) {
 				console.error(
@@ -593,20 +587,38 @@ export class IndexingService {
 	}
 
 	/**
-	 * Ensures all required fields are present in EmailDocument
+	 * Sanitizes every string and fills the required fields in one pass.
+	 *
+	 * This used to be a generic recursive `sanitizeObject` followed by a separate fill, chained as
+	 * two `.map()` calls over the whole batch — so every document and every string in it was rebuilt
+	 * twice before anything was sent. The shape of an EmailDocument is known, so walking it directly
+	 * costs one copy instead of three.
 	 */
-	private ensureEmailDocumentFields(doc: Partial<EmailDocument>): EmailDocument {
+	private normalizeEmailDocument(doc: Partial<EmailDocument>): EmailDocument {
+		const maxTextBytes = config.indexing.maxTextBytes;
+		// Filtered, not coerced. `String(undefined)` produced the literal "undefined", which then went
+		// into the index as a real, searchable, facetable recipient address.
+		const addresses = (value: unknown): string[] =>
+			Array.isArray(value)
+				? value.filter((a): a is string => typeof a === 'string').map(sanitizeText)
+				: [];
+
 		return {
 			id: doc.id || 'missing-id',
-			userEmail: doc.userEmail || 'unknown',
-			from: doc.from || '',
-			fromName: doc.fromName || '',
-			to: Array.isArray(doc.to) ? doc.to : [],
-			cc: Array.isArray(doc.cc) ? doc.cc : [],
-			bcc: Array.isArray(doc.bcc) ? doc.bcc : [],
-			subject: doc.subject || '',
-			body: doc.body || '',
-			attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
+			userEmail: sanitizeText(doc.userEmail || '') || 'unknown',
+			from: sanitizeText(doc.from || ''),
+			fromName: sanitizeText(doc.fromName || ''),
+			to: addresses(doc.to),
+			cc: addresses(doc.cc),
+			bcc: addresses(doc.bcc),
+			subject: sanitizeText(doc.subject || ''),
+			body: truncateToBytes(sanitizeText(doc.body || ''), maxTextBytes),
+			attachments: Array.isArray(doc.attachments)
+				? doc.attachments.map((a) => ({
+						filename: sanitizeText(a?.filename || ''),
+						content: truncateToBytes(sanitizeText(a?.content || ''), maxTextBytes),
+					}))
+				: [],
 			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
 			ingestionSourceId: doc.ingestionSourceId || 'unknown',
 			hasAttachments: doc.hasAttachments ?? (doc.attachments?.length ?? 0) > 0,

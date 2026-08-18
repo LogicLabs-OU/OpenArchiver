@@ -59,7 +59,15 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 		});
 
 		try {
-			pdfParser.parseBuffer(buffer);
+			// Verbosity ERRORS (0). Passing nothing does not mean "leave it alone" — parseBuffer
+			// hands the argument to nodeUtil.verbosity(), which treats a non-number as "reset to
+			// WARNINGS", so every call re-enabled the noise. And that noise goes straight to
+			// console.log inside pdf2json: outside pino, unaffected by LOG_LEVEL, and emitted once
+			// per annotation per PDF ("Unsupported: field.type of Link", "NOT valid form element"),
+			// which buries the worker's own logs on any mailbox carrying PDFs.
+			// Real failures are unaffected — pdf2json's error() ignores verbosity and throws, and
+			// the dataError handler above reports those through pino.
+			pdfParser.parseBuffer(buffer, 0);
 		} catch (err) {
 			logger.error('Error parsing PDF buffer:', err);
 			finish('');

@@ -266,7 +266,7 @@ export class IngestionController {
 			}
 			// Default to 'missing' (cheap self-heal); allow explicit 'full' rebuild.
 			const mode: ReindexMode = req.body?.mode === 'full' ? 'full' : 'missing';
-			await IngestionService.triggerReindex(id, mode);
+			const dispatch = await IngestionService.triggerReindex(id, mode);
 
 			await this.auditService.createAuditLog({
 				actorIdentifier: userId,
@@ -274,10 +274,15 @@ export class IngestionController {
 				targetType: 'IngestionSource',
 				targetId: id,
 				actorIp: req.ip || 'unknown',
-				details: { scope: 'source', mode },
+				details: { scope: 'source', mode, pending: dispatch.pending },
 			});
 
-			return res.status(202).json({ message: req.t('ingestion.reindexTriggered') });
+			// 202 still: the work is asynchronous. The body is what stops "accepted" being read as
+			// "done" — it says how much was queued and whether anything is there to run it.
+			return res.status(202).json({
+				message: req.t('ingestion.reindexTriggered'),
+				...dispatch,
+			});
 		} catch (error) {
 			logger.error({ err: error }, `Trigger reindex for ${req.params.id} error`);
 			if (error instanceof Error && error.message === 'Ingestion source not found') {
@@ -294,7 +299,7 @@ export class IngestionController {
 				return res.status(401).json({ message: req.t('errors.unauthorized') });
 			}
 			const mode: ReindexMode = req.body?.mode === 'full' ? 'full' : 'missing';
-			await IngestionService.triggerReindexAll(mode);
+			const dispatch = await IngestionService.triggerReindexAll(mode);
 
 			await this.auditService.createAuditLog({
 				actorIdentifier: userId,
@@ -302,10 +307,13 @@ export class IngestionController {
 				targetType: 'IngestionSource',
 				targetId: null,
 				actorIp: req.ip || 'unknown',
-				details: { scope: 'all', mode },
+				details: { scope: 'all', mode, pending: dispatch.pending },
 			});
 
-			return res.status(202).json({ message: req.t('ingestion.reindexTriggered') });
+			return res.status(202).json({
+				message: req.t('ingestion.reindexTriggered'),
+				...dispatch,
+			});
 		} catch (error) {
 			logger.error({ err: error }, 'Trigger reindex-all error');
 			return res.status(500).json({ message: req.t('errors.internalServerError') });

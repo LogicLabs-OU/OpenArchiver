@@ -92,36 +92,39 @@ Here is a complete list of environment variables available for configuration:
 
 #### Application Settings
 
-| Variable                | Description                                                                                                                                                  | Default Value           |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `NODE_ENV`              | The application environment.                                                                                                                                 | `development`           |
-| `PORT_BACKEND`          | The port for the backend service.                                                                                                                            | `4000`                  |
-| `PORT_FRONTEND`         | The port for the frontend service.                                                                                                                           | `3000`                  |
-| `APP_URL`               | The public-facing URL of your application. This is used by the backend to configure CORS.                                                                    | `http://localhost:3000` |
-| `ORIGIN`                | Used by the SvelteKit Node adapter to determine the server's public-facing URL. It should always be set to the value of `APP_URL` (e.g., `ORIGIN=$APP_URL`). | `http://localhost:3000` |
-| `SYNC_FREQUENCY`        | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details.                                                        | `* * * * *`             |
-| `ALL_INCLUSIVE_ARCHIVE` | Set to `true` to include all emails, including Junk and Trash folders, in the email archive.                                                                 | `false`                 |
+| Variable                | Description                                                                                                                                                                                    | Default Value           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `NODE_ENV`              | The application environment.                                                                                                                                                                   | `development`           |
+| `PORT_BACKEND`          | The port for the backend service.                                                                                                                                                              | `4000`                  |
+| `PORT_FRONTEND`         | The port for the frontend service.                                                                                                                                                             | `3000`                  |
+| `APP_URL`               | The public-facing URL of your application. This is used by the backend to configure CORS.                                                                                                      | `http://localhost:3000` |
+| `ORIGIN`                | Used by the SvelteKit Node adapter to determine the server's public-facing URL. It should always be set to the value of `APP_URL` (e.g., `ORIGIN=$APP_URL`).                                   | `http://localhost:3000` |
+| `SYNC_FREQUENCY`        | The frequency of continuous email syncing. See [cron syntax](https://crontab.guru/) for more details.                                                                                          | `* * * * *`             |
+| `ALL_INCLUSIVE_ARCHIVE` | Set to `true` to include all emails, including Junk and Trash folders, in the email archive.                                                                                                   | `false`                 |
 | `PDF_PARSE_TIMEOUT_MS`  | Timeout (in ms) for the built-in PDF text extractor during indexing. A malformed PDF is given up on after this so it can't stall the indexing worker. Only applies when `TIKA_URL` is not set. | `20000`                 |
-| `LOG_LEVEL`             | Minimum severity of logs to emit. Set to `debug` for verbose per-tick scheduler and per-message ingestion logs; routine logs are quiet at `info`.            | `info`                  |
+| `LOG_LEVEL`             | Minimum severity of logs to emit. Set to `debug` for verbose per-tick scheduler and per-message ingestion logs; routine logs are quiet at `info`.                                              | `info`                  |
 
 #### Docker Compose Service Configuration
 
 These variables are used by `docker-compose.yml` to configure the services.
 
-| Variable               | Description                                          | Default Value                                            |
-| ---------------------- | ---------------------------------------------------- | -------------------------------------------------------- |
-| `POSTGRES_DB`          | The name of the PostgreSQL database.                 | `open_archive`                                           |
-| `POSTGRES_USER`        | The username for the PostgreSQL database.            | `admin`                                                  |
-| `POSTGRES_PASSWORD`    | The password for the PostgreSQL database.            | `password`                                               |
-| `DATABASE_URL`         | The connection URL for the PostgreSQL database.      | `postgresql://admin:password@postgres:5432/open_archive` |
-| `MEILI_MASTER_KEY`     | The master key for Meilisearch.                      | `aSampleMasterKey`                                       |
-| `MEILI_HOST`           | The host for the Meilisearch service.                | `http://meilisearch:7700`                                |
-| `MEILI_INDEXING_BATCH` | The number of emails to batch together for indexing. | `500`                                                    |
-| `REDIS_HOST`           | The host for the Valkey (Redis) service.             | `valkey`                                                 |
-| `REDIS_PORT`           | The port for the Valkey (Redis) service.             | `6379`                                                   |
-| `REDIS_USER`           | Optional Redis username if ACLs are used.            |                                                          |
-| `REDIS_PASSWORD`       | The password for the Valkey (Redis) service.         | `defaultredispassword`                                   |
-| `REDIS_TLS_ENABLED`    | Enable or disable TLS for Redis.                     | `false`                                                  |
+| Variable                           | Description                                                                                              | Default Value                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `POSTGRES_DB`                      | The name of the PostgreSQL database.                                                                     | `open_archive`                                           |
+| `POSTGRES_USER`                    | The username for the PostgreSQL database.                                                                | `admin`                                                  |
+| `POSTGRES_PASSWORD`                | The password for the PostgreSQL database.                                                                | `password`                                               |
+| `DATABASE_URL`                     | The connection URL for the PostgreSQL database.                                                          | `postgresql://admin:password@postgres:5432/open_archive` |
+| `MEILI_MASTER_KEY`                 | The master key for Meilisearch.                                                                          | `aSampleMasterKey`                                       |
+| `MEILI_HOST`                       | The host for the Meilisearch service.                                                                    | `http://meilisearch:7700`                                |
+| `MEILI_INDEXING_BATCH`             | The number of email ids per indexing job. Queue granularity, not a memory setting.                       | `500`                                                    |
+| `MEILI_INDEXING_CHUNK`             | Documents built and sent to Meilisearch at a time. Lower this if the indexing worker runs out of memory. | `25`                                                     |
+| `INDEXING_MAX_TEXT_BYTES`          | Maximum extracted text kept per attachment and per email body, in bytes.                                 | `1000000`                                                |
+| `INDEXING_WORKER_MAX_OLD_SPACE_MB` | Heap ceiling for the indexing worker, in MB.                                                             | `2048`                                                   |
+| `REDIS_HOST`                       | The host for the Valkey (Redis) service.                                                                 | `valkey`                                                 |
+| `REDIS_PORT`                       | The port for the Valkey (Redis) service.                                                                 | `6379`                                                   |
+| `REDIS_USER`                       | Optional Redis username if ACLs are used.                                                                |                                                          |
+| `REDIS_PASSWORD`                   | The password for the Valkey (Redis) service.                                                             | `defaultredispassword`                                   |
+| `REDIS_TLS_ENABLED`                | Enable or disable TLS for Redis.                                                                         | `false`                                                  |
 
 #### Storage Settings
 
