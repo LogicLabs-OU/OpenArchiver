@@ -3,6 +3,7 @@ import { ingestionQueue, indexingQueue } from '../queues';
 import { config } from '../../config';
 import { logger } from '../../config/logger';
 import { exitOnSignals } from '../../workers/supervision';
+import { explainRedisAuthError } from '../../config/redisAuthHint';
 
 const scheduleContinuousSync = async () => {
 	// This job will run every 15 minutes
@@ -41,7 +42,10 @@ const scheduleIndexReconcile = async () => {
 // other self-healing path in the indexing pipeline falls back on. Left unhandled the rejection just
 // terminated the process with no explanation, so fail loudly and let the supervisor retry.
 [ingestionQueue, indexingQueue].forEach((queue) => {
-	queue.on('error', (err) => logger.error({ err, queue: queue.name }, 'Scheduler queue error'));
+	queue.on('error', (err) => {
+		logger.error({ err, queue: queue.name }, 'Scheduler queue error');
+		explainRedisAuthError(err);
+	});
 });
 
 // Same shutdown contract as the workers, and needed for the same reason: this process sits under the

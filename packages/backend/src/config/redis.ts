@@ -12,8 +12,13 @@ const connectionOptions: ConnectionOptions = {
 	enableReadyCheck: true,
 };
 
-if (process.env.REDIS_USER) {
-	connectionOptions.username = process.env.REDIS_USER;
+// Trimmed, and applied only when something is left. Setting a username is not free: ioredis picks
+// the two-argument ACL form of AUTH whenever one is present, and that form fails on a server
+// configured with `requirepass` alone, where the only user that exists is `default`. A REDIS_USER of
+// " " is truthy, so untrimmed it broke every connection exactly as an invented username does.
+const redisUser = process.env.REDIS_USER?.trim();
+if (redisUser) {
+	connectionOptions.username = redisUser;
 }
 
 if (process.env.REDIS_TLS_ENABLED === 'true') {

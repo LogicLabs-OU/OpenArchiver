@@ -1,5 +1,6 @@
 import type { Worker } from 'bullmq';
 import { logger } from '../config/logger';
+import { explainRedisAuthError } from '../config/redisAuthHint';
 
 /** How often the run loop is checked and the heartbeat refreshed. */
 const CHECK_INTERVAL_MS = 30_000;
@@ -122,6 +123,9 @@ export const superviseWorker = (worker: Worker): void => {
 	// be: noise to log while ioredis reconnects.
 	worker.on('error', (err) => {
 		logger.error({ err, queue: queueName }, 'Worker error');
+		// A refused password reaches here on every reconnection attempt and says nothing about what
+		// to change. Once per process, translate it.
+		explainRedisAuthError(err);
 	});
 
 	const writeHeartbeat = async () => {

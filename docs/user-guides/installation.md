@@ -41,7 +41,7 @@ The application is configured using environment variables. You'll need to create
 Copy the example environment file for Docker:
 
 ```bash
-cp .env.example.docker .env
+cp .env.example .env
 ```
 
 Now, open the `.env` file in a text editor and customize the settings.
@@ -122,7 +122,7 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `INDEXING_WORKER_MAX_OLD_SPACE_MB` | Heap ceiling for the indexing worker, in MB.                                                             | `2048`                                                   |
 | `REDIS_HOST`                       | The host for the Valkey (Redis) service.                                                                 | `valkey`                                                 |
 | `REDIS_PORT`                       | The port for the Valkey (Redis) service.                                                                 | `6379`                                                   |
-| `REDIS_USER`                       | Optional Redis username if ACLs are used.                                                                |                                                          |
+| `REDIS_USER`                       | Redis username. Leave empty unless your Redis/Valkey has ACL users configured.                           |                                                          |
 | `REDIS_PASSWORD`                   | The password for the Valkey (Redis) service.                                                             | `defaultredispassword`                                   |
 | `REDIS_TLS_ENABLED`                | Enable or disable TLS for Redis.                                                                         | `false`                                                  |
 

@@ -35,7 +35,11 @@ services:
         image: valkey/valkey:8-alpine
         container_name: valkey
         restart: unless-stopped
-        command: valkey-server --requirepass ${REDIS_PASSWORD}
+        # Defaulted like POSTGRES_PASSWORD below. Unset, this expanded to a bare `--requirepass`
+        # with no value, and Valkey refuses to start on it: "FATAL CONFIG FILE ERROR ...
+        # 'requirepass' wrong number of arguments". The app then failed against a cache that had
+        # never come up, which reads as an application fault rather than a missing variable.
+        command: valkey-server --requirepass ${REDIS_PASSWORD:-defaultredispassword}
         volumes:
             - valkeydata:/data
         networks:
