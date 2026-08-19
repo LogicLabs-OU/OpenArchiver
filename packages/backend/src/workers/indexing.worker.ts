@@ -4,6 +4,7 @@ import indexEmailBatchProcessor from '../jobs/processors/index-email-batch.proce
 import reindexProcessor from '../jobs/processors/reindex.processor';
 import reconcileIndexProcessor from '../jobs/processors/reconcile-index.processor';
 import { logger } from '../config/logger';
+import { config } from '../config';
 import { superviseWorker } from './supervision';
 
 const processor = async (job: any) => {
@@ -21,6 +22,12 @@ const processor = async (job: any) => {
 
 const worker = new Worker('indexing', processor, {
 	connection,
+	// Left unset, this defaulted to 1, and a job spends most of its life waiting rather than
+	// computing — a storage read per email, then a Meilisearch task it must see finish before it may
+	// mark those emails indexed. One job at a time turned that wait into idle time: measured in
+	// production at roughly three seconds per single-email job with 286 of them queued behind it.
+	// See config.indexing.workerConcurrency for how this multiplies peak memory.
+	concurrency: config.indexing.workerConcurrency,
 	// Building a document is largely synchronous work — mailparser, pdf2json, xlsx — and one large
 	// message can hold the event loop long enough that automatic lock renewal (every lockDuration/2)
 	// misses its window, at which point BullMQ declares the still-running job stalled. A 10-minute

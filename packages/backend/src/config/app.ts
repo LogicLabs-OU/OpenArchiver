@@ -1,8 +1,9 @@
 import 'dotenv/config';
+import { intFromEnv } from '../helpers/intFromEnv';
 
 export const app = {
 	nodeEnv: process.env.NODE_ENV || 'development',
-	port: process.env.PORT_BACKEND ? parseInt(process.env.PORT_BACKEND, 10) : 4000,
+	port: intFromEnv('PORT_BACKEND', 4000, 1, 65535),
 	encryptionKey: process.env.ENCRYPTION_KEY,
 	syncFrequency: process.env.SYNC_FREQUENCY || '* * * * *', //default to 1 minute
 	enableDeletion: process.env.ENABLE_DELETION === 'true',

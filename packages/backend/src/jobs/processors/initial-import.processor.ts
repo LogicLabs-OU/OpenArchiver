@@ -2,7 +2,7 @@ import { Job } from 'bullmq';
 import { IngestionService } from '../../services/IngestionService';
 import { IInitialImportJob, IngestionStatus } from '@open-archiver/types';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
-import { ingestionQueue } from '../queues';
+import { enqueueMailboxJobs } from '../helpers/enqueueMailboxJobs';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
@@ -63,15 +63,7 @@ export default async (job: Job<IInitialImportJob>) => {
 			'Dispatching process-mailbox jobs for initial import'
 		);
 
-		// Phase 3: Enqueue individual process-mailbox jobs one at a time.
-		// No FlowProducer, no large atomic Redis write — jobs are enqueued in a loop.
-		for (const userEmail of userEmails) {
-			await ingestionQueue.add('process-mailbox', {
-				ingestionSourceId,
-				userEmail,
-				sessionId,
-			});
-		}
+		await enqueueMailboxJobs(ingestionSourceId, userEmails, sessionId);
 
 		logger.info({ ingestionSourceId, sessionId }, 'Finished dispatching initial import jobs');
 	} catch (error) {

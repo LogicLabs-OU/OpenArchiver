@@ -23,13 +23,23 @@ export default async function reconcileIndexProcessor(_job: Job<IReconcileIndexJ
 		return;
 	}
 
-	// Backpressure: if the indexing queue is already busy (e.g. a large import is in
-	// flight), defer this tick rather than piling on more work.
+	// Backpressure: if the indexing queue has any other work at all, defer this tick.
+	//
+	// A threshold alone was enough while the worker ran one job at a time, because nothing else
+	// could be running during this tick. With several jobs in flight the reconcile scan reads rows
+	// those jobs are midway through — is_indexed stays false until Meilisearch confirms — and
+	// re-enqueues them, so the same email is built twice and its index_attempts bumped twice,
+	// pushing borderline rows past maxIndexAttempts after about half the real failures.
+	//
+	// This is idle-time self-healing, so waiting for idle costs nothing: the next tick is minutes
+	// away and the backlog is not going anywhere. `active` includes this very job, hence > 1.
 	const counts = await indexingQueue.getJobCounts('waiting', 'active', 'delayed');
-	const pending = (counts.waiting || 0) + (counts.active || 0) + (counts.delayed || 0);
-	if (pending >= config.indexing.reconcileBackpressureThreshold) {
+	const waiting = (counts.waiting || 0) + (counts.delayed || 0);
+	const active = counts.active || 0;
+	const pending = waiting + active;
+	if (active > 1 || waiting > 0 || pending >= config.indexing.reconcileBackpressureThreshold) {
 		logger.info(
-			{ pending, threshold: config.indexing.reconcileBackpressureThreshold },
+			{ waiting, active, threshold: config.indexing.reconcileBackpressureThreshold },
 			'Index reconcile deferred: indexing queue busy'
 		);
 		return;

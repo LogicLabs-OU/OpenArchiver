@@ -6,6 +6,7 @@ import scheduleContinuousSyncProcessor from '../jobs/processors/schedule-continu
 import { processMailboxProcessor } from '../jobs/processors/process-mailbox.processor';
 import syncCycleFinishedProcessor from '../jobs/processors/sync-cycle-finished.processor';
 import { logger } from '../config/logger';
+import { config } from '../config';
 import { superviseWorker } from './supervision';
 
 const processor = async (job: any) => {
@@ -28,9 +29,7 @@ const processor = async (job: any) => {
 const worker = new Worker('ingestion', processor, {
 	connection,
 	// Configurable via INGESTION_WORKER_CONCURRENCY env var. Tune based on available RAM.
-	concurrency: process.env.INGESTION_WORKER_CONCURRENCY
-		? parseInt(process.env.INGESTION_WORKER_CONCURRENCY, 10)
-		: 5,
+	concurrency: config.ingestion.workerConcurrency,
 	// Connector work (pst-extractor parsing, attachment reads, EML construction) is
 	// largely synchronous, and one huge message can block the event loop long enough
 	// that the automatic lock renewal (every lockDuration/2) misses its window. With

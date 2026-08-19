@@ -3,6 +3,7 @@ import { app } from './app';
 import { searchConfig, meiliConfig, indexingConfig } from './search';
 import { connection as redisConfig } from './redis';
 import { apiConfig } from './api';
+import { ingestionConfig } from './ingestion';
 
 export const config = {
 	storage,
@@ -10,6 +11,7 @@ export const config = {
 	search: searchConfig,
 	meili: meiliConfig,
 	indexing: indexingConfig,
+	ingestion: ingestionConfig,
 	redis: redisConfig,
 	api: apiConfig,
 };

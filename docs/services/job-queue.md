@@ -64,14 +64,24 @@ Already-ingested emails from the partial sync are preserved. The next sync skips
 | ------------------------------ | ----------- | ----------------------------------------------------- |
 | `SYNC_FREQUENCY`               | `* * * * *` | Cron pattern for continuous sync scheduling           |
 | `INGESTION_WORKER_CONCURRENCY` | `5`         | Number of `process-mailbox` jobs that run in parallel |
+| `INGESTION_EMAIL_CONCURRENCY`  | `3`         | Emails archived at once within one mailbox            |
+| `INDEXING_WORKER_CONCURRENCY`  | `4`         | Number of indexing jobs that run in parallel          |
 | `MEILI_INDEXING_BATCH`         | `500`       | Number of emails per `index-email-batch` job          |
 | `MEILI_INDEXING_CHUNK`         | `25`        | Documents built and sent to Meilisearch at a time     |
 | `INDEXING_MAX_TEXT_BYTES`      | `1000000`   | Extracted text kept per attachment and per body       |
 | `MAX_INDEX_ATTEMPTS`           | `8`         | Failed attempts before an email is left out of search |
 
-### Tuning `INGESTION_WORKER_CONCURRENCY`
+### Tuning ingestion concurrency
 
-Each `process-mailbox` job holds at most one parsed email in memory at a time during the ingestion loop. At typical email sizes (~50KB average), memory pressure per concurrent job is low. Increase this value on servers with more RAM to process multiple mailboxes in parallel and reduce total sync time.
+Two settings, one across mailboxes and one within a mailbox, and they multiply.
+
+`INGESTION_WORKER_CONCURRENCY` is how many mailboxes sync at the same time. Increase it on servers with more RAM to reduce total sync time.
+
+`INGESTION_EMAIL_CONCURRENCY` is how many emails one mailbox archives at the same time. Archiving an email is a download followed by a storage write and a handful of database writes; run strictly one at a time, the connector idles through every write and the writes idle through every download. This overlaps them, and it is the setting to raise when a single large mailbox is the thing taking all night.
+
+Deduplication stays correct regardless of the value: messages sharing a Message-ID are serialised within the mailbox, so the check-then-insert dedup gate never runs against itself. Sources with **Preserve Original File** (GoBD) enabled also dedup on a content hash, which is what catches byte-identical messages whose Message-ID is missing — those have no shared key to serialise on, so in that mode every message without a Message-ID is processed one at a time instead.
+
+The two multiply for memory: a worker can hold `INGESTION_WORKER_CONCURRENCY` × `INGESTION_EMAIL_CONCURRENCY` emails' attachment buffers at once, and unlike the indexing worker this process runs without a heap ceiling. Raise in small steps.
 
 ### Tuning indexing memory
 
@@ -81,7 +91,16 @@ Two settings look similar and do different jobs.
 
 `MEILI_INDEXING_BATCH` is queue granularity: how many email ids travel in one job. It does **not** drive memory, because a job processes its ids one chunk at a time. It does drive self-healing throughput, since the reconcile pass enqueues at most `INDEX_RECONCILE_PAGE_CAP` **jobs** per tick — so lowering it lowers how fast a backlog drains.
 
+`INDEXING_WORKER_CONCURRENCY` is how many jobs run at once, and it is usually the setting that decides throughput. Most of a job's wall clock is spent waiting rather than computing: a storage read per email, then a Meilisearch task the job must see finish before it may mark those emails indexed. Left at one job at a time — the previous behaviour — that wait was dead time, and a backlog drained at a fixed rate no matter how large the host was.
+
 `INDEXING_WORKER_MAX_OLD_SPACE_MB` (default `2048`) sets the worker's V8 heap ceiling. An explicit limit makes V8 collect harder as it approaches the limit rather than sizing itself from host RAM.
+
+Peak indexing memory has two terms:
+
+- **Built documents** — roughly `INDEXING_WORKER_CONCURRENCY` × 2 × `MEILI_INDEXING_CHUNK` × `INDEXING_MAX_TEXT_BYTES`. The factor of two is the pipeline: while one chunk's write is settling at Meilisearch, the next chunk is already being built.
+- **Raw buffers** — the `.eml` and attachment bytes of the documents currently being built, each fully in memory while it is parsed and its text extracted. This is bounded process-wide rather than per job: the per-job build pool is divided by `INDEXING_WORKER_CONCURRENCY`, so about ten documents build at once whatever the concurrency, and raising the concurrency does not multiply this term.
+
+When raising concurrency, raise the heap ceiling or lower the chunk to match the first term. Both settings are capped at 32; a value above that, or one that is not a plain integer (`1_000`, `10k`), is rejected with a warning and the default used instead.
 
 ## Resilience
 

@@ -30,6 +30,31 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 	let connector: IEmailConnector | undefined;
 	let heartbeatTimer: NodeJS.Timeout | undefined;
 
+	// Declared out here for the same reason as the two above: several emails are archived at once
+	// now, so the catch block has to be able to settle whatever was still running when the mailbox
+	// failed, and to flush what those tasks buffered.
+	const inFlight = new Set<Promise<void>>();
+
+	// Captured before the await, so entries pushed while the enqueue is in flight belong to the
+	// next batch instead of being dropped when the array is reset — and put BACK if the enqueue
+	// fails, so the ids are still there for the outer catch to retry. Detaching without restoring
+	// meant one Redis blip silently stranded up to MEILI_INDEXING_BATCH already-archived emails
+	// outside the search index, waiting on a reconcile tick that itself defers under load.
+	const flushBatch = async (): Promise<void> => {
+		if (emailBatch.length === 0) {
+			return;
+		}
+		const toFlush = emailBatch;
+		emailBatch = [];
+		try {
+			await indexingQueue.add('index-email-batch', { emails: toFlush });
+		} catch (err) {
+			// Ahead of anything buffered while this was in flight: these were archived first.
+			emailBatch = toFlush.concat(emailBatch);
+			throw err;
+		}
+	};
+
 	try {
 		const source = await IngestionService.findById(ingestionSourceId);
 		if (!source) {
@@ -39,12 +64,35 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		connector = EmailProviderFactory.createConnector(source);
 		const ingestionService = new IngestionService();
 
+		// Resolved once for the whole mailbox rather than per message, and through the same instance
+		// memo processEmail uses, so the two paths cannot disagree and the second one costs nothing.
+		// The duplicate pre-check below runs before every download, so left unresolved this billed a
+		// SELECT for every message the connector merely offered. See resolveGroupSourceIds for the
+		// tradeoff this accepts about mid-import merge changes.
+		const groupIds = await ingestionService.resolveGroupSourceIds(source);
+
+		// Preserve-original (GoBD) sources dedup byte-identical messages on a content hash as well
+		// as on Message-ID, and that check is a check-then-insert like the others. Emails with no
+		// Message-ID are exactly the ones that hash-gate exists for, and exactly the ones that would
+		// otherwise get a per-message key and run concurrently — so in that mode they all share one
+		// key and go one at a time. Read from the root: a merge child stores under its parent's
+		// compliance mode.
+		const rootSource = source.mergedIntoId
+			? await IngestionService.findById(source.mergedIntoId)
+			: source;
+		const collapseKeylessEmails = Boolean(rootSource?.preserveOriginalFile);
+
 		// Pre-check for duplicates without fetching full email content.
 		// Scoped to this specific mailbox (userEmail) so that different recipients
 		// of the same email each get their own archived row — only skipping when
 		// THIS mailbox already has the email (re-sync idempotency).
 		const checkDuplicate = async (messageId: string) => {
-			return await IngestionService.doesEmailExist(messageId, ingestionSourceId, userEmail);
+			return await IngestionService.doesEmailExist(
+				messageId,
+				ingestionSourceId,
+				userEmail,
+				groupIds
+			);
 		};
 
 		// Per-message accounting: processEmail returns a ProcessEmailError object on
@@ -74,39 +122,117 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		}, HEARTBEAT_INTERVAL_MS);
 		heartbeatTimer.unref();
 
+		// Archiving one email is fetch-then-write, and awaiting it inline meant the connector sat
+		// idle for every storage write and DB insert, then the writes sat idle for the next fetch.
+		// Several emails are now in flight at once so those overlap. Two invariants make that safe:
+		//
+		//  - Emails sharing a dedup key run strictly one after another (`keyed`). The dedup gate is a
+		//    check-then-insert with no unique index behind it, so the same Message-ID arriving twice
+		//    — filed in two folders, a Sent copy — must not be examined concurrently. Such a task
+		//    holds its slot while it waits, which is deliberate: it is what stops the loop pulling
+		//    an unbounded run of copies of one message into memory ahead of a queue it cannot drain.
+		//  - The counters and emailBatch below are only ever touched from these tasks, and
+		//    JavaScript runs them on one thread, so they need no locking of their own.
+		const keyed = new Map<string, Promise<void>>();
+
+		// A single waiter, resolved by whichever task finishes next. Promise.race over the in-flight
+		// set attached a fresh reaction to every unsettled member on every iteration, and those are
+		// only released when the member settles — so one task stuck on a half-open socket pinned a
+		// reaction per remaining message of the mailbox, in a worker with no heap ceiling.
+		let slotFree: (() => void) | null = null;
+
 		for await (const email of connector.fetchEmails(
 			userEmail,
 			source.syncState,
 			checkDuplicate
 		)) {
-			if (email) {
-				messagesSeen++;
-				const processedEmail = await ingestionService.processEmail(
-					email,
-					source,
-					storageService,
-					userEmail
-				);
-				if (processedEmail && 'error' in processedEmail) {
+			if (!email) {
+				continue;
+			}
+
+			messagesSeen++;
+			const dedupKey = IngestionService.dedupKeyFor(email, collapseKeylessEmails);
+			const prior = keyed.get(dedupKey);
+
+			const task: Promise<void> = (async () => {
+				if (prior) {
+					await prior;
+				}
+				try {
+					const processedEmail = await ingestionService.processEmail(
+						email,
+						source,
+						storageService,
+						userEmail
+					);
+					if (processedEmail && 'error' in processedEmail) {
+						messagesFailed++;
+						if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+							failureSamples.push(processedEmail.message);
+						}
+					} else if (processedEmail) {
+						messagesArchived++;
+						// Buffered only. Flushing happens on the main loop below, because a queue
+						// failure is a mailbox-level problem, not this email's: counted here it
+						// would mark an email that archived perfectly well as failed, discard the
+						// run's sync state over a Redis blip, and let the job finish successfully
+						// so BullMQ never retried it.
+						emailBatch.push(processedEmail);
+					}
+				} catch (err) {
+					// processEmail reports failures by return value, so reaching here means
+					// something escaped it entirely. Counted rather than thrown: a rejected task
+					// would reject the slot wait below and with it the rest of the mailbox.
 					messagesFailed++;
 					if (failureSamples.length < MAX_FAILURE_SAMPLES) {
-						failureSamples.push(processedEmail.message);
+						failureSamples.push(
+							`Email ${email.id}: ${err instanceof Error ? err.message : 'unknown error'}`
+						);
 					}
-				} else if (processedEmail) {
-					messagesArchived++;
-					emailBatch.push(processedEmail);
-					if (emailBatch.length >= BATCH_SIZE) {
-						await indexingQueue.add('index-email-batch', { emails: emailBatch });
-						emailBatch = [];
-					}
+					logger.error(
+						{ err, ingestionSourceId, userEmail, emailId: email.id },
+						'Unhandled error while archiving email'
+					);
 				}
+			})();
+
+			const tracked: Promise<void> = task.finally(() => {
+				inFlight.delete(tracked);
+				// Only if this task is still the latest for the key — a newer email may already
+				// have chained itself behind it.
+				if (keyed.get(dedupKey) === tracked) {
+					keyed.delete(dedupKey);
+				}
+				if (slotFree) {
+					const release = slotFree;
+					slotFree = null;
+					release();
+				}
+			});
+
+			inFlight.add(tracked);
+			keyed.set(dedupKey, tracked);
+
+			if (inFlight.size >= config.ingestion.emailConcurrency) {
+				await new Promise<void>((resolve) => {
+					slotFree = resolve;
+				});
+			}
+
+			// On the main loop, so a queue failure unwinds to the mailbox-level catch below rather
+			// than being blamed on whichever email happened to fill the batch. The batch can
+			// overshoot BATCH_SIZE by up to emailConcurrency - 1 while those tasks land; harmless,
+			// since a job carries ids and nothing else.
+			if (emailBatch.length >= BATCH_SIZE) {
+				await flushBatch();
 			}
 		}
 
-		if (emailBatch.length > 0) {
-			await indexingQueue.add('index-email-batch', { emails: emailBatch });
-			emailBatch = [];
-		}
+		// Everything after this point reports on the mailbox as a whole, so it must not start until
+		// every in-flight email has landed and had its result counted.
+		await Promise.all(inFlight);
+
+		await flushBatch();
 
 		// Messages the connector could not fetch and skipped so the rest of the mailbox could
 		// finish (#441). Counting them here is what discards this run's sync state, so the next
@@ -155,10 +281,23 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			});
 		}
 	} catch (error) {
-		// Flush any buffered emails before reporting failure
-		if (emailBatch.length > 0) {
-			await indexingQueue.add('index-email-batch', { emails: emailBatch });
-			emailBatch = [];
+		// Emails still being archived when the mailbox failed are given the chance to finish before
+		// anything is reported. Left running, their rows would land after this job had already
+		// declared itself done, and the ids they buffered would never reach the indexing queue —
+		// recoverable via the reconcile pass, but only after a delay, and only by accident.
+		await Promise.allSettled(inFlight);
+
+		// Flush whatever those tasks buffered before reporting failure. Guarded, because a mailbox
+		// usually fails precisely when Redis is unhealthy — which is exactly when this enqueue
+		// fails too, and an escape here would skip recordMailboxResult and re-throw the job,
+		// the double-counting retry the contract at the bottom of this block forbids.
+		try {
+			await flushBatch();
+		} catch (flushError) {
+			logger.error(
+				{ err: flushError, ingestionSourceId, userEmail, buffered: emailBatch.length },
+				'Could not enqueue archived emails for indexing; the reconcile pass will recover them'
+			);
 		}
 
 		logger.error({ err: error, ingestionSourceId, userEmail }, 'Error processing mailbox');

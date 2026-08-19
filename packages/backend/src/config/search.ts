@@ -1,35 +1,5 @@
 import 'dotenv/config';
-import { logger } from './logger';
-
-/**
- * Reads a positive integer setting, falling back loudly rather than silently.
- *
- * `parseInt` is too forgiving to use directly for configuration. It returns `NaN` for a typo, and
- * `NaN` propagates: a chunk size of `NaN` makes the indexing loop iterate once over an empty slice
- * and report success, leaving every row unindexed with nothing in the log to say so. Worse, it stops
- * at the first character it cannot read, so `1_000_000` — the digit-separator style used for the
- * defaults in this very file, and an easy thing to paste into a `.env` — parses as `1`. A text budget
- * of one byte indexes every email with an empty body and marks it done.
- *
- * `min` is what catches that second case: a plausible-but-absurd value is rejected like a malformed
- * one.
- */
-const intFromEnv = (name: string, fallback: number, min: number): number => {
-	const raw = process.env[name];
-	if (raw === undefined || raw.trim() === '') {
-		return fallback;
-	}
-
-	const parsed = Number.parseInt(raw, 10);
-	if (!Number.isFinite(parsed) || parsed < min) {
-		logger.warn(
-			{ variable: name, value: raw, min, using: fallback },
-			'Ignoring out-of-range or unparseable configuration value'
-		);
-		return fallback;
-	}
-	return parsed;
-};
+import { intFromEnv } from '../helpers/intFromEnv';
 
 export const searchConfig = {
 	host: process.env.MEILI_HOST || 'http://127.0.0.1:7700',
@@ -84,4 +54,18 @@ export const indexingConfig = {
 	 * into tens of megabytes of string held in the worker's heap for the whole chunk.
 	 */
 	maxTextBytes: intFromEnv('INDEXING_MAX_TEXT_BYTES', 1_000_000, 10_000),
+	/**
+	 * How many index-email-batch jobs the indexing worker runs at once.
+	 *
+	 * Most of a job's wall clock is waiting, not computing: a storage read per email, then a
+	 * Meilisearch task the job must see finish before it may mark those emails indexed. At the BullMQ
+	 * default of 1 that wait is dead time — the worker sat idle with hundreds of jobs queued, which is
+	 * what made small reindexes take tens of minutes.
+	 *
+	 * Memory scales with this: peak is roughly this value x 2 chunks in flight x MEILI_INDEXING_CHUNK
+	 * documents x INDEXING_MAX_TEXT_BYTES, plus the raw .eml and attachment buffers of the documents
+	 * currently building. Raise INDEXING_WORKER_MAX_OLD_SPACE_MB or lower MEILI_INDEXING_CHUNK when
+	 * raising this.
+	 */
+	workerConcurrency: intFromEnv('INDEXING_WORKER_CONCURRENCY', 4, 1, 32),
 };

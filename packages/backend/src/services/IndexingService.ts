@@ -13,6 +13,7 @@ import { archivedEmails, attachments, emailAttachments } from '../database/schem
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
 import { truncateToBytes } from '../helpers/truncateToBytes';
+import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
 import { logger } from '../config/logger';
 import { config } from '../config';
@@ -100,33 +101,59 @@ export class IndexingService {
 		// documents travel to Meilisearch together, so it keeps its own cap instead of inheriting the
 		// payload size. Tying the two meant raising the chunk to reduce round trips also raised how
 		// many .eml buffers were resident at once — the opposite of what the chunk exists to control.
-		const buildConcurrency = Math.min(10, chunkSize);
+		//
+		// Divided by the worker's job concurrency so the PROCESS-wide figure stays near ten however
+		// many jobs run at once. Without the division, raising the worker to four jobs quietly
+		// multiplied resident raw buffers fourfold against an unchanged heap ceiling — reintroducing
+		// the out-of-memory crash the chunking was added to fix.
+		const buildConcurrency = Math.min(
+			Math.max(1, Math.floor(10 / config.indexing.workerConcurrency)),
+			chunkSize
+		);
 
 		const pending = await this.skipAlreadyIndexed(emails);
 		let buildFailed = 0;
 		let invalid = 0;
 		let indexed = 0;
 
+		// One flush is allowed to be in flight while the NEXT chunk builds. Building is storage reads
+		// and parsing; flushing is a Meilisearch round trip the flush must see finish before it may
+		// mark anything indexed. Run strictly in sequence, each chunk paid for both in full. Held to
+		// exactly one outstanding flush, and collected as soon as the next chunk's build finishes —
+		// before that chunk writes anything — so markIndexed ordering, error propagation and the
+		// retry path match the serial version, and no more than two chunks are ever resident.
+		let pendingFlush: Promise<{ indexed: number; invalid: number }> | null = null;
+		const collectFlush = async (): Promise<void> => {
+			if (!pendingFlush) {
+				return;
+			}
+			const settled = pendingFlush;
+			// Cleared BEFORE awaiting, so the final collect after the loop cannot await the same
+			// flush a second time and double-count it.
+			pendingFlush = null;
+			const result = await settled;
+			indexed += result.indexed;
+			invalid += result.invalid;
+		};
+
 		for (let i = 0; i < pending.length; i += chunkSize) {
 			const chunk = pending.slice(i, i + chunkSize);
 
-			const results: PromiseSettledResult<EmailDocument | null>[] = [];
-			for (let k = 0; k < chunk.length; k += buildConcurrency) {
-				results.push(
-					...(await Promise.allSettled(
-						chunk
-							.slice(k, k + buildConcurrency)
-							.map((pendingEmail) =>
-								this.indexEmailById(pendingEmail.archivedEmailId)
-							)
-					))
-				);
-			}
+			const results = await mapWithConcurrency(chunk, buildConcurrency, (pendingEmail) =>
+				this.indexEmailById(pendingEmail.archivedEmailId)
+			);
+
+			// The previous chunk's Meilisearch task has had this chunk's whole build to settle, and
+			// is collected HERE — before this chunk commits anything. Collected after, a failed
+			// flush still let the next chunk's index_attempts bumps land first, so every BullMQ
+			// retry of an outage double-counted borderline rows and dropped them from search after
+			// about half the intended failures.
+			await collectFlush();
 
 			// Emails whose document could not be BUILT (corrupt EML, parse error, missing file).
-			// These are email-specific ("poison") failures: count them against index_attempts so the
-			// reconcile job eventually stops retrying them, and do not throw, so their chunk-mates
-			// still index.
+			// These are email-specific ("poison") failures: count them against index_attempts so
+			// the reconcile job eventually stops retrying them, and do not throw, so their
+			// chunk-mates still index.
 			const buildFailedIds: string[] = [];
 			const documents: EmailDocument[] = [];
 
@@ -164,11 +191,17 @@ export class IndexingService {
 				continue;
 			}
 
-			const { indexed: chunkIndexed, invalid: chunkInvalid } =
-				await this.flushDocuments(documents);
-			indexed += chunkIndexed;
-			invalid += chunkInvalid;
+			pendingFlush = this.flushDocuments(documents);
+			// Marked handled the instant it starts. A flush that fails while the next chunk is
+			// still building would otherwise sit rejected-and-unobserved for the length of that
+			// build, which Node reports as an unhandled rejection and the worker's process-level
+			// handler logs as an unexplained failure — for something this loop goes on to observe
+			// properly at the next collectFlush. Attaching a handler does not swallow it: `.catch`
+			// returns a new promise and leaves this one rejected, so the await still throws.
+			pendingFlush.catch(() => undefined);
 		}
+
+		await collectFlush();
 
 		// One neutral line with the counters, rather than a cheerful "Successfully indexed" that also
 		// printed when every document in the batch failed to build.
@@ -490,23 +523,29 @@ export class IndexingService {
 	private async extractInlineAttachmentContents(
 		parsedAttachments: ParsedAttachment[]
 	): Promise<{ filename: string; content: string }[]> {
+		const results = await mapWithConcurrency(
+			parsedAttachments,
+			IndexingService.ATTACHMENT_READ_CONCURRENCY,
+			async (attachment) => ({
+				filename: attachment.filename || 'untitled',
+				content: truncateToBytes(
+					await extractText(attachment.content, attachment.contentType || ''),
+					config.indexing.maxTextBytes
+				),
+			})
+		);
+
 		const extracted: { filename: string; content: string }[] = [];
-		for (const attachment of parsedAttachments) {
-			try {
-				const textContent = await extractText(
-					attachment.content,
-					attachment.contentType || ''
-				);
-				extracted.push({
-					filename: attachment.filename || 'untitled',
-					content: truncateToBytes(textContent, config.indexing.maxTextBytes),
-				});
-			} catch (error) {
+		for (let i = 0; i < results.length; i++) {
+			const result = results[i];
+			if (result.status === 'fulfilled') {
+				extracted.push(result.value);
+			} else {
 				logger.warn(
 					{
-						filename: attachment.filename,
-						mimeType: attachment.contentType,
-						error: error instanceof Error ? error.message : String(error),
+						err: result.reason,
+						filename: parsedAttachments[i].filename,
+						mimeType: parsedAttachments[i].contentType,
 					},
 					'Failed to extract text from inline attachment in preserve-original mode'
 				);
@@ -515,23 +554,46 @@ export class IndexingService {
 		return extracted;
 	}
 
+	/**
+	 * Reads each attachment back out of storage and extracts its text.
+	 *
+	 * Bounded rather than sequential: every attachment costs a storage GET (a network round trip on
+	 * S3, plus an AES decrypt) before any parsing starts, and one email's attachments have no reason
+	 * to queue behind each other for that. The bound is deliberately small — extraction itself is
+	 * CPU-bound and largely synchronous, so a wide pool would only pile work onto one event loop,
+	 * and this already runs inside the per-email build pool.
+	 */
+	private static readonly ATTACHMENT_READ_CONCURRENCY = 3;
+
 	private async extractAttachmentContents(
 		attachments: Attachment[]
 	): Promise<{ filename: string; content: string }[]> {
-		const extractedAttachments = [];
-		for (const attachment of attachments) {
-			try {
+		const results = await mapWithConcurrency(
+			attachments,
+			IndexingService.ATTACHMENT_READ_CONCURRENCY,
+			async (attachment) => {
 				const fileStream = await this.storageService.get(attachment.storagePath);
 				const fileBuffer = await streamToBuffer(fileStream);
 				const textContent = await extractText(fileBuffer, attachment.mimeType || '');
-				extractedAttachments.push({
+				return {
 					filename: attachment.filename,
 					content: truncateToBytes(textContent, config.indexing.maxTextBytes),
-				});
-			} catch (error) {
-				console.error(
-					`Failed to extract text from attachment: ${attachment.filename}`,
-					error
+				};
+			}
+		);
+
+		const extractedAttachments: { filename: string; content: string }[] = [];
+		for (let i = 0; i < results.length; i++) {
+			const result = results[i];
+			if (result.status === 'fulfilled') {
+				extractedAttachments.push(result.value);
+			} else {
+				// One unreadable attachment must not cost the email its body text, so this is warn
+				// and continue, as before — via the logger, so it lands in the same structured
+				// stream as everything else rather than raw on stdout.
+				logger.warn(
+					{ err: result.reason, filename: attachments[i].filename },
+					'Failed to extract text from attachment'
 				);
 			}
 		}

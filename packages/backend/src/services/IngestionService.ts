@@ -51,6 +51,8 @@ import { AuditService } from './AuditService';
 import { User } from '@open-archiver/types';
 import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
+import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
+import { truncateToBytes } from '../helpers/truncateToBytes';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
 import { buildReindexWhere } from '../jobs/helpers/indexBacklog';
 
@@ -58,6 +60,12 @@ import { buildReindexWhere } from '../jobs/helpers/indexBacklog';
  * so inserting null (from a missing/unparseable sender, e.g. Exchange "Deleted Items"
  * system messages) would fail with Postgres 23502 and drop the email entirely. */
 const UNKNOWN_SENDER = 'unknown@no-sender.invalid';
+
+/**
+ * How many of one email's attachments are stored at once. Small on purpose: this runs inside the
+ * per-email concurrency of the mailbox loop, so the real parallelism is the product of the two.
+ */
+const ATTACHMENT_STORE_CONCURRENCY = 3;
 
 /**
  * The mailbox column reduced to its canonical form.
@@ -78,6 +86,66 @@ const matchesMailbox = (normalizedAddress: string) => eq(normalizedMailbox, norm
 
 export class IngestionService {
 	private static auditService = new AuditService();
+
+	// ── Per-instance memo caches ──────────────────────────────────────────────
+	// One IngestionService is constructed per process-mailbox job, so these live and die with the
+	// mailbox. Every entry is invariant for the duration of that job: a source's merge topology and
+	// its credentials do not change mid-sync, and an attachment's content hash maps to one row.
+	//
+	// Promises are cached rather than values, so that concurrent first callers — which now exist,
+	// since a mailbox archives several emails at a time — collapse onto one query instead of racing
+	// and each doing their own.
+	private groupIdsCache = new Map<string, Promise<string[]>>();
+	private effectiveSourceCache = new Map<string, Promise<IngestionSource>>();
+	private attachmentIdCache = new Map<string, Promise<string>>();
+	private static readonly ATTACHMENT_CACHE_MAX = 5_000;
+
+	/**
+	 * The Message-ID header as a string, or undefined when the email carries none usable.
+	 *
+	 * Exists so `dedupKeyFor` and `processEmail` cannot drift apart: the concurrency invariant is
+	 * that emails serialized under the same key are exactly the emails that will collide at the
+	 * dedup gate, and two independent copies of this unwrapping would only have to disagree once.
+	 * The `typeof` guard covers the array branch too — a connector yielding a non-string there would
+	 * otherwise reach `Buffer.byteLength` and throw outside any per-email catch, taking the whole
+	 * mailbox down on one malformed header.
+	 */
+	private static messageIdHeaderOf(email: EmailObject): string | undefined {
+		const header = email.headers.get('message-id');
+		if (typeof header === 'string') {
+			return header;
+		}
+		if (Array.isArray(header) && typeof header[0] === 'string') {
+			return header[0];
+		}
+		return undefined;
+	}
+
+	/**
+	 * The key an email will be deduplicated under, resolved without reading the message body.
+	 *
+	 * Callers that archive several emails from one mailbox concurrently need this: gate 1 in
+	 * processEmail is a check-then-insert with no unique index behind it, so two emails carrying the
+	 * same Message-ID (the same message filed in two folders, a Sent copy) would both find nothing
+	 * and both insert. Serializing on this key is what keeps that impossible.
+	 *
+	 * `collapseGenerated` is for preserve-original (GoBD) sources. Those have a SECOND check-then-
+	 * insert gate, on the sha256 of the raw message, which exists precisely for byte-identical
+	 * emails whose Message-ID is missing or differs — and those are exactly the emails that fall to
+	 * the per-message fallback key below and so would NOT serialize against each other. Collapsing
+	 * every header-less email onto one shared key restores the serial loop's guarantee for that
+	 * mode, at the cost of processing header-less messages one at a time.
+	 *
+	 * Elsewhere the fallback is exact rather than approximate: a generated key embeds `email.id`, so
+	 * no two of them can collide and there is nothing to serialize.
+	 */
+	public static dedupKeyFor(email: EmailObject, collapseGenerated = false): string {
+		const header = IngestionService.messageIdHeaderOf(email);
+		if (header) {
+			return IngestionService.boundMessageKey(header);
+		}
+		return collapseGenerated ? 'keyless' : `id:${email.id}`;
+	}
 	private static decryptSource(
 		source: typeof ingestionSources.$inferSelect
 	): IngestionSource | null {
@@ -886,14 +954,18 @@ export class IngestionService {
 	public static async doesEmailExist(
 		rawMessageId: string,
 		ingestionSourceId: string,
-		rawUserEmail: string
+		rawUserEmail: string,
+		knownGroupIds?: string[]
 	): Promise<boolean> {
 		// Bounded on the way in so this pre-fetch check compares against the same key processEmail
 		// stored. Without it an over-long id would look absent here and be downloaded again on
 		// every sync.
 		const messageId = IngestionService.boundMessageKey(rawMessageId);
 		const userEmail = normalizeEmailAddress(rawUserEmail);
-		const groupIds = await this.findGroupSourceIds(ingestionSourceId);
+		// The group is invariant for a whole mailbox job, so the caller resolves it once and passes
+		// it in. Without that this ran a SELECT for every message the connector offered — before the
+		// message was even downloaded.
+		const groupIds = knownGroupIds ?? (await this.findGroupSourceIds(ingestionSourceId));
 		const sourceFilter = IngestionService.groupScopeFilter(groupIds);
 
 		const existingEmail = await db.query.archivedEmails.findFirst({
@@ -966,19 +1038,11 @@ export class IngestionService {
 			return value;
 		}
 		const digest = createHash('sha256').update(value).digest('hex');
-		const truncated = IngestionService.truncateToBytes(
+		const truncated = truncateToBytes(
 			value,
 			IngestionService.MESSAGE_KEY_MAX_BYTES - digest.length - 1
 		);
 		return `${truncated}-${digest}`;
-	}
-
-	/** Byte-truncates a string without splitting a multibyte character. */
-	private static truncateToBytes(value: string, maxBytes: number): string {
-		while (Buffer.byteLength(value) > maxBytes) {
-			value = value.slice(0, -1);
-		}
-		return value;
 	}
 
 	/**
@@ -992,10 +1056,7 @@ export class IngestionService {
 		if (Buffer.byteLength(segment) <= IngestionService.PATH_SEGMENT_MAX_BYTES) {
 			return segment;
 		}
-		const truncated = IngestionService.truncateToBytes(
-			segment,
-			IngestionService.PATH_SEGMENT_MAX_BYTES
-		);
+		const truncated = truncateToBytes(segment, IngestionService.PATH_SEGMENT_MAX_BYTES);
 		return `${truncated}-${createHash('sha256').update(segment).digest('hex').slice(0, 8)}`;
 	}
 
@@ -1025,7 +1086,138 @@ export class IngestionService {
 		}
 		const hashSuffix = createHash('sha256').update(filename).digest('hex').slice(0, 8);
 		const budget = 180 - Buffer.byteLength(`-${hashSuffix}${ext}`);
-		return `${IngestionService.truncateToBytes(base, budget)}-${hashSuffix}${ext}`;
+		return `${truncateToBytes(base, budget)}-${hashSuffix}${ext}`;
+	}
+
+	/**
+	 * The merge group's source ids, resolved once per source per job.
+	 *
+	 * findGroupSourceIds costs a SELECT — and, when the source is a merge child, a findById whose
+	 * AES credential decrypt is the expensive part. This ran on every single email.
+	 *
+	 * Public so the mailbox processor's duplicate pre-check warms and shares this exact memo rather
+	 * than resolving the group through a second, separate path. The tradeoff, accepted: a merge or
+	 * unmerge performed while a mailbox is mid-import is not seen until that job ends, so the
+	 * remaining emails of the run miss the shared-file reference check and store their own copy.
+	 * Rare, self-correcting on the next sync, and cheaper than a SELECT per message.
+	 */
+	public resolveGroupSourceIds(source: IngestionSource): Promise<string[]> {
+		const cached = this.groupIdsCache.get(source.id);
+		if (cached) {
+			return cached;
+		}
+		// `source` is already in hand, so pass it as `known` and skip the findById entirely.
+		const resolved = IngestionService.findGroupSourceIds(source.id, source);
+		this.groupIdsCache.set(source.id, resolved);
+		// A failure must not be remembered as the answer: a transient database blip would otherwise
+		// be re-thrown at every remaining email in the mailbox instead of being retried once.
+		resolved.catch(() => this.groupIdsCache.delete(source.id));
+		return resolved;
+	}
+
+	/**
+	 * The root source that owns storage and DB rows for a merge child, resolved once per job.
+	 *
+	 * findById decrypts the source's credentials every call, so doing this per email spent real CPU
+	 * re-deriving a value that is fixed for the whole mailbox.
+	 */
+	private resolveEffectiveSource(mergedIntoId: string): Promise<IngestionSource> {
+		const cached = this.effectiveSourceCache.get(mergedIntoId);
+		if (cached) {
+			return cached;
+		}
+		const resolved = IngestionService.findById(mergedIntoId);
+		this.effectiveSourceCache.set(mergedIntoId, resolved);
+		resolved.catch(() => this.effectiveSourceCache.delete(mergedIntoId));
+		return resolved;
+	}
+
+	/**
+	 * The attachments row id for a piece of content, created if this is the first sighting.
+	 *
+	 * The cache turns a repeated attachment — a signature image, a company letterhead — into one
+	 * lookup per job instead of one per email carrying it. Because the promise is stored BEFORE it
+	 * is awaited, two emails archived at the same time that share an attachment also serialize onto
+	 * the same insert instead of both finding nothing and both inserting.
+	 *
+	 * That guarantee covers THIS job only. `attachments` has no unique index on
+	 * (ingestion_source_id, content_hash_sha256) — only the plain `source_hash_idx` — so sibling
+	 * mailbox jobs of the same source, a stalled job re-delivered to another slot, and any second
+	 * replica still race each other and can still produce duplicate rows. That race predates the
+	 * per-mailbox concurrency; closing it properly needs the unique index plus
+	 * `onConflictDoNothing()` and a re-select, which is a migration and a follow-up.
+	 *
+	 * One consequence of sharing worth knowing: when the shared attempt fails, every email waiting
+	 * on it fails with it, where previously each retried on its own. Accepted — the rejection
+	 * evicts the entry, so the next email through does retry.
+	 */
+	private getOrCreateAttachmentId(
+		attachmentHash: string,
+		effectiveSourceId: string,
+		attachment: EmailObject['attachments'][number],
+		storage: StorageService
+	): Promise<string> {
+		const cacheKey = `${effectiveSourceId}:${attachmentHash}`;
+		const cached = this.attachmentIdCache.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+
+		const resolved = (async (): Promise<string> => {
+			const existingAttachment = await db.query.attachments.findFirst({
+				where: and(
+					eq(attachmentsSchema.contentHashSha256, attachmentHash),
+					eq(attachmentsSchema.ingestionSourceId, effectiveSourceId)
+				),
+			});
+
+			if (existingAttachment) {
+				logger.debug(
+					{
+						attachmentHash,
+						ingestionSourceId: effectiveSourceId,
+						reusedPath: existingAttachment.storagePath,
+					},
+					'Reusing existing attachment file for deduplication.'
+				);
+				return existingAttachment.id;
+			}
+
+			// New attachment: store under the root source's folder. Path uses the source ID only —
+			// not the name — so that renaming a source never causes a path mismatch.
+			const uniqueId = randomUUID().slice(0, 7);
+			const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSourceId}/attachments/${uniqueId}-${this.buildAttachmentFileName(attachment.filename)}`;
+			await storage.put(storagePath, attachment.content);
+
+			const [newRecord] = await db
+				.insert(attachmentsSchema)
+				.values({
+					filename: attachment.filename,
+					mimeType: attachment.contentType,
+					sizeBytes: attachment.size,
+					contentHashSha256: attachmentHash,
+					storagePath,
+					// Always assign attachment ownership to root (effectiveSource)
+					ingestionSourceId: effectiveSourceId,
+				})
+				.returning();
+			return newRecord.id;
+		})();
+
+		// Bounded: an import of mostly-distinct attachments would otherwise retain one entry per
+		// attachment for the life of the job, times every mailbox running in parallel, in a worker
+		// with no heap ceiling. Map iterates in insertion order, so the first key is the oldest;
+		// evicting it costs at worst one repeated lookup.
+		if (this.attachmentIdCache.size >= IngestionService.ATTACHMENT_CACHE_MAX) {
+			const oldest = this.attachmentIdCache.keys().next();
+			if (!oldest.done) {
+				this.attachmentIdCache.delete(oldest.value);
+			}
+		}
+		this.attachmentIdCache.set(cacheKey, resolved);
+		// A failed store must not be remembered as the answer for the rest of the job.
+		resolved.catch(() => this.attachmentIdCache.delete(cacheKey));
+		return resolved;
 	}
 
 	/**
@@ -1056,18 +1248,12 @@ export class IngestionService {
 			// ownership to the root source. Child sources are "assistants" — they fetch
 			// emails on behalf of the root but never own any stored content.
 			const effectiveSource = source.mergedIntoId
-				? await IngestionService.findById(source.mergedIntoId)
+				? await this.resolveEffectiveSource(source.mergedIntoId)
 				: source;
 
 			// Generate a unique message ID for the email. If the email already has a message-id header, use that.
 			// Otherwise, generate a new one based on the email's hash, source ID, and email ID.
-			const messageIdHeader = email.headers.get('message-id');
-			let messageId: string | undefined;
-			if (Array.isArray(messageIdHeader)) {
-				messageId = messageIdHeader[0];
-			} else if (typeof messageIdHeader === 'string') {
-				messageId = messageIdHeader;
-			}
+			let messageId = IngestionService.messageIdHeaderOf(email);
 			if (!messageId) {
 				messageId = `generated-${createHash('sha256')
 					.update(rawEmlBuffer)
@@ -1089,34 +1275,20 @@ export class IngestionService {
 			//         in the group. Write file + create row.
 			// ─────────────────────────────────────────────────────────────────
 
-			const groupIds = await IngestionService.findGroupSourceIds(source.id);
+			const groupIds = await this.resolveGroupSourceIds(source);
 			const groupSourceFilter = IngestionService.groupScopeFilter(groupIds);
 
-			// Gate 1: Per-mailbox duplicate check (idempotency guard for re-sync)
-			const perMailboxDuplicate = await db.query.archivedEmails.findFirst({
-				where: and(
-					eq(archivedEmails.messageIdHeader, messageId),
-					matchesMailbox(userEmail),
-					groupSourceFilter
-				),
-				columns: { id: true },
-			});
-
-			if (perMailboxDuplicate) {
-				logger.debug(
-					{ messageId, userEmail, ingestionSourceId: source.id },
-					'Skipping duplicate email (same mailbox already has this email)'
-				);
-				return null;
-			}
-
-			// Gate 2: Check if any OTHER mailbox in the group already has this email.
-			// If so, we skip the file write and create a reference row that shares
-			// the existing storagePath and storageHashSha256.
-			const existingGroupEmail = await db.query.archivedEmails.findFirst({
+			// Gates 1 and 2 in one round trip. They ask the same index the same question and differ
+			// only by the mailbox predicate, so ordering this mailbox's row first answers both: if
+			// the row that comes back belongs to this mailbox it is gate 1, and if one exists at all
+			// but belongs to another mailbox it is gate 2. Two queries per email were one more than
+			// the question needed.
+			// Postgres both orders on and returns the mailbox predicate, so the answer to gate 1 is
+			// the one the database computed — not a second opinion formed in JavaScript, which
+			// would have to reproduce btrim's exact idea of whitespace to stay in agreement.
+			const isThisMailbox = sql<boolean>`${normalizedMailbox} = ${userEmail}`;
+			const groupMatch = await db.query.archivedEmails.findFirst({
 				where: and(eq(archivedEmails.messageIdHeader, messageId), groupSourceFilter),
-				// Only the fields needed to build the shared-file reference row below —
-				// avoid fetching the entire wide row on every group dedup check.
 				columns: {
 					id: true,
 					storagePath: true,
@@ -1124,7 +1296,24 @@ export class IngestionService {
 					sizeBytes: true,
 					hasAttachments: true,
 				},
+				extras: {
+					isThisMailbox: isThisMailbox.as('is_this_mailbox'),
+				},
+				orderBy: desc(isThisMailbox),
 			});
+
+			// Gate 1: Per-mailbox duplicate check (idempotency guard for re-sync)
+			if (groupMatch?.isThisMailbox) {
+				logger.debug(
+					{ messageId, userEmail, ingestionSourceId: source.id },
+					'Skipping duplicate email (same mailbox already has this email)'
+				);
+				return null;
+			}
+
+			// Gate 2: Another mailbox in the group already has this email. Skip the file write and
+			// create a reference row sharing the existing storagePath and storageHashSha256.
+			const existingGroupEmail = groupMatch;
 
 			if (existingGroupEmail) {
 				// Shared-file reference path: no file write, just a new DB row
@@ -1165,13 +1354,15 @@ export class IngestionService {
 						.from(emailAttachments)
 						.where(eq(emailAttachments.emailId, existingGroupEmail.id));
 
-					for (const link of existingLinks) {
+					if (existingLinks.length > 0) {
 						await db
 							.insert(emailAttachments)
-							.values({
-								emailId: referenceRow.id,
-								attachmentId: link.attachmentId,
-							})
+							.values(
+								existingLinks.map((link) => ({
+									emailId: referenceRow.id,
+									attachmentId: link.attachmentId,
+								}))
+							)
 							.onConflictDoNothing();
 					}
 				}
@@ -1316,63 +1507,42 @@ export class IngestionService {
 				.returning();
 
 			if (email.attachments.length > 0) {
-				for (const attachment of email.attachments) {
-					const attachmentBuffer = attachment.content;
-					const attachmentHash = createHash('sha256')
-						.update(attachmentBuffer)
-						.digest('hex');
-
-					// Check if an attachment with the same hash already exists for the root source
-					const existingAttachment = await db.query.attachments.findFirst({
-						where: and(
-							eq(attachmentsSchema.contentHashSha256, attachmentHash),
-							eq(attachmentsSchema.ingestionSourceId, effectiveSource.id)
-						),
-					});
-
-					let attachmentId: string;
-
-					if (existingAttachment) {
-						attachmentId = existingAttachment.id;
-						logger.debug(
-							{
-								attachmentHash,
-								ingestionSourceId: effectiveSource.id,
-								reusedPath: existingAttachment.storagePath,
-							},
-							'Reusing existing attachment file for deduplication.'
+				// Each attachment stores and links itself, and does so as soon as its own id is
+				// known. Collecting every id first and writing the links in one insert at the end
+				// read better but lost data: an email whose last attachment failed committed NO
+				// links at all, while its row was already inserted with has_attachments = true and
+				// the per-mailbox dedup gate would skip the email on every later sync — leaving it
+				// permanently showing attachments it cannot list.
+				//
+				// Bounded parallelism because each of these is a storage round trip. Two
+				// attachments of the same content resolve through one cached promise, so the
+				// second link insert simply finds its row already there.
+				const results = await mapWithConcurrency(
+					email.attachments,
+					ATTACHMENT_STORE_CONCURRENCY,
+					async (attachment) => {
+						const attachmentHash = createHash('sha256')
+							.update(attachment.content)
+							.digest('hex');
+						const attachmentId = await this.getOrCreateAttachmentId(
+							attachmentHash,
+							effectiveSource.id,
+							attachment,
+							storage
 						);
-					} else {
-						// New attachment: store under the root source's folder.
-						// Path uses the source ID only — not the name — so that renaming
-						// a source never causes a path mismatch.
-						const uniqueId = randomUUID().slice(0, 7);
-						const storagePath = `${config.storage.openArchiverFolderName}/${effectiveSource.id}/attachments/${uniqueId}-${this.buildAttachmentFileName(attachment.filename)}`;
-						await storage.put(storagePath, attachmentBuffer);
-
-						const [newRecord] = await db
-							.insert(attachmentsSchema)
-							.values({
-								filename: attachment.filename,
-								mimeType: attachment.contentType,
-								sizeBytes: attachment.size,
-								contentHashSha256: attachmentHash,
-								storagePath,
-								// Always assign attachment ownership to root (effectiveSource)
-								ingestionSourceId: effectiveSource.id,
-							})
-							.returning();
-						attachmentId = newRecord.id;
+						await db
+							.insert(emailAttachments)
+							.values({ emailId: archivedEmail.id, attachmentId })
+							.onConflictDoNothing();
 					}
+				);
 
-					// Link the attachment record (either new or existing) to the email
-					await db
-						.insert(emailAttachments)
-						.values({
-							emailId: archivedEmail.id,
-							attachmentId,
-						})
-						.onConflictDoNothing();
+				// Surfaced after the successful links are committed, so partial progress survives
+				// while the email is still reported as failed — same outcome the sequential loop
+				// produced, and what the caller's error accounting expects.
+				const failure = results.find((r) => r.status === 'rejected');
+				if (failure?.status === 'rejected') {
+					throw failure.reason;
 				}
 			}
 

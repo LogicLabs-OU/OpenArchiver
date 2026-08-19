@@ -2,7 +2,7 @@ import { Job } from 'bullmq';
 import { IngestionService } from '../../services/IngestionService';
 import { IContinuousSyncJob } from '@open-archiver/types';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
-import { ingestionQueue } from '../queues';
+import { enqueueMailboxJobs } from '../helpers/enqueueMailboxJobs';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
@@ -63,15 +63,7 @@ export default async (job: Job<IContinuousSyncJob>) => {
 			'Dispatching process-mailbox jobs for continuous sync'
 		);
 
-		// Phase 3: Enqueue individual process-mailbox jobs one at a time.
-		// No FlowProducer — each job carries the sessionId for DB-based coordination.
-		for (const userEmail of userEmails) {
-			await ingestionQueue.add('process-mailbox', {
-				ingestionSourceId: source.id,
-				userEmail,
-				sessionId,
-			});
-		}
+		await enqueueMailboxJobs(source.id, userEmails, sessionId);
 
 		// The status will be set back to 'active' by the 'sync-cycle-finished' job
 		// once all the mailboxes have been processed.
