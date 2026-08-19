@@ -345,12 +345,17 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		}
 
 		const rawEmail = Buffer.from(msgResponse.data.raw, 'base64url');
+		// Gmail replaces the underlying message on every draft save, so each auto-save arrives here
+		// as a message of its own with its own ids. Marked rather than dropped, so the decision
+		// stays in one place — see the draft handling in process-mailbox.processor.
+		const isDraft = (metadataResponse.data.labelIds || []).includes('DRAFT');
 		return this.parseRawEmail(
 			rawEmail,
 			msgResponse.data.id!,
 			userEmail,
 			labels.path,
-			labels.tags
+			labels.tags,
+			isDraft
 		);
 	}
 
@@ -472,7 +477,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		messageId: string,
 		userEmail: string,
 		path: string,
-		tags: string[]
+		tags: string[],
+		isDraft = false
 	): Promise<EmailObject> {
 		const parsedEmail: ParsedMail = await simpleParser(rawEmail);
 
@@ -525,6 +531,7 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			attachments,
 			receivedAt: parsedEmail.date || new Date(),
 			path,
+			isDraft: isDraft || undefined,
 			tags,
 		};
 	}

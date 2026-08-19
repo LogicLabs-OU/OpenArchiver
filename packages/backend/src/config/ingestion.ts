@@ -19,4 +19,18 @@ export const ingestionConfig = {
 	 * ingestion worker runs without a heap ceiling.
 	 */
 	emailConcurrency: intFromEnv('INGESTION_EMAIL_CONCURRENCY', 3, 1, 32),
+	/**
+	 * Whether unsent drafts from live mailboxes are archived.
+	 *
+	 * Off by default because a draft is not a record, and archiving one goes wrong in both
+	 * directions. Providers that give every auto-save its own identity (Gmail replaces the underlying
+	 * message on each save) fill the archive with revisions of an email that was never sent. Servers
+	 * that keep one Message-ID from draft to sent do the opposite: the draft is archived first and
+	 * the sent message is then taken for a duplicate of it, so the archive keeps an unfinished body
+	 * and never learns what was actually sent (#447).
+	 *
+	 * File imports ignore this setting — a PST or mbox is a snapshot the operator chose to hand over,
+	 * and it is ingested once, so neither failure applies and dropping part of it would be data loss.
+	 */
+	archiveDrafts: process.env.ARCHIVE_DRAFTS === 'true',
 };

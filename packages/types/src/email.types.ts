@@ -55,6 +55,16 @@ export interface EmailObject {
 	path?: string;
 	/** An array of tags or labels associated with the email. */
 	tags?: string[];
+	/**
+	 * Whether the source considers this an unsent draft.
+	 *
+	 * Only the live mailbox connectors set this. A draft on a live mailbox is a moving target: some
+	 * clients save every revision under a fresh identifier, filling the archive with copies of one
+	 * email, while others keep one identifier that the sent message then reuses, so the draft
+	 * occupies the place the real message should have taken. File imports are snapshots and archive
+	 * their drafts as they are.
+	 */
+	isDraft?: boolean;
 }
 
 /**

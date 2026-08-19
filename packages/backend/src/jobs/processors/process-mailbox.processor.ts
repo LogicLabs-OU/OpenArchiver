@@ -7,6 +7,7 @@ import { StorageService } from '../../services/StorageService';
 import { config } from '../../config';
 import { indexingQueue, ingestionQueue } from '../queues';
 import { SyncSessionService } from '../../services/SyncSessionService';
+import { unlink } from 'fs/promises';
 
 /**
  * Handles ingestion of emails for a single user's mailbox.
@@ -82,6 +83,13 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			: source;
 		const collapseKeylessEmails = Boolean(rootSource?.preserveOriginalFile);
 
+		// A file import archives everything the file holds, drafts included: the operator chose its
+		// contents, and a one-shot import cannot accumulate revisions the way a polled mailbox does.
+		// The file connectors never set isDraft, so this is inert today — it is here so that adding
+		// detection to one of them later cannot quietly start discarding imported mail.
+		const isFileImport = IngestionService.returnFileBasedIngestions().includes(source.provider);
+		const archiveDrafts = isFileImport || config.ingestion.archiveDrafts;
+
 		// Pre-check for duplicates without fetching full email content.
 		// Scoped to this specific mailbox (userEmail) so that different recipients
 		// of the same email each get their own archived row — only skipping when
@@ -151,6 +159,31 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			}
 
 			messagesSeen++;
+
+			// Unsent drafts from a live mailbox are dropped here, before any storage or database
+			// work. Archiving them fails in both directions: a provider that gives every auto-save
+			// its own identity fills the archive with revisions of an email that was never sent,
+			// while a server that keeps one Message-ID from draft to sent has the draft archived
+			// first and the real message then discarded as a duplicate of it (#447).
+			//
+			// Counted as seen but neither archived nor failed, matching how a deduplicated message
+			// is already accounted for. Counting it as a failure would flip the source to 'error'
+			// and throw away the run's sync state.
+			if (email.isDraft && !archiveDrafts) {
+				logger.debug(
+					{ ingestionSourceId, userEmail, emailId: email.id, path: email.path },
+					'Skipping unsent draft'
+				);
+				// processEmail owns this cleanup normally, and it is not being called.
+				await unlink(email.tempFilePath).catch((err) =>
+					logger.warn(
+						{ err, tempFilePath: email.tempFilePath },
+						'Failed to delete temp email file'
+					)
+				);
+				continue;
+			}
+
 			const dedupKey = IngestionService.dedupKeyFor(email, collapseKeylessEmails);
 			const prior = keyed.get(dedupKey);
 

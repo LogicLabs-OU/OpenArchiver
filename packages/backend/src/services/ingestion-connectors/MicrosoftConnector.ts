@@ -309,7 +309,9 @@ export class MicrosoftConnector implements IEmailConnector {
 			let response: any;
 			try {
 				response = await withRetry(
-					() => this.request(requestUrl!).select('id,conversationId').get(),
+					// isDraft rides along with the delta response, so no extra request is needed to
+					// tell an unsent draft from a real message.
+					() => this.request(requestUrl!).select('id,conversationId,isDraft').get(),
 					isRetryableGraphError,
 					{ userEmail, folderId, call: 'messages/delta' }
 				);
@@ -356,6 +358,9 @@ export class MicrosoftConnector implements IEmailConnector {
 					const emailObject = await this.fetchMessageOrSkip(userEmail, message.id, path);
 					if (emailObject) {
 						emailObject.threadId = message.conversationId;
+						// Marked rather than dropped here, so what happens to drafts is decided in
+						// one place — see the draft handling in process-mailbox.processor.
+						emailObject.isDraft = message.isDraft === true || undefined;
 						yield emailObject;
 					}
 				}

@@ -14,6 +14,17 @@ import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 import { writeEmailToTempFile } from './helpers/tempFile';
 
+/**
+ * Whether a mailbox is the account's Drafts folder.
+ *
+ * `specialUse` is the reliable signal: imapflow resolves it from the SPECIAL-USE extension when the
+ * server offers one and from a multilingual folder-name table when it does not, so this works
+ * against servers that never advertise RFC 6154. The flag check behind it covers the remaining case
+ * of a server that sets \Drafts as a plain mailbox flag.
+ */
+const isDraftsMailbox = (mailbox: { specialUse?: string; flags: Set<string> }): boolean =>
+	mailbox.specialUse?.toLowerCase() === '\\drafts' || mailbox.flags.has('\\Drafts');
+
 export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
@@ -165,6 +176,15 @@ export class ImapConnector implements IEmailConnector {
 				if (mailbox.flags.has('\\Noselect')) {
 					return false;
 				}
+				// Drafts, before the all-inclusive short-circuit below: that setting is about Junk
+				// and Trash, and someone who wants their spam archived has not thereby asked for
+				// every half-written message too. Excluding the folder rather than filtering later
+				// means a draft is never downloaded at all. imapflow fills in specialUse from a
+				// folder-name table as well as RFC 6154, so this holds on servers with no
+				// SPECIAL-USE extension.
+				if (!config.ingestion.archiveDrafts && isDraftsMailbox(mailbox)) {
+					return false;
+				}
 				if (config.app.allInclusiveArchive) {
 					return true;
 				}
@@ -222,6 +242,7 @@ export class ImapConnector implements IEmailConnector {
 							for await (const msg of this.client.fetch(searchCriteria, {
 								envelope: true,
 								uid: true,
+								flags: true,
 							})) {
 								if (lastUid && msg.uid <= lastUid) {
 									continue;
@@ -229,6 +250,17 @@ export class ImapConnector implements IEmailConnector {
 
 								if (msg.uid > this.newMaxUids[mailboxPath]) {
 									this.newMaxUids[mailboxPath] = msg.uid;
+								}
+
+								// A draft filed outside the Drafts folder — the folder filter above
+								// cannot see these, and skipping here means the body is never
+								// fetched, same as for a duplicate.
+								if (!config.ingestion.archiveDrafts && msg.flags?.has('\\Draft')) {
+									logger.debug(
+										{ mailboxPath, uid: msg.uid },
+										'Skipping message flagged as a draft'
+									);
+									continue;
 								}
 
 								// Duplicate check against the Message-ID from the envelope.
@@ -273,6 +305,7 @@ export class ImapConnector implements IEmailConnector {
 													source: true,
 													bodyStructure: true,
 													uid: true,
+													flags: true,
 												},
 												{ uid: true }
 											)
@@ -353,6 +386,7 @@ export class ImapConnector implements IEmailConnector {
 			receivedAt: parsedEmail.date || new Date(),
 			tempFilePath,
 			path: mailboxPath,
+			isDraft: msg.flags?.has('\\Draft') || undefined,
 		};
 	}
 
