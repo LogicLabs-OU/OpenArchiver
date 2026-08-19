@@ -248,6 +248,20 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			}
 		}
 
+		// Messages the connector could not fetch and skipped so the rest of the mailbox could
+		// finish (#441). Counting them here is what discards this run's sync state, so the next
+		// cycle re-attempts them rather than advancing the marker past them and losing them.
+		const fetchFailures = connector.getFetchFailures?.();
+		if (fetchFailures && fetchFailures.count > 0) {
+			messagesSeen += fetchFailures.count;
+			messagesFailed += fetchFailures.count;
+			for (const sample of fetchFailures.samples) {
+				if (failureSamples.length < MAX_FAILURE_SAMPLES) {
+					failureSamples.push(sample);
+				}
+			}
+		}
+
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
 		logger.info(
 			{ ingestionSourceId, userEmail, messagesSeen, messagesArchived, messagesFailed },
