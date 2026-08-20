@@ -1,8 +1,11 @@
 import { db } from '../database';
 import { syncSessions, ingestionSources } from '../database/schema';
-import { eq, lt, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, lt, notExists, sql, type SQL } from 'drizzle-orm';
 import type { SyncState, ProcessMailboxError } from '@open-archiver/types';
 import { logger } from '../config/logger';
+import { ingestionQueue } from '../jobs/queues';
+import { isJobLive } from '../jobs/helpers/claimJobId';
+import { continuousSyncJobId, initialImportJobId } from '../jobs/helpers/jobIds';
 
 /** Top-level SyncState keys whose value is a per-mailbox map and so must merge, not replace. */
 const NESTED_STATE_KEYS = new Set(['google', 'microsoft', 'imap']);
@@ -248,12 +251,31 @@ export class SyncSessionService {
 		for (const session of staleSessions) {
 			const totalProcessed = session.completedMailboxes + session.failedMailboxes;
 			if (totalProcessed >= session.totalMailboxes) {
-				// Session finished but was never finalized (e.g., sync-cycle-finished job
-				// was lost) — clean it up silently without touching the source status.
-				await db.delete(syncSessions).where(eq(syncSessions.id, session.id));
+				// Every mailbox reported, but the sync-cycle-finished job never ran — it was lost,
+				// or the worker died between the last result and dispatching it. Deleting the row
+				// and walking away used to leave the source in 'syncing' with nothing left to move
+				// it: the scheduler only selects 'active'/'error', so it silently stopped syncing
+				// and drifted behind its siblings for as long as nobody noticed. Re-dispatching the
+				// finalizer instead lets the normal path set the status, message and counters.
+				await ingestionQueue.add(
+					'sync-cycle-finished',
+					{
+						ingestionSourceId: session.ingestionSourceId,
+						sessionId: session.id,
+						isInitialImport: session.isInitialImport,
+					},
+					// Keyed on the session so repeated sweeps cannot pile up finalizers for it. The
+					// session row is deleted whichever way the finalizer ends, so this cannot become
+					// a sweep that re-dispatches the same lost job forever.
+					{
+						jobId: `sync-cycle-finished:${session.id}`,
+						removeOnComplete: true,
+						removeOnFail: true,
+					}
+				);
 				logger.warn(
 					{ sessionId: session.id, ingestionSourceId: session.ingestionSourceId },
-					'Cleaned up completed-but-unfinalized stale sync session'
+					'Re-dispatched sync-cycle-finished for a completed-but-unfinalized sync session'
 				);
 				continue;
 			}
@@ -289,6 +311,91 @@ export class SyncSessionService {
 			logger.info(
 				{ sessionId: session.id, ingestionSourceId: session.ingestionSourceId },
 				'Stale sync session cleaned up, source set to error for retry'
+			);
+		}
+
+		await this.releaseSessionlessSources(thresholdMs);
+	}
+
+	/**
+	 * Frees sources left mid-cycle with no session row to account for them.
+	 *
+	 * The sweep above can only see sources a session points at, and there is a window with no
+	 * session at all: both master jobs claim the source ('syncing' / 'importing') before
+	 * SyncSessionService.create() runs, so a worker that dies in between — an OOM kill, a deploy, a
+	 * lost Redis connection — leaves the source claimed and nothing anywhere referring to it. The
+	 * scheduler only selects 'active' and 'error', so that source silently stopped syncing and
+	 * drifted further behind its siblings every day while the UI still displayed "syncing". Three
+	 * sources on the dev instance had been wedged this way for four months.
+	 *
+	 * Setting them to 'error' is what puts them back in the scheduler's reach; the next tick
+	 * re-syncs them and dedup skips everything already archived.
+	 *
+	 * The threshold is shared with the session sweep and measured from lastSyncStartedAt, so a cycle
+	 * whose enumeration phase legitimately runs long is not cut off — and if one ever exceeds it,
+	 * claimForSync is what stops the second cycle from doing damage.
+	 */
+	private static async releaseSessionlessSources(thresholdMs: number): Promise<void> {
+		const cutoffTime = new Date(Date.now() - thresholdMs);
+
+		// Selected first, then filtered, then released. An UPDATE straight from the predicate would
+		// be one statement fewer, but it cannot ask the queue whether the master job is still alive,
+		// and releasing a source whose job is still running is what re-opens the very window this
+		// changeset closes — see below.
+		const candidates = await db
+			.select({ id: ingestionSources.id, name: ingestionSources.name })
+			.from(ingestionSources)
+			.where(
+				and(
+					inArray(ingestionSources.status, ['syncing', 'importing']),
+					lt(ingestionSources.lastSyncStartedAt, cutoffTime),
+					notExists(
+						db
+							.select({ one: sql`1` })
+							.from(syncSessions)
+							.where(eq(syncSessions.ingestionSourceId, ingestionSources.id))
+					)
+				)
+			);
+
+		for (const source of candidates) {
+			// Both master jobs create their session only after enumerating mailboxes, so a tenant
+			// whose enumeration runs past the threshold looks exactly like an abandoned one from the
+			// database alone. Releasing it to 'error' would let the scheduler start a competing
+			// cycle: a continuous sync is protected by its shared job id, which the still-active job
+			// holds, but an initial import is a different job under a different id and nothing would
+			// absorb the add — two cycles over the same mailboxes, the overlap that duplicates mail.
+			//
+			// Probing the ids answers the question the timestamp cannot. It is also self-correcting:
+			// a process that died leaves its job to be failed by the stalled-job check well inside
+			// this threshold (maxStalledCount 0, ten-minute lock), after which it is no longer live
+			// and the rescue proceeds as intended.
+			const [importing, syncing] = await Promise.all([
+				isJobLive(ingestionQueue, initialImportJobId(source.id)),
+				isJobLive(ingestionQueue, continuousSyncJobId(source.id)),
+			]);
+
+			if (importing || syncing) {
+				logger.info(
+					{ ingestionSourceId: source.id, name: source.name },
+					'Source has no sync session yet, but its master job is still running - leaving it alone'
+				);
+				continue;
+			}
+
+			await db
+				.update(ingestionSources)
+				.set({
+					status: 'error',
+					lastSyncFinishedAt: new Date(),
+					lastSyncStatusMessage:
+						'Sync interrupted before it started reporting progress, and no sync session was found. Will retry on the next sync cycle.',
+				})
+				.where(eq(ingestionSources.id, source.id));
+
+			logger.warn(
+				{ ingestionSourceId: source.id, name: source.name },
+				'Source was stuck mid-cycle with no sync session - set to error so the scheduler retries it'
 			);
 		}
 	}

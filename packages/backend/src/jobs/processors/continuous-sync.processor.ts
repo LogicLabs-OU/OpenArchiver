@@ -11,19 +11,17 @@ export default async (job: Job<IContinuousSyncJob>) => {
 	const { ingestionSourceId } = job.data;
 	logger.info({ ingestionSourceId }, 'Starting continuous sync job.');
 
-	const source = await IngestionService.findById(ingestionSourceId);
-	if (!source || !['error', 'active'].includes(source.status)) {
+	// Claimed in a single conditional UPDATE rather than read-then-write. Two cycles dispatched in
+	// the same tick both used to read 'active' before either wrote 'syncing', so both proceeded and
+	// their process-mailbox jobs raced the dedup check and duplicated archived mail. See claimForSync.
+	const source = await IngestionService.claimForSync(ingestionSourceId);
+	if (!source) {
 		logger.warn(
-			{ ingestionSourceId, status: source?.status },
-			'Skipping continuous sync for non-active or non-error source.'
+			{ ingestionSourceId },
+			'Skipping continuous sync: source is missing, or another cycle already holds it.'
 		);
 		return;
 	}
-
-	await IngestionService.update(ingestionSourceId, {
-		status: 'syncing',
-		lastSyncStartedAt: new Date(),
-	});
 
 	const connector = EmailProviderFactory.createConnector(source);
 

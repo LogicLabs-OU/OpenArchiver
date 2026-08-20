@@ -260,7 +260,16 @@
 				return;
 			}
 			isDeleteDialogOpen = false;
-			await goto('/dashboard/archived-emails', { invalidateAll: true });
+			// Carries the source through, because the list defaults to the first ingestion source
+			// when none is given — so deleting an email dropped the user into an unrelated mailbox
+			// instead of the one they were reading.
+			const sourceId = email.ingestionSource?.id ?? email.ingestionSourceId;
+			await goto(
+				sourceId
+					? `/dashboard/archived-emails?ingestionSourceId=${sourceId}`
+					: '/dashboard/archived-emails',
+				{ invalidateAll: true }
+			);
 		} catch (error) {
 			console.error('Delete failed:', error);
 		} finally {

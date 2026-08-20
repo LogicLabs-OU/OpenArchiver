@@ -107,6 +107,21 @@ export const createIngestionRouter = (
 		ingestionController.reindexAll
 	);
 
+	// Withheld from the API reference while the feature is held back: the endpoints answer 503
+	// (see IngestionController.DUPLICATE_CLEANUP_ENABLED). The @openapi blocks were removed so
+	// the generated spec does not advertise them; restore them when the feature ships.
+	router.get(
+		'/duplicates',
+		requirePermission('manage', 'ingestion'),
+		ingestionController.getDuplicateCount
+	);
+
+	router.post(
+		'/duplicates/cleanup',
+		requirePermission('manage', 'ingestion'),
+		ingestionController.cleanupDuplicates
+	);
+
 	/**
 	 * @openapi
 	 * /v1/ingestion-sources/{id}:
@@ -495,6 +510,21 @@ export const createIngestionRouter = (
 		'/:id/unmerge',
 		requirePermission('update', 'ingestion', { loadResource: ingestionResource }),
 		ingestionController.unmerge
+	);
+
+	// Withheld from the API reference while the feature is held back: the endpoints answer 503
+	// (see IngestionController.DUPLICATE_CLEANUP_ENABLED). The @openapi blocks were removed so
+	// the generated spec does not advertise them; restore them when the feature ships.
+	router.get(
+		'/:id/duplicates',
+		requirePermission('read', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.getDuplicateCount
+	);
+
+	router.post(
+		'/:id/duplicates/cleanup',
+		requirePermission('delete', 'ingestion', { loadResource: ingestionResource }),
+		ingestionController.cleanupDuplicates
 	);
 
 	return router;

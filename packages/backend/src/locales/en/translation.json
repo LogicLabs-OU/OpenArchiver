@@ -48,6 +48,9 @@
 		"initialImportTriggered": "Initial import triggered successfully.",
 		"forceSyncTriggered": "Force sync triggered successfully.",
 		"reindexTriggered": "Reindex triggered successfully.",
+		"duplicateCleanupTriggered": "Duplicate cleanup started. It runs in the background.",
+		"duplicateCleanupUnavailable": "Duplicate email cleanup is not available in this version.",
+		"deletionDisabled": "Deletion is disabled for this instance. Set ENABLE_DELETION=true to remove duplicate emails.",
 		"journalingSourceManagedByJournaling": "SMTP journaling sources are managed through the Journaling page and cannot be modified via the ingestion source API."
 	},
 	"archivedEmail": {

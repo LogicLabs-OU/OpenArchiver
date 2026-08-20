@@ -12,15 +12,17 @@ export default async (job: Job<IInitialImportJob>) => {
 	logger.info({ ingestionSourceId }, 'Starting initial import master job');
 
 	try {
-		const source = await IngestionService.findById(ingestionSourceId);
+		// One conditional UPDATE, for the same reason continuous-sync uses one: a second import
+		// dispatched while this one is in flight would create its own session and race the dedup
+		// check. See IngestionService.claimForImport.
+		const source = await IngestionService.claimForImport(ingestionSourceId);
 		if (!source) {
-			throw new Error(`Ingestion source with ID ${ingestionSourceId} not found`);
+			logger.warn(
+				{ ingestionSourceId },
+				'Skipping initial import: source is missing, or an import or sync is already running.'
+			);
+			return;
 		}
-
-		await IngestionService.update(ingestionSourceId, {
-			status: 'importing',
-			lastSyncStatusMessage: 'Starting initial import...',
-		});
 
 		const connector = EmailProviderFactory.createConnector(source);
 

@@ -76,5 +76,11 @@ export default async (job: Job<ISyncCycleFinishedJob>) => {
 			lastSyncFinishedAt: new Date(),
 			lastSyncStatusMessage: 'An unexpected error occurred while finalizing the sync cycle.',
 		});
+		// The session is dropped on this path too. 'error' is a status the scheduler picks up again,
+		// so the cycle is already accounted for; leaving the row behind would only make the stale
+		// sweep re-dispatch this same failing finalizer every threshold period.
+		await SyncSessionService.finalize(sessionId).catch((err) =>
+			logger.warn({ err, sessionId }, 'Failed to delete session after a failed finalization')
+		);
 	}
 };

@@ -7,6 +7,7 @@ import { IngestionService } from './IngestionService';
 import { quoteMeiliString } from '../helpers/meiliFilter';
 import { indexingQueue } from '../jobs/queues';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
+import { claimJobId } from '../jobs/helpers/claimJobId';
 import { logger } from '../config/logger';
 
 /** Document ids read from the index per page. Ids only, so ~36 bytes each. */
@@ -61,7 +62,7 @@ export class IndexMaintenanceService {
 		]);
 
 		const archivedCount = archived[0]?.total ?? 0;
-		const alreadyRunning = await this.#claimCleanupJobId();
+		const alreadyRunning = await claimJobId(indexingQueue, CLEANUP_JOB_ID);
 
 		if (!alreadyRunning) {
 			await indexingQueue.add('cleanup-orphans', {}, { jobId: CLEANUP_JOB_ID, attempts: 1 });
@@ -72,33 +73,6 @@ export class IndexMaintenanceService {
 			workerAlive,
 			alreadyRunning,
 		};
-	}
-
-	/**
-	 * Frees the fixed job id if the last sweep has finished, and reports whether one is still live.
-	 *
-	 * The id is what prevents two concurrent sweeps, but BullMQ treats *any* surviving record under
-	 * it as a duplicate and silently drops the new job — and finished records survive, kept by the
-	 * worker's removeOnComplete/removeOnFail counts. Left alone, the endpoint would answer "queued"
-	 * forever after the first run without queueing anything. Clearing a terminal record keeps the
-	 * action repeatable while the id still does its real job.
-	 *
-	 * Removal is allowed to fail: it throws for a job that became active in between, and the add
-	 * that follows is then absorbed by that live job — the same outcome as reporting it running.
-	 */
-	static async #claimCleanupJobId(): Promise<boolean> {
-		const existing = await indexingQueue.getJob(CLEANUP_JOB_ID);
-		if (!existing) {
-			return false;
-		}
-
-		const state = await existing.getState();
-		if (state === 'completed' || state === 'failed' || state === 'unknown') {
-			await existing.remove().catch(() => undefined);
-			return false;
-		}
-
-		return true;
 	}
 
 	/**

@@ -99,6 +99,80 @@ export interface ICleanupOrphansResult {
 }
 
 /**
+ * Payload for the `cleanup-duplicates` job on the indexing queue.
+ *
+ * Removes the surplus copies left when two sync cycles ran over one mailbox at the same time and
+ * both archived the same message. One copy of every message is always kept.
+ */
+export interface ICleanupDuplicatesJob {
+	/** Limits the sweep to a single ingestion source. Absent means every source. */
+	ingestionSourceId?: string;
+	/** Who triggered it. Each removal is attributed to this user in the audit log. */
+	actorId: string;
+	/** The triggering request's IP, recorded on the same audit entries. */
+	actorIp: string;
+}
+
+/** What a duplicate-cleanup request could establish before the sweep itself runs. */
+export interface ICleanupDuplicatesDispatch {
+	/**
+	 * Surplus rows the sweep would remove, from the pre-count. Copies protected by a legal hold, a
+	 * retention label, or journaling are already excluded. Still an upper bound, because a copy
+	 * whose content differs from the one being kept is only detected during the sweep itself.
+	 */
+	duplicatesFound: number;
+	/** Whether an indexing worker has reported a heartbeat recently enough to be doing the work. */
+	workerAlive: boolean;
+	/**
+	 * True when a sweep was already queued or running, so this request joined it rather than
+	 * starting another. One runs at a time whatever its scope, so a per-source request joins a
+	 * global sweep and the other way round.
+	 */
+	alreadyRunning: boolean;
+}
+
+/** Body returned by both duplicate-cleanup endpoints. */
+export interface ICleanupDuplicatesResponse extends ICleanupDuplicatesDispatch {
+	message: string;
+}
+
+/** Body returned by both duplicate-count endpoints. */
+export interface IDuplicateCountResponse {
+	/** Surplus rows a sweep would actually remove — protected copies are already excluded. */
+	duplicates: number;
+	/** How many distinct messages those removable copies belong to. */
+	groups: number;
+	/**
+	 * Surplus copies a sweep will refuse to touch: under an active legal hold, carrying a retention
+	 * label, or journaled. Reported separately so the confirmation cannot quote a figure that
+	 * policy will then decline to act on.
+	 */
+	protected: number;
+}
+
+/** What a completed duplicate sweep did. Logged by the job and returned as its result. */
+export interface ICleanupDuplicatesResult {
+	/** Surplus rows considered — the sum of the four outcomes below. */
+	examined: number;
+	/** Copies actually removed. */
+	removed: number;
+	/**
+	 * Copies refused on compliance grounds: an active legal hold, a retention label, or journaled
+	 * mail. Refused before any deletion is attempted, so the guarantee does not depend on a
+	 * retention check being registered in whichever process the sweep runs in.
+	 */
+	skippedProtected: number;
+	/**
+	 * Copies left in place because their stored content did not match the copy being kept. Two rows
+	 * can share a Message-ID and not be the same email — a reused id, or a draft later sent — and
+	 * collapsing those would lose a message rather than a duplicate.
+	 */
+	skippedContentDiffers: number;
+	/** Copies whose deletion was attempted and threw. Left in place; the sweep carries on. */
+	skippedFailed: number;
+}
+
+/**
  * A detailed representation of a job, providing essential information for monitoring and debugging.
  */
 export interface IJob {

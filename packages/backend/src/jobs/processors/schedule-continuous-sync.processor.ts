@@ -3,6 +3,7 @@ import { db } from '../../database';
 import { ingestionSources } from '../../database/schema';
 import { or, eq, and, ne } from 'drizzle-orm';
 import { ingestionQueue } from '../queues';
+import { continuousSyncJobId } from '../helpers/jobIds';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 
@@ -48,7 +49,22 @@ export default async (job: Job) => {
 	}
 
 	for (const source of sourcesToSync) {
-		// The status field on the ingestion source prevents duplicate concurrent syncs.
-		await ingestionQueue.add('continuous-sync', { ingestionSourceId: source.id });
+		// A per-source job id, so a tick that fires while the previous cycle is still queued or
+		// running is dropped by BullMQ rather than dispatched a second time. The status column is
+		// the other half of this (see IngestionService.claimForSync); on its own it was a
+		// check-then-act that two same-tick dispatches both passed.
+		//
+		// The finished record is removed immediately: BullMQ treats ANY surviving record under the
+		// id as a duplicate, including a completed or failed one, so retaining it would block the
+		// next minute's tick for as long as the record lived.
+		await ingestionQueue.add(
+			'continuous-sync',
+			{ ingestionSourceId: source.id },
+			{
+				jobId: continuousSyncJobId(source.id),
+				removeOnComplete: true,
+				removeOnFail: true,
+			}
+		);
 	}
 };

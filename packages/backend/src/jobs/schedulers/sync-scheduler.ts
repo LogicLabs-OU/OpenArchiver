@@ -1,3 +1,4 @@
+import type { Queue } from 'bullmq';
 import { ingestionQueue, indexingQueue } from '../queues';
 
 import { config } from '../../config';
@@ -5,8 +6,37 @@ import { logger } from '../../config/logger';
 import { exitOnSignals } from '../../workers/supervision';
 import { explainRedisAuthError } from '../../config/redisAuthHint';
 
+/**
+ * Removes every existing repeatable registration under a name, so the one added next is the only one.
+ *
+ * A repeatable job's key encodes its pattern, so changing SYNC_FREQUENCY registers a *second* entry
+ * rather than replacing the first — and BullMQ has changed the key format across versions, which
+ * leaves an upgraded deployment carrying registrations it can no longer match. Nothing ever removed
+ * them, so every one of them kept firing: the dev instance had accumulated three
+ * schedule-continuous-sync registrations, two of them firing on the same minute boundary. Each tick
+ * dispatches a cycle per source, so the extra ticks were the origin of the concurrent
+ * process-mailbox jobs that duplicated archived mail.
+ *
+ * Removal is by key, which is exactly what getRepeatableJobs returns, so it reaches legacy-format
+ * entries too. Several scheduler replicas starting at once converge on the same single registration
+ * because the key is derived from the name and pattern rather than from who wrote it.
+ */
+const clearRepeatable = async (queue: Queue, name: string): Promise<void> => {
+	const existing = await queue.getRepeatableJobs();
+	for (const job of existing) {
+		if (job.name !== name) {
+			continue;
+		}
+		await queue.removeRepeatableByKey(job.key);
+		logger.info(
+			{ queue: queue.name, name, key: job.key, pattern: job.pattern },
+			'Removed a superseded repeatable job registration'
+		);
+	}
+};
+
 const scheduleContinuousSync = async () => {
-	// This job will run every 15 minutes
+	await clearRepeatable(ingestionQueue, 'schedule-continuous-sync');
 	await ingestionQueue.add(
 		'schedule-continuous-sync',
 		{},
@@ -26,6 +56,7 @@ const scheduleIndexReconcile = async () => {
 		logger.info('Index reconcile scheduler disabled via config.');
 		return;
 	}
+	await clearRepeatable(indexingQueue, 'reconcile-index');
 	await indexingQueue.add(
 		'reconcile-index',
 		{},
