@@ -53,6 +53,7 @@ import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { truncateToBytes } from '../helpers/truncateToBytes';
+import { quoteMeiliString } from '../helpers/meiliFilter';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
 import { buildReindexWhere } from '../jobs/helpers/indexBacklog';
 
@@ -483,9 +484,19 @@ export class IngestionService {
 		// NOTE: This is done by database CASADE, change when CASADE relation no longer exists.
 		// await db.delete(archivedEmails).where(eq(archivedEmails.ingestionSourceId, id));
 
-		// Delete all documents from Meilisearch
+		// Delete all documents from Meilisearch.
+		//
+		// Waited to completion, and not merely enqueued: the rows below are removed by cascade the
+		// moment this method returns, so a task that fails afterwards leaves documents describing
+		// emails nothing can resolve, and search answers with results that cannot be opened (#446).
+		// Failing here instead keeps the source and lets the caller retry. The id is quoted rather
+		// than interpolated so a value carrying a quote cannot alter the filter.
 		const searchService = new SearchService();
-		await searchService.deleteDocumentsByFilter('emails', `ingestionSourceId = ${id}`);
+		const deletionTask = await searchService.deleteDocumentsByFilter(
+			'emails',
+			`ingestionSourceId = ${quoteMeiliString(id)}`
+		);
+		await searchService.waitForTask(deletionTask.taskUid);
 
 		const [deletedSource] = await db
 			.delete(ingestionSources)

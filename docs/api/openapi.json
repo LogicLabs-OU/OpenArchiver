@@ -2275,6 +2275,59 @@
         }
       }
     },
+    "/v1/index-admin/orphans/cleanup": {
+      "post": {
+        "summary": "Remove orphaned search index documents",
+        "description": "Queues a background sweep that deletes documents from the `emails` index whose archived email no longer exists in the database. These are left behind when a deletion removes the database row but its search index counterpart never completes, and they surface as search results that cannot be opened. No emails, attachments or stored files are touched. Requires `manage:all` (Super Admin) permission.",
+        "operationId": "cleanupOrphanedIndexDocuments",
+        "tags": [
+          "Index Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cleanup job accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "estimatedOrphans": {
+                      "type": "integer",
+                      "description": "Index documents minus archived rows. A floor, not an exact count."
+                    },
+                    "workerAlive": {
+                      "type": "boolean",
+                      "description": "Whether an indexing worker is available to run the sweep."
+                    },
+                    "alreadyRunning": {
+                      "type": "boolean",
+                      "description": "True when a sweep was already queued or running, so this request joined it instead of starting a second one."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/v1/ingestion-sources": {
       "post": {
         "summary": "Create an ingestion source",

@@ -360,8 +360,13 @@ export class ArchivedEmailService {
 			await storage.delete(email.storagePath);
 		}
 
+		// Confirmed before the row goes, rather than only enqueued. Once the row is deleted nothing
+		// can rebuild this document or even name it, so a delete task that fails afterwards strands
+		// it in the index and search offers a result that cannot be opened (#446). Throwing here
+		// leaves the email intact and the operation repeatable.
 		const searchService = new SearchService();
-		await searchService.deleteDocuments('emails', [emailId]);
+		const deletionTask = await searchService.deleteDocuments('emails', [emailId]);
+		await searchService.waitForTask(deletionTask.taskUid);
 
 		await db.delete(archivedEmails).where(eq(archivedEmails.id, emailId));
 

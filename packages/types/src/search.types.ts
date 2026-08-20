@@ -126,6 +126,11 @@ export interface SearchInstanceOverview {
 	index: SearchIndexInfo | null;
 	/** Per-ingestion-source document counts from the search index (Meilisearch facets). */
 	documentsBySource: SearchDocumentsBySource[];
+	/**
+	 * Archived emails in the database, for comparison with the index document count.
+	 * A document count above this points at entries the index kept after their email was deleted.
+	 */
+	archivedCount: number;
 }
 
 /** A Meilisearch task, trimmed to the fields the admin page needs. */

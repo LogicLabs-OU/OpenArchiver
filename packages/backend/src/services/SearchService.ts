@@ -21,7 +21,7 @@ import { IngestionService } from './IngestionService';
 import { logger } from '../config/logger';
 import { db } from '../database';
 import { archivedEmails } from '../database/schema';
-import { and, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, count, inArray, isNotNull, sql } from 'drizzle-orm';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
 
 export class SearchService {
@@ -76,13 +76,41 @@ export class SearchService {
 	}
 
 	/**
+	 * One page of document ids, in the index's own document order.
+	 *
+	 * Only the primary key is fetched. An email document carries its whole body and the extracted
+	 * text of every attachment, each capped at INDEXING_MAX_TEXT_BYTES, so walking an index for its
+	 * ids without this projection would move gigabytes to learn 36 bytes per document.
+	 *
+	 * `offset` is the only way through: this client version has no cursor for documents, and search
+	 * cannot substitute because `pagination.maxTotalHits` is left at Meilisearch's default of 1000.
+	 * Deleting during such a walk therefore shifts every later page — see IndexMaintenanceService,
+	 * which is the only caller and compensates for exactly that.
+	 */
+	public async getDocumentIds(
+		indexName: string,
+		params: { limit: number; offset: number }
+	): Promise<{ ids: string[]; total: number }> {
+		const index = await this.getIndex<EmailDocument>(indexName);
+		const page = await index.getDocuments<EmailDocument>({
+			fields: ['id'],
+			limit: params.limit,
+			offset: params.offset,
+		});
+		return {
+			ids: page.results.map((d) => d.id).filter((id): id is string => typeof id === 'string'),
+			total: page.total,
+		};
+	}
+
+	/**
 	 * Instance-level overview of the search engine for the admin index page:
 	 * host, version, health, database size, and the `emails` index metadata.
 	 * Never exposes the API key. Best-effort — a failing sub-call degrades that
 	 * field rather than failing the whole overview.
 	 */
 	public async getInstanceOverview(): Promise<SearchInstanceOverview> {
-		const [statsRes, versionRes, healthRes, rawInfoRes, indexStatsRes, facetRes] =
+		const [statsRes, versionRes, healthRes, rawInfoRes, indexStatsRes, facetRes, archivedRes] =
 			await Promise.allSettled([
 				this.client.getStats(),
 				this.client.getVersion(),
@@ -94,6 +122,10 @@ export class SearchService {
 				this.getIndex<EmailDocument>('emails').then((i) =>
 					i.search('', { facets: ['ingestionSourceId'], limit: 0 })
 				),
+				// The database side of the same question. Shown next to the document count so a
+				// surplus of documents over rows is visible, which is what orphaned entries look
+				// like from the outside.
+				db.select({ total: count() }).from(archivedEmails),
 			]);
 
 		const stats = statsRes.status === 'fulfilled' ? statsRes.value : null;
@@ -152,6 +184,8 @@ export class SearchService {
 			lastUpdate: stats?.lastUpdate ?? null,
 			index,
 			documentsBySource,
+			archivedCount:
+				archivedRes.status === 'fulfilled' ? (archivedRes.value[0]?.total ?? 0) : 0,
 		};
 	}
 

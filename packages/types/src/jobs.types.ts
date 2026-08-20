@@ -53,6 +53,52 @@ export interface IReindexResponse extends IReindexDispatch {
 }
 
 /**
+ * Payload for the `cleanup-orphans` job on the indexing queue (no fields needed).
+ *
+ * Removes documents the search index still holds for emails the database no longer has. Those are
+ * left behind when a delete removes the row but its Meilisearch counterpart never follows — the
+ * search result then resolves to nothing and the user is told the email cannot be found.
+ */
+export interface ICleanupOrphansJob {}
+
+/**
+ * What a cleanup request could establish before the sweep itself runs.
+ *
+ * The exact orphan count is only knowable by scanning the whole index, which is the job's work, so
+ * the endpoint reports what it can cheaply see instead of pretending to a precise figure.
+ */
+export interface ICleanupOrphansDispatch {
+	/**
+	 * Documents in the index minus rows in the database. A rough guide, not a target: emails
+	 * archived but not yet indexed count the other way and mask orphans one for one, so the true
+	 * number can be higher. Never negative.
+	 */
+	estimatedOrphans: number;
+	/** Whether an indexing worker has reported a heartbeat recently enough to be doing the work. */
+	workerAlive: boolean;
+	/**
+	 * True when a sweep was already queued or running, so this request joined it rather than
+	 * starting another. Only one runs at a time — two would page through the same shifting offsets.
+	 */
+	alreadyRunning: boolean;
+}
+
+/** Body returned by the orphan-cleanup endpoint. */
+export interface ICleanupOrphansResponse extends ICleanupOrphansDispatch {
+	message: string;
+}
+
+/** What a completed orphan sweep removed. Logged by the job and returned as its result. */
+export interface ICleanupOrphansResult {
+	/** Documents removed in whole-source blocks, for sources no longer in the database. */
+	sourceBlocksRemoved: number;
+	/** Individually removed documents whose email row is gone. */
+	documentsRemoved: number;
+	/** Documents examined during the per-document sweep. */
+	scanned: number;
+}
+
+/**
  * A detailed representation of a job, providing essential information for monitoring and debugging.
  */
 export interface IJob {

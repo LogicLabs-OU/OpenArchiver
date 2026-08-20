@@ -60,6 +60,9 @@
 		"invalidDateRange": "The start date must not be after the end date",
 		"invalidParam": "One or more search parameters have an invalid value"
 	},
+	"index": {
+		"cleanupTriggered": "Index cleanup has been queued."
+	},
 	"storage": {
 		"filePathRequired": "File path is required",
 		"invalidFilePath": "Invalid file path",
