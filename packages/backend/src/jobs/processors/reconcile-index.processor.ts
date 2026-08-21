@@ -33,8 +33,21 @@ export default async function reconcileIndexProcessor(_job: Job<IReconcileIndexJ
 	//
 	// This is idle-time self-healing, so waiting for idle costs nothing: the next tick is minutes
 	// away and the backlog is not going anywhere. `active` includes this very job, hence > 1.
-	const counts = await indexingQueue.getJobCounts('waiting', 'active', 'delayed');
-	const waiting = (counts.waiting || 0) + (counts.delayed || 0);
+	//
+	// The delayed set needs the same self-exclusion, and cannot get it from a bare count: a BullMQ
+	// repeatable job ALWAYS parks its own next iteration there while the current one runs, so a raw
+	// delayed count reads the queue as busy on every single tick and this job defers to its own
+	// schedule forever — a live deployment deferred every tick and the self-heal never ran once,
+	// which is how 372 unindexed emails stayed unindexed with the queue otherwise empty. So list
+	// the delayed jobs (a page is plenty: the decision only needs "is any NON-self delayed job
+	// present", and beyond our own entry the set holds at most a few backoff retries) and ignore
+	// this job's own entries by name, which also covers older repeat-key formats. Genuinely
+	// delayed retries still count — a retry owns its rows, and scanning them here would double-bump
+	// their index_attempts, which is the exact churn this guard exists to prevent.
+	const counts = await indexingQueue.getJobCounts('waiting', 'active');
+	const delayedJobs = await indexingQueue.getJobs(['delayed'], 0, 24);
+	const delayed = delayedJobs.filter((job) => job && job.name !== 'reconcile-index').length;
+	const waiting = (counts.waiting || 0) + delayed;
 	const active = counts.active || 0;
 	const pending = waiting + active;
 	if (active > 1 || waiting > 0 || pending >= config.indexing.reconcileBackpressureThreshold) {
