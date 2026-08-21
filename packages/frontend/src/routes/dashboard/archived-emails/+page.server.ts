@@ -38,10 +38,7 @@ export const load: PageServerLoad = async (event) => {
 		ingestionSourceId ?? (ingestionSources.length > 0 ? ALL_SOURCES : undefined);
 
 	if (selectedIngestionSourceId === ALL_SOURCES) {
-		const emailsResponse = await api(
-			`/archived-emails?page=${page}&limit=${limit}`,
-			event
-		);
+		const emailsResponse = await api(`/archived-emails?page=${page}&limit=${limit}`, event);
 		const responseText = await emailsResponse.json();
 		if (!emailsResponse.ok) {
 			return error(

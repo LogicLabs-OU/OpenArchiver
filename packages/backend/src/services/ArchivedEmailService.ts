@@ -167,6 +167,7 @@ export class ArchivedEmailService {
 			.limit(1);
 
 		return Boolean(carrier);
+	}
 
 	public static async getAllArchivedEmails(
 		page: number,
@@ -202,11 +203,14 @@ export class ArchivedEmailService {
 		}
 
 		const results = await itemsQuery;
-		const items = results.map((r) => r.archived_emails);
 
 		return {
-			items: items.map((item) => ({
+			// The join is already here for the permission filter, so carrying the source
+			// through costs nothing and is what makes a cross-source list readable: without
+			// it every row looks the same regardless of which mailbox it came from (#380).
+			items: results.map(({ archived_emails: item, ingestion_sources: source }) => ({
 				...item,
+				ingestionSource: source ? { id: source.id, name: source.name } : null,
 				recipients: this.mapRecipients(item.recipients),
 				tags: (item.tags as string[] | null) || null,
 				path: item.path || null,

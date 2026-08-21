@@ -44,8 +44,13 @@
 	);
 	const someCurrentPageSelected = $derived(allEmailIds.some((id) => selectedIds.includes(id)));
 
+	// The source column only carries information when the list spans sources; in
+	// single-source mode every row would repeat the name already in the selector.
+	const showSourceColumn = $derived(selectedIngestionSourceId === ALL_SOURCES);
+
 	const selectedSourceLabel = $derived.by(() => {
-		if (!selectedIngestionSourceId) return $t('app.archived_emails_page.select_ingestion_source');
+		if (!selectedIngestionSourceId)
+			return $t('app.archived_emails_page.select_ingestion_source');
 		if (selectedIngestionSourceId === ALL_SOURCES)
 			return $t('app.archived_emails_page.all_sources');
 		return ingestionSources.find((s) => s.id === selectedIngestionSourceId)?.name;
@@ -161,6 +166,9 @@
 				<Table.Head>{$t('app.archived_emails_page.date')}</Table.Head>
 				<Table.Head>{$t('app.archived_emails_page.subject')}</Table.Head>
 				<Table.Head>{$t('app.archived_emails_page.sender')}</Table.Head>
+				{#if showSourceColumn}
+					<Table.Head>{$t('app.archived_emails_page.source')}</Table.Head>
+				{/if}
 				<Table.Head>{$t('app.archived_emails_page.inbox')}</Table.Head>
 				<Table.Head>{$t('app.archived_emails_page.path')}</Table.Head>
 				<Table.Head class="text-right">{$t('app.archived_emails_page.actions')}</Table.Head>
@@ -194,6 +202,9 @@
 						<Table.Cell>
 							{email.senderName || email.senderEmail}
 						</Table.Cell>
+						{#if showSourceColumn}
+							<Table.Cell>{email.ingestionSource?.name ?? '—'}</Table.Cell>
+						{/if}
 						<Table.Cell>{email.userEmail}</Table.Cell>
 						<Table.Cell>
 							{#if email.path}
@@ -213,7 +224,7 @@
 				{/each}
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={7} class="text-center"
+					<Table.Cell colspan={showSourceColumn ? 8 : 7} class="text-center"
 						>{$t('app.archived_emails_page.no_emails_found')}</Table.Cell
 					>
 				</Table.Row>
