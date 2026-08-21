@@ -288,6 +288,13 @@
       "when": 1784721992999,
       "tag": "0040_lively_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787323967461,
+      "tag": "0041_sharp_viper",
+      "breakpoints": true
     }
   ]
 }

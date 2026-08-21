@@ -20,6 +20,7 @@ export const ingestionProviderEnum = pgEnum('ingestion_provider', [
 	'eml_import',
 	'mbox_import',
 	'smtp_journaling',
+	'oauth_mailbox',
 ]);
 
 export const ingestionStatusEnum = pgEnum('ingestion_status', [

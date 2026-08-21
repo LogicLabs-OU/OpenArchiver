@@ -48,6 +48,10 @@ export default defineConfig({
 								link: '/user-guides/email-providers/imap',
 							},
 							{
+								text: 'OAuth Mailbox (Outlook.com)',
+								link: '/user-guides/email-providers/oauth-mailbox',
+							},
+							{
 								text: 'Google Workspace',
 								link: '/user-guides/email-providers/google-workspace',
 							},

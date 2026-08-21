@@ -8,6 +8,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import IngestionSourceForm from '$lib/components/custom/IngestionSourceForm.svelte';
+	import OAuthDeviceCodeDialog from '$lib/components/custom/OAuthDeviceCodeDialog.svelte';
 	import { api } from '$lib/api.client';
 	import type {
 		SafeIngestionSource,
@@ -15,12 +16,14 @@
 		IndexHealth,
 		ReindexMode,
 		IReindexResponse,
+		OAuthAuthorizeResponse,
 	} from '@open-archiver/types';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import { t } from '$lib/translations';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 
 	let { data }: { data: PageData } = $props();
 	let ingestionSources = $state(data.ingestionSources as SafeIngestionSource[]);
@@ -36,6 +39,121 @@
 	let isUnmerging = $state(false);
 	/** Tracks which root source groups are expanded in the table */
 	let expandedGroups = $state<Set<string>>(new Set());
+
+	// --- OAuth mailbox authorization ---
+	let deviceDialogOpen = $state(false);
+	let deviceDialog = $state<{
+		sourceId: string;
+		userCode: string;
+		verificationUri: string;
+		verificationUriComplete?: string;
+		expiresIn: number;
+		interval: number;
+	} | null>(null);
+
+	/**
+	 * Starts the authorization of an oauth_mailbox source and hands the browser over:
+	 * whole-window redirect for the browser flow (the state survives server-side), or the
+	 * device-code dialog with its poll loop. Serves both a just-created source and the
+	 * Re-authorize action — the endpoint is the same.
+	 */
+	const startOAuthAuthorization = async (sourceId: string) => {
+		try {
+			const response = await api(`/ingestion-sources/${sourceId}/oauth/authorize`, {
+				method: 'POST',
+				body: JSON.stringify({}),
+			});
+			const body: OAuthAuthorizeResponse & { message?: string } = await response.json();
+			if (!response.ok) {
+				throw new Error(body?.message || $t('app.ingestions.oauth_authorize_failed'));
+			}
+			if (body.flow === 'auth_code') {
+				window.location.href = body.authorizationUrl;
+				return;
+			}
+			deviceDialog = {
+				sourceId,
+				userCode: body.userCode,
+				verificationUri: body.verificationUri,
+				verificationUriComplete: body.verificationUriComplete,
+				expiresIn: body.expiresIn,
+				interval: body.interval,
+			};
+			deviceDialogOpen = true;
+		} catch (error) {
+			setAlert({
+				type: 'error',
+				title: $t('app.ingestions.oauth_error_title'),
+				message:
+					error instanceof Error
+						? error.message
+						: $t('app.ingestions.oauth_authorize_failed'),
+				duration: 8000,
+				show: true,
+			});
+		}
+	};
+
+	const handleDeviceFlowComplete = async (warning?: string) => {
+		deviceDialogOpen = false;
+		// A refused first connection is a warning, not a failure: the mailbox is authorized
+		// and syncing retries on its own, so the toast says what happened without implying
+		// the setup needs redoing.
+		setAlert(
+			warning
+				? {
+						type: 'warning',
+						title: $t('app.ingestions.oauth_success_title'),
+						message: warning,
+						duration: 10000,
+						show: true,
+					}
+				: {
+						type: 'success',
+						title: $t('app.ingestions.oauth_success_title'),
+						message: $t('app.ingestions.oauth_success_message'),
+						duration: 5000,
+						show: true,
+					}
+		);
+		await refreshSources();
+	};
+
+	const refreshSources = async () => {
+		try {
+			const response = await api('/ingestion-sources');
+			if (response.ok) {
+				ingestionSources = await response.json();
+			}
+		} catch (error) {
+			console.error('Failed to refresh ingestion sources', error);
+		}
+	};
+
+	// The browser-flow return trip: the callback page lands here with the outcome in the
+	// query string. Read once, toast, and strip the params so a reload does not re-toast.
+	$effect(() => {
+		const result = page.url.searchParams.get('oauth_result');
+		if (!result) return;
+		setAlert(
+			result === 'success'
+				? {
+						type: 'success',
+						title: $t('app.ingestions.oauth_success_title'),
+						message: $t('app.ingestions.oauth_success_message'),
+						duration: 5000,
+						show: true,
+					}
+				: {
+						type: 'error',
+						title: $t('app.ingestions.oauth_error_title'),
+						message: $t('app.ingestions.oauth_error_message'),
+						duration: 8000,
+						show: true,
+					}
+		);
+		goto('/dashboard/ingestions', { replaceState: true });
+	});
 
 	// Group sources: roots (mergedIntoId is null/undefined) and their children
 	const rootSources = $derived(ingestionSources.filter((s) => !s.mergedIntoId));
@@ -431,6 +549,13 @@
 				}
 				const newSource = await response.json();
 				ingestionSources = [...ingestionSources, newSource];
+				// An OAuth mailbox is created inert (pending_auth); the authorization is
+				// what brings it to life, so it starts the moment the source exists.
+				if (formData.provider === 'oauth_mailbox') {
+					isDialogOpen = false;
+					await startOAuthAuthorization(newSource.id);
+					return;
+				}
 			}
 			isDialogOpen = false;
 		} catch (error) {
@@ -695,6 +820,14 @@
 										<DropdownMenu.Item onclick={() => handleSync(source.id)}
 											>{$t('app.ingestions.force_sync')}</DropdownMenu.Item
 										>
+										{#if source.provider === 'oauth_mailbox'}
+											<DropdownMenu.Item
+												onclick={() => startOAuthAuthorization(source.id)}
+												>{$t(
+													'app.ingestions.reauthorize'
+												)}</DropdownMenu.Item
+											>
+										{/if}
 										<!-- Both modes, because "missing only" cannot repair the case
 										     where the database believes a row is indexed and the
 										     search index does not hold it. -->
@@ -832,6 +965,15 @@
 														'app.ingestions.force_sync'
 													)}</DropdownMenu.Item
 												>
+												{#if child.provider === 'oauth_mailbox'}
+													<DropdownMenu.Item
+														onclick={() =>
+															startOAuthAuthorization(child.id)}
+														>{$t(
+															'app.ingestions.reauthorize'
+														)}</DropdownMenu.Item
+													>
+												{/if}
 												<DropdownMenu.Item
 													onclick={() => openUnmergeDialog(child)}
 												>
@@ -892,10 +1034,29 @@
 		<IngestionSourceForm
 			source={selectedSource}
 			existingSources={ingestionSources}
+			oauthRedirectUri={data.oauthRedirectUri}
 			onSubmit={handleFormSubmit}
 		/>
 	</Dialog.Content>
 </Dialog.Root>
+
+{#if deviceDialog}
+	<OAuthDeviceCodeDialog
+		bind:open={deviceDialogOpen}
+		sourceId={deviceDialog.sourceId}
+		userCode={deviceDialog.userCode}
+		verificationUri={deviceDialog.verificationUri}
+		verificationUriComplete={deviceDialog.verificationUriComplete}
+		expiresIn={deviceDialog.expiresIn}
+		interval={deviceDialog.interval}
+		onComplete={handleDeviceFlowComplete}
+		onRetry={() => {
+			const id = deviceDialog?.sourceId;
+			deviceDialogOpen = false;
+			if (id) startOAuthAuthorization(id);
+		}}
+	/>
+{/if}
 
 <Dialog.Root bind:open={isDeleteDialogOpen}>
 	<Dialog.Content class="sm:max-w-lg">

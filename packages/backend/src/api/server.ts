@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { AuthController } from './controllers/auth.controller';
 import { IngestionController } from './controllers/ingestion.controller';
+import { OAuthController } from './controllers/oauth.controller';
 import { ArchivedEmailController } from './controllers/archived-email.controller';
 import { StorageController } from './controllers/storage.controller';
 import { SearchController } from './controllers/search.controller';
@@ -11,6 +12,7 @@ import { IamController } from './controllers/iam.controller';
 import { createAuthRouter } from './routes/auth.routes';
 import { createIamRouter } from './routes/iam.routes';
 import { createIngestionRouter } from './routes/ingestion.routes';
+import { createOAuthRouter } from './routes/oauth.routes';
 import { createArchivedEmailRouter } from './routes/archived-email.routes';
 import { createStorageRouter } from './routes/storage.routes';
 import { createSearchRouter } from './routes/search.routes';
@@ -64,6 +66,7 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	authService = new AuthService(userService, auditService, JWT_SECRET, JWT_EXPIRES_IN);
 	const authController = new AuthController(authService, userService);
 	const ingestionController = new IngestionController();
+	const oauthController = new OAuthController();
 	const archivedEmailController = new ArchivedEmailController();
 	const storageService = new StorageService();
 	const storageController = new StorageController(storageService);
@@ -114,6 +117,7 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	// --- Routes ---
 	const authRouter = createAuthRouter(authController);
 	const ingestionRouter = createIngestionRouter(ingestionController, authService);
+	const oauthRouter = createOAuthRouter(oauthController);
 	const archivedEmailRouter = createArchivedEmailRouter(archivedEmailController, authService);
 	const storageRouter = createStorageRouter(storageController, authService);
 	const searchRouter = createSearchRouter(searchController, authService);
@@ -149,6 +153,8 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	app.use(`/${config.api.version}/iam`, iamRouter);
 	app.use(`/${config.api.version}/upload`, uploadRouter);
 	app.use(`/${config.api.version}/ingestion-sources`, ingestionRouter);
+	// Public: the OAuth callback arrives from the identity provider with no JWT.
+	app.use(`/${config.api.version}/oauth`, oauthRouter);
 	app.use(`/${config.api.version}/archived-emails`, archivedEmailRouter);
 	app.use(`/${config.api.version}/storage`, storageRouter);
 	app.use(`/${config.api.version}/search`, searchRouter);

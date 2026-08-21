@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { IngestionController } from '../controllers/ingestion.controller';
+import { OAuthController } from '../controllers/oauth.controller';
 import { requireAuth } from '../middleware/requireAuth';
 import { requirePermission, ingestionResource } from '../middleware/requirePermission';
 import { AuthService } from '../../services/AuthService';
 
 export const createIngestionRouter = (
 	ingestionController: IngestionController,
-	authService: AuthService
+	authService: AuthService,
+	oauthController: OAuthController = new OAuthController()
 ): Router => {
 	const router = Router();
 
@@ -279,6 +281,93 @@ export const createIngestionRouter = (
 		// every source and defeat the record check below.
 		requirePermission('sync', 'ingestion', { loadResource: ingestionResource }),
 		ingestionController.triggerInitialImport
+	);
+
+	/**
+	 * @openapi
+	 * /v1/ingestion-sources/{id}/oauth/authorize:
+	 *   post:
+	 *     summary: Start OAuth mailbox authorization
+	 *     description: Starts (or restarts) the OAuth authorization of an `oauth_mailbox` ingestion source. For the authorization code flow the response carries the URL to send the administrator's browser to; for the device code flow it carries the user code and verification URL to display, with the device code itself kept server-side. The same endpoint serves first-time authorization and the Re-authorize action after tokens expire or consent is revoked. Requires `update:ingestion` permission.
+	 *     operationId: startOAuthMailboxAuthorization
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     parameters:
+	 *       - name: id
+	 *         in: path
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     requestBody:
+	 *       required: false
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               flow:
+	 *                 type: string
+	 *                 enum: [auth_code, device_code]
+	 *                 description: Overrides the flow stored on the source for this attempt.
+	 *     responses:
+	 *       '200':
+	 *         description: Authorization started.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/OAuthAuthorizeResponse'
+	 *       '400':
+	 *         description: The source is not an OAuth mailbox source.
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '404':
+	 *         $ref: '#/components/responses/NotFound'
+	 */
+	router.post(
+		'/:id/oauth/authorize',
+		requirePermission('update', 'ingestion', { loadResource: ingestionResource }),
+		oauthController.authorize
+	);
+
+	/**
+	 * @openapi
+	 * /v1/ingestion-sources/{id}/oauth/poll:
+	 *   post:
+	 *     summary: Poll a device-code authorization
+	 *     description: Performs one poll step of an in-progress device-code authorization for an `oauth_mailbox` source. The browser calls this on the interval returned by the authorize endpoint until `pending` is false. On success the source moves to `auth_success` and its initial import starts. Requires `update:ingestion` permission.
+	 *     operationId: pollOAuthMailboxAuthorization
+	 *     tags:
+	 *       - Ingestion
+	 *     security:
+	 *       - bearerAuth: []
+	 *       - apiKeyAuth: []
+	 *     parameters:
+	 *       - name: id
+	 *         in: path
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     responses:
+	 *       '200':
+	 *         description: Current state of the authorization.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/OAuthPollResponse'
+	 *       '400':
+	 *         description: The source is not an OAuth mailbox source.
+	 *       '401':
+	 *         $ref: '#/components/responses/Unauthorized'
+	 *       '404':
+	 *         $ref: '#/components/responses/NotFound'
+	 */
+	router.post(
+		'/:id/oauth/poll',
+		requirePermission('update', 'ingestion', { loadResource: ingestionResource }),
+		oauthController.poll
 	);
 
 	/**

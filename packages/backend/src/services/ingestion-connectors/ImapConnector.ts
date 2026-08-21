@@ -25,21 +25,92 @@ import { writeEmailToTempFile } from './helpers/tempFile';
 const isDraftsMailbox = (mailbox: { specialUse?: string; flags: Set<string> }): boolean =>
 	mailbox.specialUse?.toLowerCase() === '\\drafts' || mailbox.flags.has('\\Drafts');
 
+/**
+ * Supplies a currently-valid OAuth access token for one XOAUTH2 connection attempt.
+ * Async because supplying may mean refreshing against the provider first.
+ */
+export type AccessTokenSupplier = () => Promise<string>;
+
+/**
+ * Whether the server refused to open a mailbox for a credential it had just accepted.
+ *
+ * Exchange Online says "User is authenticated but not connected" for this, and the wording is
+ * literal: the sign-in was read and the identity resolved, and only then did attaching a
+ * mailbox session fail. It is NOT a rejected credential, and the difference is observable —
+ * a username the server cannot resolve answers "Login failed" instead.
+ *
+ * On personal Outlook.com mailboxes this comes and goes minute to minute rather than being a
+ * settled state; the same token that is refused now succeeds on a later connection, and one
+ * successful handshake then pulls the whole mailbox. So it is transient by nature, and the
+ * right response is to retry it, not to report a broken configuration.
+ */
+const isSessionRefused = (error: unknown): boolean =>
+	(error as { authenticationFailed?: boolean })?.authenticationFailed === true &&
+	/authenticated but not connected/i.test(
+		String((error as { responseText?: string })?.responseText ?? '')
+	);
+
+/**
+ * Whether the server rejected the credential itself.
+ *
+ * imapflow raises `authenticationFailed` for any NO/BAD reply to LOGIN or AUTHENTICATE, which
+ * lumps a wrong password together with the session refusal above — hence the exclusion.
+ * What remains cannot be improved by retrying: a wrong password stays wrong, and a revoked
+ * token stays revoked. Retrying is worse than useless against Microsoft, which throttles an
+ * account on repeated failed sign-ins.
+ *
+ * It cannot mean "the token just expired" on an OAuth source: the token supplier refreshes
+ * before each connection attempt, and a refresh that fails throws before IMAP is reached.
+ */
+const isCredentialRejected = (error: unknown): boolean =>
+	(error as { authenticationFailed?: boolean })?.authenticationFailed === true &&
+	!isSessionRefused(error);
+
+/**
+ * What to report when a session refusal has outlived every retry.
+ *
+ * Two earlier versions of this message named a cause — first a disabled IMAP setting, then a
+ * checklist of app-registration settings. Both were wrong: IMAP was already enabled, and the
+ * refusal reproduces under Thunderbird's own registration, on either sign-in realm, from a raw
+ * socket. Nothing the reader controls changes the outcome, so the text stops pretending
+ * otherwise and says what will happen instead.
+ */
+const explainSessionRefusal = (isOAuth: boolean): string =>
+	isOAuth
+		? 'The mail server accepted the token and then refused to open the mailbox. This is ' +
+			'intermittent on personal Outlook.com mailboxes and is not a configuration problem ' +
+			'on this side - the same token succeeds on a later attempt. Syncing retries on the ' +
+			'next cycle. If it persists for hours, switch the source to the Microsoft Graph ' +
+			'transport, which does not use IMAP.'
+		: 'The mail server accepted the sign-in and then refused to open the mailbox. Check that ' +
+			'IMAP is enabled for this mailbox, and note that Microsoft no longer accepts ' +
+			'passwords or app passwords for Outlook.com - such mailboxes need the OAuth Mailbox ' +
+			'provider instead.';
+
 export class ImapConnector implements IEmailConnector {
-	private client: ImapFlow;
+	/** Built lazily: with OAuth in play, constructing a client means fetching a token. */
+	private client: ImapFlow | null = null;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
 	private options: ConnectorOptions;
 
 	constructor(
 		private credentials: GenericImapCredentials,
-		options?: ConnectorOptions
+		options?: ConnectorOptions,
+		private accessTokenSupplier?: AccessTokenSupplier
 	) {
 		this.options = options ?? { preserveOriginalFile: false };
-		this.client = this.createClient();
 	}
 
-	private createClient(): ImapFlow {
+	private async createClient(): Promise<ImapFlow> {
+		// The supplier is consulted per client build — which is per connection attempt —
+		// so every reconnect inside withRetry authenticates with a token that is valid
+		// NOW, not one captured when the connector was constructed. Access tokens outlive
+		// a connection attempt but not a long sync.
+		const auth = this.accessTokenSupplier
+			? { user: this.credentials.username, accessToken: await this.accessTokenSupplier() }
+			: { user: this.credentials.username, pass: this.credentials.password };
+
 		const client = new ImapFlow({
 			host: this.credentials.host,
 			port: this.credentials.port,
@@ -48,10 +119,7 @@ export class ImapConnector implements IEmailConnector {
 				rejectUnauthorized: !this.credentials.allowInsecureCert,
 				requestCert: true,
 			},
-			auth: {
-				user: this.credentials.username,
-				pass: this.credentials.password,
-			},
+			auth,
 			logger: logger.child({ module: 'ImapFlow' }),
 		});
 
@@ -68,18 +136,32 @@ export class ImapConnector implements IEmailConnector {
 	 */
 	private async connect(): Promise<void> {
 		// If the client is already connected and usable, do nothing.
-		if (this.client.usable) {
+		if (this.client?.usable) {
 			return;
 		}
 
 		// If the client is not usable (e.g., after a logout or an error), create a new one.
-		this.client = this.createClient();
+		this.client = await this.createClient();
 
 		try {
 			await this.client.connect();
 		} catch (err: any) {
 			logger.error({ err }, 'IMAP connection failed');
+			if (isSessionRefused(err)) {
+				// Rethrown WITHOUT authenticationFailed: the credential was accepted, and
+				// leaving the flag on would make withRetry and the job layer read a passing
+				// retry candidate as a settings problem to give up on.
+				throw Object.assign(
+					new Error(explainSessionRefusal(Boolean(this.accessTokenSupplier))),
+					{ sessionRefused: true }
+				);
+			}
 			if (err.responseText) {
+				if (isCredentialRejected(err)) {
+					throw Object.assign(new Error(`IMAP Connection Error: ${err.responseText}`), {
+						authenticationFailed: true,
+					});
+				}
 				throw new Error(`IMAP Connection Error: ${err.responseText}`);
 			}
 			throw err;
@@ -90,9 +172,20 @@ export class ImapConnector implements IEmailConnector {
 	 * Disconnects from the IMAP server if the connection is active.
 	 */
 	private async disconnect(): Promise<void> {
-		if (this.client.usable) {
+		if (this.client?.usable) {
 			await this.client.logout();
 		}
+	}
+
+	/**
+	 * The live client, for use strictly after connect() has succeeded (withRetry calls it
+	 * before every action). The assertion documents that contract for the type system.
+	 */
+	private get imap(): ImapFlow {
+		if (!this.client) {
+			throw new Error('IMAP client used before connect()');
+		}
+		return this.client;
 	}
 
 	public async testConnection(): Promise<boolean> {
@@ -145,6 +238,17 @@ export class ImapConnector implements IEmailConnector {
 				await this.connect();
 				return await action();
 			} catch (err: any) {
+				// A rejected credential is final. Retrying it wastes the whole backoff ladder
+				// on every mailbox of every cycle, and invites the provider to throttle the
+				// account for repeated failed attempts.
+				//
+				// A REFUSED SESSION is not in that category and deliberately falls through to
+				// the ladder below: the credential was accepted, the refusal is transient, and
+				// one handshake that gets through fetches the entire mailbox.
+				if (isCredentialRejected(err)) {
+					logger.error({ err }, 'IMAP credentials rejected; not retrying');
+					throw err;
+				}
 				logger.error({ err, attempt }, `IMAP operation failed on attempt ${attempt}`);
 				// The client is no longer usable, a new one will be created on the next attempt.
 				if (attempt === maxRetries) {
@@ -169,7 +273,7 @@ export class ImapConnector implements IEmailConnector {
 	): AsyncGenerator<EmailObject | null> {
 		try {
 			// list all mailboxes first
-			const mailboxes = await this.withRetry(async () => await this.client.list());
+			const mailboxes = await this.withRetry(async () => await this.imap.list());
 
 			const processableMailboxes = mailboxes.filter((mailbox) => {
 				// Exclude mailboxes that cannot be selected.
@@ -209,13 +313,13 @@ export class ImapConnector implements IEmailConnector {
 
 				try {
 					const mailbox = await this.withRetry(
-						async () => await this.client.mailboxOpen(mailboxPath)
+						async () => await this.imap.mailboxOpen(mailboxPath)
 					);
 					const lastUid = syncState?.imap?.[mailboxPath]?.maxUid;
 					let currentMaxUid = lastUid || 0;
 
 					if (mailbox.exists > 0) {
-						const lastMessage = await this.client.fetchOne(String(mailbox.exists), {
+						const lastMessage = await this.imap.fetchOne(String(mailbox.exists), {
 							uid: true,
 						});
 						if (lastMessage && lastMessage.uid > currentMaxUid) {
@@ -239,7 +343,7 @@ export class ImapConnector implements IEmailConnector {
 							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
 							const uidsToFetch: number[] = [];
 
-							for await (const msg of this.client.fetch(searchCriteria, {
+							for await (const msg of this.imap.fetch(searchCriteria, {
 								envelope: true,
 								uid: true,
 								flags: true,
@@ -298,7 +402,7 @@ export class ImapConnector implements IEmailConnector {
 								try {
 									const fullMsg = await this.withRetry(
 										async () =>
-											await this.client.fetchOne(
+											await this.imap.fetchOne(
 												String(uid),
 												{
 													envelope: true,

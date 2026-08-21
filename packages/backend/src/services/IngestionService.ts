@@ -5,6 +5,7 @@ import type {
 	UpdateIngestionSourceDto,
 	IngestionSource,
 	IngestionCredentials,
+	OAuthMailboxCredentials,
 	IngestionProvider,
 	PendingEmail,
 	ProcessEmailError,
@@ -26,6 +27,7 @@ import {
 } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
+import { mergeOAuthCredentials, validateOAuthMailboxConfig } from './oauth/oauthHelpers';
 import { ingestionQueue, indexingQueue } from '../jobs/queues';
 import { continuousSyncJobId, initialImportJobId } from '../jobs/helpers/jobIds';
 import { claimJobId } from '../jobs/helpers/claimJobId';
@@ -179,6 +181,18 @@ export class IngestionService {
 		actorIp: string
 	): Promise<IngestionSource> {
 		const { providerConfig, mergedIntoId, ...rest } = dto;
+
+		if (dto.provider === 'oauth_mailbox') {
+			const validation = validateOAuthMailboxConfig(providerConfig);
+			if (!validation.ok) {
+				throw new Error(validation.message);
+			}
+			// Server-managed fields never arrive from a client. A crafted create carrying
+			// its own tokens would otherwise skip authorization entirely.
+			delete providerConfig.tokens;
+			delete providerConfig.pendingAuth;
+		}
+
 		const encryptedCredentials = CryptoService.encryptObject(providerConfig);
 
 		// Resolve merge target: if mergedIntoId points to a child, follow to the root.
@@ -217,6 +231,19 @@ export class IngestionService {
 				'Failed to process newly created ingestion source due to a decryption error.'
 			);
 		}
+		// An OAuth mailbox has no tokens until its authorization flow completes, so there
+		// is nothing to test yet — and the failure path below DELETES the source, which
+		// would destroy the row the OAuth callback needs. It stays pending_auth (inert to
+		// the scheduler) until the flow flips it to auth_success.
+		if (decryptedSource.provider === 'oauth_mailbox') {
+			return await this.update(
+				decryptedSource.id,
+				{ lastSyncStatusMessage: 'Waiting for mailbox authorization.' },
+				actor,
+				actorIp
+			);
+		}
+
 		const connector = EmailProviderFactory.createConnector(decryptedSource);
 
 		try {
@@ -377,8 +404,30 @@ export class IngestionService {
 		const originalSource = await this.findById(id);
 
 		if (providerConfig) {
-			// Encrypt the new credentials before updating
-			valuesToUpdate.credentials = CryptoService.encryptObject(providerConfig);
+			if (originalSource.provider === 'oauth_mailbox') {
+				// The edit form starts blank (SafeIngestionSource omits credentials), so a
+				// wholesale replace would wipe the tokens on every save. Merge instead:
+				// server-managed fields carry over, a blank clientSecret keeps the stored
+				// one, and only a change to WHO or WHERE to authenticate invalidates the
+				// tokens and sends the source back to pending_auth for re-authorization.
+				const { merged, connectionChanged } = mergeOAuthCredentials(
+					originalSource.credentials as OAuthMailboxCredentials,
+					providerConfig
+				);
+				if (connectionChanged) {
+					const validation = validateOAuthMailboxConfig(merged);
+					if (!validation.ok) {
+						throw new Error(validation.message);
+					}
+					valuesToUpdate.status = 'pending_auth';
+					valuesToUpdate.lastSyncStatusMessage =
+						'Connection settings changed - re-authorization required.';
+				}
+				valuesToUpdate.credentials = CryptoService.encryptObject(merged);
+			} else {
+				// Encrypt the new credentials before updating
+				valuesToUpdate.credentials = CryptoService.encryptObject(providerConfig);
+			}
 		}
 
 		const [updatedSource] = await db

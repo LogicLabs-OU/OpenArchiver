@@ -66,24 +66,54 @@ const isDeltaTokenExpired = (error: unknown): boolean =>
  * to access data on behalf of the organization.
  */
 export class MicrosoftConnector implements IEmailConnector {
-	private credentials: Microsoft365Credentials;
-	private graphClient: Client;
+	private credentials: Microsoft365Credentials | null;
+	protected graphClient: Client;
 	// Store delta tokens for each folder during a sync operation.
 	private newDeltaTokens: { [folderId: string]: string };
-	private options: ConnectorOptions;
+	protected options: ConnectorOptions;
 	/** Messages skipped so the rest of the mailbox could finish. One connector serves one mailbox. */
 	private failures = new MessageFailureTally();
 
-	constructor(credentials: Microsoft365Credentials, options?: ConnectorOptions) {
+	/**
+	 * @param credentials Tenant credentials for the app-only flow. Null when `authProvider`
+	 *   is supplied, because a delegated caller authenticates as a user and has no tenant
+	 *   client secret to offer.
+	 * @param authProvider Overrides how a Graph token is obtained. A delegated subclass passes
+	 *   its own here; everything downstream — delta sync, folder walk, raw MIME — is unaware
+	 *   of which one was used.
+	 */
+	constructor(
+		credentials: Microsoft365Credentials | null,
+		options?: ConnectorOptions,
+		authProvider?: AuthProvider
+	) {
 		this.credentials = credentials;
 		this.options = options ?? { preserveOriginalFile: false };
 		this.newDeltaTokens = {}; // Initialize as an empty object
 
+		this.graphClient = Client.init({
+			authProvider: authProvider ?? this.createAppOnlyAuthProvider(),
+		});
+	}
+
+	/**
+	 * The app-only token source: one client-credentials grant for the whole tenant.
+	 *
+	 * Private rather than protected on purpose. It runs from the constructor, where a
+	 * subclass override would execute before the subclass's own fields exist — a delegated
+	 * connector supplies its provider through the constructor argument instead.
+	 */
+	private createAppOnlyAuthProvider(): AuthProvider {
+		const credentials = this.credentials;
+		if (!credentials) {
+			throw new Error('Microsoft 365 credentials are required for app-only Graph access.');
+		}
+
 		const msalConfig: Configuration = {
 			auth: {
-				clientId: this.credentials.clientId,
-				authority: `https://login.microsoftonline.com/${this.credentials.tenantId}`,
-				clientSecret: this.credentials.clientSecret,
+				clientId: credentials.clientId,
+				authority: `https://login.microsoftonline.com/${credentials.tenantId}`,
+				clientSecret: credentials.clientSecret,
 			},
 			system: {
 				loggerOptions: {
@@ -117,7 +147,7 @@ export class MicrosoftConnector implements IEmailConnector {
 
 		const msalClient = new ConfidentialClientApplication(msalConfig);
 
-		const authProvider: AuthProvider = async (done) => {
+		return async (done) => {
 			try {
 				const response = await msalClient.acquireTokenByClientCredential({
 					scopes: ['https://graph.microsoft.com/.default'],
@@ -131,8 +161,6 @@ export class MicrosoftConnector implements IEmailConnector {
 				done(error, null);
 			}
 		};
-
-		this.graphClient = Client.init({ authProvider });
 	}
 
 	/**
@@ -145,8 +173,19 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * passes straight through, and an abort arrives back as a `GraphError` with the `-1` status
 	 * `isRetryableGraphError` already retries.
 	 */
-	private request(url: string) {
+	protected request(url: string) {
 		return this.graphClient.api(url).option('signal', AbortSignal.timeout(REQUEST_TIMEOUT_MS));
+	}
+
+	/**
+	 * The Graph path prefix for one mailbox. Every mailbox-scoped request goes through this
+	 * rather than templating `/users/...` inline, because a delegated connector addresses the
+	 * signed-in mailbox as `/me` and has no permission to name it any other way. Overriding
+	 * this one method is what lets the delta sync, folder walk and raw-MIME fetch below be
+	 * shared between the app-only tenant connector and a single-mailbox delegated one.
+	 */
+	protected mailboxPath(userEmail: string): string {
+		return `/users/${userEmail}`;
 	}
 
 	/**
@@ -247,9 +286,10 @@ export class MicrosoftConnector implements IEmailConnector {
 		parentFolderId?: string,
 		currentPath = ''
 	): AsyncGenerator<MailFolder & { path: string }> {
+		const mailbox = this.mailboxPath(userEmail);
 		const requestUrl = parentFolderId
-			? `/users/${userEmail}/mailFolders/${parentFolderId}/childFolders`
-			: `/users/${userEmail}/mailFolders`;
+			? `${mailbox}/mailFolders/${parentFolderId}/childFolders`
+			: `${mailbox}/mailFolders`;
 
 		try {
 			let response = await withRetry(
@@ -301,7 +341,7 @@ export class MicrosoftConnector implements IEmailConnector {
 		deltaToken?: string,
 		checkDuplicate?: (messageId: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
-		const initialUrl = `/users/${userEmail}/mailFolders/${folderId}/messages/delta`;
+		const initialUrl = `${this.mailboxPath(userEmail)}/mailFolders/${folderId}/messages/delta`;
 		let requestUrl: string | undefined = deltaToken || initialUrl;
 		let hasResynced = false;
 
@@ -424,7 +464,7 @@ export class MicrosoftConnector implements IEmailConnector {
 		// The deadline covers the body read too, not just the response headers — an abort tears down
 		// the stream, so a download that stalls mid-message fails instead of hanging the job.
 		const response = await this.request(
-			`/users/${userEmail}/messages/${messageId}/$value`
+			`${this.mailboxPath(userEmail)}/messages/${messageId}/$value`
 		).getStream();
 		const chunks: any[] = [];
 		for await (const chunk of response) {

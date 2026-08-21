@@ -115,6 +115,12 @@ export class IngestionController {
 					.status(400)
 					.json({ message: req.t('ingestion.journalingSourceManagedByJournaling') });
 			}
+			// The auth_success transition triggers the initial import, and for an OAuth
+			// mailbox it is the OAuth service's to make — a client setting it directly
+			// would start an import on a source that holds no tokens.
+			if (sourceToCheck.provider === 'oauth_mailbox' && dto.status === 'auth_success') {
+				delete dto.status;
+			}
 			const updatedSource = await IngestionService.update(
 				id,
 				dto,

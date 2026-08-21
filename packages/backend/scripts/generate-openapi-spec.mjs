@@ -254,6 +254,7 @@ const options = {
 								'pst_import',
 								'eml_import',
 								'mbox_import',
+								'oauth_mailbox',
 							],
 							example: 'google_workspace',
 						},
@@ -296,6 +297,7 @@ const options = {
 								'pst_import',
 								'eml_import',
 								'mbox_import',
+								'oauth_mailbox',
 							],
 						},
 						providerConfig: {
@@ -308,6 +310,52 @@ const options = {
 							},
 						},
 					},
+				},
+				OAuthAuthorizeResponse: {
+					type: 'object',
+					description:
+						'Result of starting an OAuth mailbox authorization. The auth_code variant carries the URL to send the browser to; the device_code variant carries the user-facing fields of the device flow. The device code itself never leaves the server.',
+					properties: {
+						flow: { type: 'string', enum: ['auth_code', 'device_code'] },
+						authorizationUrl: {
+							type: 'string',
+							description: 'Present for the auth_code flow.',
+						},
+						userCode: {
+							type: 'string',
+							description: 'Present for the device_code flow.',
+						},
+						verificationUri: { type: 'string' },
+						verificationUriComplete: { type: 'string' },
+						expiresIn: {
+							type: 'integer',
+							description: 'Seconds until the device code expires.',
+						},
+						interval: {
+							type: 'integer',
+							description: 'Seconds between poll requests.',
+						},
+					},
+					required: ['flow'],
+				},
+				OAuthPollResponse: {
+					type: 'object',
+					description: 'One step of a device-code authorization poll.',
+					properties: {
+						pending: { type: 'boolean' },
+						status: { type: 'string' },
+						interval: {
+							type: 'integer',
+							description: 'Present when the provider asked to slow down.',
+						},
+						error: { type: 'string', description: 'Terminal failure message.' },
+						warning: {
+							type: 'string',
+							description:
+								'The authorization succeeded but the first connection to the mailbox was refused. Not a failure: the source is authorized and syncing retries on its own.',
+						},
+					},
+					required: ['pending', 'status'],
 				},
 				UpdateIngestionSourceDto: {
 					type: 'object',
@@ -322,6 +370,7 @@ const options = {
 								'pst_import',
 								'eml_import',
 								'mbox_import',
+								'oauth_mailbox',
 							],
 						},
 						status: {
