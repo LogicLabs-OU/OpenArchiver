@@ -528,6 +528,9 @@ export class SearchService {
 				'hasAttachments',
 			],
 			sortableAttributes: ['timestamp'],
+			faceting: {
+				maxValuesPerFacet: 10000,
+			},
 		});
 	}
 }
