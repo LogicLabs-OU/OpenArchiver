@@ -31,6 +31,12 @@
 		Math.max(0, (overview.index?.numberOfDocuments ?? 0) - overview.archivedCount)
 	);
 
+	// The sweep only ever deletes documents whose email is gone, so with no surplus there is
+	// nothing for it to find and running it would read every document in the index to prove it.
+	// Offering the action anyway invites an operator to reach for deletion as a general repair;
+	// the opposite shortfall — fewer documents than emails — is a reindex, not a cleanup.
+	let canCleanup = $derived(surplusDocuments > 0);
+
 	// '' means "All".
 	const statusFilters: ('' | SearchTaskStatus)[] = [
 		'',
@@ -173,11 +179,18 @@
 			<DropdownMenu.Content>
 				<DropdownMenu.Label>{$t('app.index_admin.actions')}</DropdownMenu.Label>
 				<DropdownMenu.Item
-					class="text-red-600"
+					class={canCleanup ? 'text-red-600' : ''}
+					disabled={!canCleanup}
 					onclick={() => (isCleanupDialogOpen = true)}
 				>
 					{$t('app.index_admin.cleanup_orphans')}
 				</DropdownMenu.Item>
+				<!-- Says why rather than just dimming, so the action does not read as broken. -->
+				{#if !canCleanup}
+					<p class="text-muted-foreground max-w-64 px-2 pb-1.5 text-xs">
+						{$t('app.index_admin.cleanup_not_needed')}
+					</p>
+				{/if}
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 	</div>
@@ -252,7 +265,7 @@
 				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 					<div>
 						<p class="text-muted-foreground text-xs">
-							{$t('app.index_admin.documents')}
+							{$t('app.index_admin.documents_in_index')}
 						</p>
 						<p class="text-primary text-2xl font-bold">
 							{overview.index.numberOfDocuments.toLocaleString()}
@@ -318,7 +331,7 @@
 							<Table.Row>
 								<Table.Head>{$t('app.index_admin.source')}</Table.Head>
 								<Table.Head class="text-right"
-									>{$t('app.index_admin.documents')}</Table.Head
+									>{$t('app.index_admin.documents_in_index')}</Table.Head
 								>
 							</Table.Row>
 						</Table.Header>
@@ -502,7 +515,8 @@
 		</ul>
 		<div class="bg-muted/50 rounded-md border p-3 text-sm">
 			<div class="flex items-center justify-between">
-				<span class="text-muted-foreground">{$t('app.index_admin.documents')}</span>
+				<span class="text-muted-foreground">{$t('app.index_admin.documents_in_index')}</span
+				>
 				<span class="font-mono"
 					>{(overview.index?.numberOfDocuments ?? 0).toLocaleString()}</span
 				>
