@@ -124,4 +124,4 @@ Please read our `CONTRIBUTING.md` file for more details on our code of conduct a
 
 ## 📈 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=LogicLabs-OU/OpenArchiver&type=Date)](https://www.star-history.com/#LogicLabs-OU/OpenArchiver&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=LogicLabs-OU/OpenArchiver&type=Date)](https://star-history.dera.page/#LogicLabs-OU/OpenArchiver&Date)
