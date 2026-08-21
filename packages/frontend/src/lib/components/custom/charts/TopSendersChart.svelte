@@ -8,7 +8,22 @@
 	export let data: TopSender[];
 
 	// Show the resolved display name when known, falling back to the address (#413).
-	$: chartData = data.map((d) => ({ ...d, sender: d.senderName || d.sender }));
+	// The chart keys each bar on `sender` (the y-axis category), so it MUST be
+	// unique per row — layerchart bands rows sharing a y value into a single
+	// stacked bar. Two distinct addresses can resolve to the same display name
+	// (e.g. two facebookmail.com addresses both named "Facebook"), so when a name
+	// is shared we disambiguate it with the (unique) address to keep them as
+	// separate bars instead of one stacked row.
+	$: nameCounts = data.reduce((acc, d) => {
+		const name = d.senderName || d.sender;
+		acc.set(name, (acc.get(name) ?? 0) + 1);
+		return acc;
+	}, new Map<string, number>());
+	$: chartData = data.map((d) => {
+		const name = d.senderName || d.sender;
+		const label = nameCounts.get(name)! > 1 && d.senderName ? `${name} (${d.sender})` : name;
+		return { ...d, sender: label };
+	});
 
 	const chartConfig = {
 		count: {
