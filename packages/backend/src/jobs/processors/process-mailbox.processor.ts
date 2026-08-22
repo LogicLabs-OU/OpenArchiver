@@ -94,12 +94,13 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		// Scoped to this specific mailbox (userEmail) so that different recipients
 		// of the same email each get their own archived row — only skipping when
 		// THIS mailbox already has the email (re-sync idempotency).
-		const checkDuplicate = async (messageId: string) => {
+		const checkDuplicate = async (messageId: string, internetMessageId?: string) => {
 			return await IngestionService.doesEmailExist(
 				messageId,
 				ingestionSourceId,
 				userEmail,
-				groupIds
+				groupIds,
+				internetMessageId
 			);
 		};
 

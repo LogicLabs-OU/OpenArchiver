@@ -38,7 +38,14 @@ export interface IEmailConnector {
 	fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		/**
+		 * Pre-download duplicate check. `messageId` is the connector's own id for the
+		 * message; `internetMessageId` is the RFC 5322 Message-ID when the listing already
+		 * carries it (Microsoft Graph does). The second key is what keeps the check working
+		 * when the provider's id for an already-archived message has changed — Graph ids do
+		 * that on folder moves and did it wholesale on the switch to immutable ids.
+		 */
+		checkDuplicate?: (messageId: string, internetMessageId?: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject | null>;
 	getUpdatedSyncState(userEmail?: string): SyncState;
 	listAllUsers(): AsyncGenerator<MailboxUser>;

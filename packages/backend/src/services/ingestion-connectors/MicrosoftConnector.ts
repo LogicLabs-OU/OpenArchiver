@@ -174,7 +174,20 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * `isRetryableGraphError` already retries.
 	 */
 	protected request(url: string) {
-		return this.graphClient.api(url).option('signal', AbortSignal.timeout(REQUEST_TIMEOUT_MS));
+		return (
+			this.graphClient
+				.api(url)
+				// Immutable ids for every Outlook item this request returns. Regular Graph ids
+				// change when a message is moved between folders, which silently rots every
+				// stored provider_message_id; immutable ids survive folder moves (#428). The
+				// header must accompany EVERY request for the id format to be consistent, and
+				// this method is the one path every Graph call takes — which is what makes
+				// that guarantee hold. Non-Outlook resources (/users) ignore it, and stored
+				// delta tokens are documented as compatible with both formats, so no source
+				// has to resync when this ships.
+				.header('Prefer', 'IdType="ImmutableId"')
+				.option('signal', AbortSignal.timeout(REQUEST_TIMEOUT_MS))
+		);
 	}
 
 	/**
@@ -246,7 +259,7 @@ export class MicrosoftConnector implements IEmailConnector {
 	public async *fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string, internetMessageId?: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
 		// Looked up case-insensitively: the key was written from the user principal name, whose
 		// casing Graph reports as it was created, while `userEmail` now arrives normalized. A plain
@@ -281,6 +294,44 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * @param userEmail The user principal name or ID.
 	 * @returns An async generator that yields each mail folder.
 	 */
+	/**
+	 * Translates regular ("restId") Graph message ids to their immutable form, up to 1000 per
+	 * call, for the provider-id backfill job. Returns a map of sourceId → targetId containing
+	 * only the ids Graph could resolve; ids that no longer resolve (message deleted, id already
+	 * immutable) are simply absent, and a whole-batch rejection comes back as an empty map —
+	 * the backfill treats anything unresolved as "leave the row alone", so this method never
+	 * needs to fail hard.
+	 */
+	public async translateIds(userEmail: string, ids: string[]): Promise<Map<string, string>> {
+		const translated = new Map<string, string>();
+		if (ids.length === 0) {
+			return translated;
+		}
+		try {
+			const response = await withRetry(
+				() =>
+					this.request(`${this.mailboxPath(userEmail)}/translateExchangeIds`).post({
+						inputIds: ids,
+						sourceIdType: 'restId',
+						targetIdType: 'restImmutableEntryId',
+					}),
+				isRetryableGraphError,
+				{ userEmail, call: 'translateExchangeIds' }
+			);
+			for (const entry of response?.value ?? []) {
+				if (typeof entry?.sourceId === 'string' && typeof entry?.targetId === 'string') {
+					translated.set(entry.sourceId, entry.targetId);
+				}
+			}
+		} catch (error) {
+			logger.warn(
+				{ err: error, userEmail, batchSize: ids.length },
+				'translateExchangeIds batch failed; leaving these rows on their stored ids'
+			);
+		}
+		return translated;
+	}
+
 	private async *listAllFolders(
 		userEmail: string,
 		parentFolderId?: string,
@@ -339,7 +390,7 @@ export class MicrosoftConnector implements IEmailConnector {
 		folderId: string,
 		path: string,
 		deltaToken?: string,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string, internetMessageId?: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
 		const initialUrl = `${this.mailboxPath(userEmail)}/mailFolders/${folderId}/messages/delta`;
 		let requestUrl: string | undefined = deltaToken || initialUrl;
@@ -350,8 +401,16 @@ export class MicrosoftConnector implements IEmailConnector {
 			try {
 				response = await withRetry(
 					// isDraft rides along with the delta response, so no extra request is needed to
-					// tell an unsent draft from a real message.
-					() => this.request(requestUrl!).select('id,conversationId,isDraft').get(),
+					// tell an unsent draft from a real message. internetMessageId is the RFC
+					// Message-ID, carried for the dedup pre-check: it is the key that still
+					// matches when the stored provider id is NULL (pre-migration rows) or stale
+					// (id re-keyed). A deltaLink minted before this select was added keeps its
+					// old field list until the folder rebuilds from initialUrl, so the field is
+					// treated as optional everywhere it is read.
+					() =>
+						this.request(requestUrl!)
+							.select('id,conversationId,isDraft,internetMessageId')
+							.get(),
 					isRetryableGraphError,
 					{ userEmail, folderId, call: 'messages/delta' }
 				);
@@ -387,7 +446,10 @@ export class MicrosoftConnector implements IEmailConnector {
 			for (const message of response.value) {
 				if (message.id && !message['@removed']) {
 					// Skip fetching raw content for already-imported messages
-					if (checkDuplicate && (await checkDuplicate(message.id))) {
+					if (
+						checkDuplicate &&
+						(await checkDuplicate(message.id, message.internetMessageId ?? undefined))
+					) {
 						logger.debug(
 							{ messageId: message.id, userEmail },
 							'Skipping duplicate email (pre-check)'

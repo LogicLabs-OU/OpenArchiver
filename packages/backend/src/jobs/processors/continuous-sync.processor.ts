@@ -6,6 +6,7 @@ import { enqueueMailboxJobs } from '../helpers/enqueueMailboxJobs';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
+import { ingestionQueue } from '../queues';
 
 export default async (job: Job<IContinuousSyncJob>) => {
 	const { ingestionSourceId } = job.data;
@@ -24,6 +25,27 @@ export default async (job: Job<IContinuousSyncJob>) => {
 	}
 
 	const connector = EmailProviderFactory.createConnector(source);
+
+	// One-shot provider-id backfill for Microsoft 365 sources (see the processor). The fixed
+	// jobId keeps it to one instance while a run is queued or active; the syncState flag is
+	// what ends the re-enqueueing once a run has succeeded. removeOnFail is load-bearing, not
+	// hygiene: BullMQ silently drops an add whose jobId matches ANY surviving record, and the
+	// queue's defaults retain failed records by count — so without it, one transient failure
+	// would park a dead record under this id and every later cycle's add would be dropped
+	// against it (the trap claimJobId documents). Removing terminal records instead makes a
+	// failed run retry naturally on the next cycle, until the flag stops the loop.
+	if (source.provider === 'microsoft_365' && !source.syncState?.providerIdBackfillCompletedAt) {
+		await ingestionQueue.add(
+			'backfill-provider-ids',
+			{ ingestionSourceId },
+			{
+				jobId: `backfill-provider-ids-${ingestionSourceId}`,
+				attempts: 1,
+				removeOnComplete: true,
+				removeOnFail: true,
+			}
+		);
+	}
 
 	try {
 		// Phase 1: Collect user emails (async generator — no full buffering of job descriptors).

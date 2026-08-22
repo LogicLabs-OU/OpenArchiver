@@ -5,6 +5,7 @@ import continuousSyncProcessor from '../jobs/processors/continuous-sync.processo
 import scheduleContinuousSyncProcessor from '../jobs/processors/schedule-continuous-sync.processor';
 import { processMailboxProcessor } from '../jobs/processors/process-mailbox.processor';
 import syncCycleFinishedProcessor from '../jobs/processors/sync-cycle-finished.processor';
+import backfillProviderIdsProcessor from '../jobs/processors/backfill-provider-ids.processor';
 import { logger } from '../config/logger';
 import { config } from '../config';
 import { superviseWorker } from './supervision';
@@ -21,6 +22,8 @@ const processor = async (job: any) => {
 			return scheduleContinuousSyncProcessor(job);
 		case 'process-mailbox':
 			return processMailboxProcessor(job);
+		case 'backfill-provider-ids':
+			return backfillProviderIdsProcessor(job);
 		default:
 			throw new Error(`Unknown job name: ${job.name}`);
 	}

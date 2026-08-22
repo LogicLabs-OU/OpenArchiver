@@ -88,7 +88,11 @@ const normalizedMailbox = sql<string>`lower(btrim(${archivedEmails.userEmail}))`
  * changes the casing of a mailbox between syncs misses every dedup check and archives the whole
  * mailbox a second time.
  */
-const matchesMailbox = (normalizedAddress: string) => eq(normalizedMailbox, normalizedAddress);
+// Exported for the provider-id backfill job, which must scope rows to a mailbox with exactly
+// the same normalization the dedup checks here use — two spellings of this predicate would
+// only have to disagree once.
+export const matchesMailbox = (normalizedAddress: string) =>
+	eq(normalizedMailbox, normalizedAddress);
 
 export class IngestionService {
 	private static auditService = new AuditService();
@@ -1119,6 +1123,20 @@ export class IngestionService {
 	 * Checks both providerMessageId (for Google/Microsoft API IDs) and
 	 * messageIdHeader (for IMAP/PST/EML/Mbox RFC Message-IDs and pre-migration rows).
 	 *
+	 * `rawInternetMessageId` is the RFC 5322 Message-ID when the connector's listing already
+	 * carries it (Microsoft Graph's does). It is the key that stays valid when the provider's
+	 * own id has drifted: rows written before provider ids were stored hold NULL there, and
+	 * Graph re-keys messages on folder moves and re-keyed everything once on the switch to
+	 * immutable ids. Matching the header directly is what turns those from a full re-download
+	 * into a skip.
+	 *
+	 * SIDE EFFECT, deliberately here and not in processEmail: when the header matched but the
+	 * stored provider id is stale (NULL, or a different id for the same message), the row is
+	 * updated to the incoming id. Gate 1 in processEmail only runs when THIS check missed, so
+	 * a row this check keeps matching by header would otherwise never converge to the current
+	 * id format. One single-row indexed UPDATE, only on the paths that pass the header, so
+	 * IMAP/Google/file callers can never rewrite anything.
+	 *
 	 * The check is scoped to a specific mailbox (userEmail) within the merge group.
 	 * This allows different mailbox owners to each get their own archived_emails row
 	 * for the same physical email — only skipping the download when this particular
@@ -1128,12 +1146,16 @@ export class IngestionService {
 		rawMessageId: string,
 		ingestionSourceId: string,
 		rawUserEmail: string,
-		knownGroupIds?: string[]
+		knownGroupIds?: string[],
+		rawInternetMessageId?: string
 	): Promise<boolean> {
 		// Bounded on the way in so this pre-fetch check compares against the same key processEmail
 		// stored. Without it an over-long id would look absent here and be downloaded again on
 		// every sync.
 		const messageId = IngestionService.boundMessageKey(rawMessageId);
+		const headerCandidate = rawInternetMessageId
+			? IngestionService.boundMessageKey(rawInternetMessageId)
+			: undefined;
 		const userEmail = normalizeEmailAddress(rawUserEmail);
 		// The group is invariant for a whole mailbox job, so the caller resolves it once and passes
 		// it in. Without that this ran a SELECT for every message the connector offered — before the
@@ -1141,18 +1163,36 @@ export class IngestionService {
 		const groupIds = knownGroupIds ?? (await this.findGroupSourceIds(ingestionSourceId));
 		const sourceFilter = IngestionService.groupScopeFilter(groupIds);
 
+		const keyMatches = [
+			eq(archivedEmails.providerMessageId, messageId),
+			eq(archivedEmails.messageIdHeader, messageId),
+		];
+		if (headerCandidate) {
+			keyMatches.push(eq(archivedEmails.messageIdHeader, headerCandidate));
+		}
+
 		const existingEmail = await db.query.archivedEmails.findFirst({
-			where: and(
-				sourceFilter,
-				matchesMailbox(userEmail),
-				or(
-					eq(archivedEmails.providerMessageId, messageId),
-					eq(archivedEmails.messageIdHeader, messageId)
-				)
-			),
-			columns: { id: true },
+			where: and(sourceFilter, matchesMailbox(userEmail), or(...keyMatches)),
+			columns: { id: true, providerMessageId: true },
 		});
-		return !!existingEmail;
+		if (!existingEmail) {
+			return false;
+		}
+
+		// The refresh described in the docblock. Restricted to callers that passed the header:
+		// that is what proves the incoming id is a provider id for this very message rather
+		// than a Message-ID (IMAP) or an id the row was never keyed by.
+		if (headerCandidate && existingEmail.providerMessageId !== messageId) {
+			await db
+				.update(archivedEmails)
+				.set({ providerMessageId: messageId })
+				.where(eq(archivedEmails.id, existingEmail.id));
+			logger.debug(
+				{ archivedEmailId: existingEmail.id, ingestionSourceId },
+				'Refreshed stale provider message id on dedup match'
+			);
+		}
+		return true;
 	}
 
 	/**
@@ -1206,7 +1246,7 @@ export class IngestionService {
 	 * be discarded as a duplicate — a silent loss, which is the one outcome an archive must not
 	 * have. The full header is untouched in the stored .eml either way.
 	 */
-	private static boundMessageKey(value: string): string {
+	public static boundMessageKey(value: string): string {
 		if (Buffer.byteLength(value) <= IngestionService.MESSAGE_KEY_MAX_BYTES) {
 			return value;
 		}

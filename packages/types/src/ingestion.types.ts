@@ -16,6 +16,12 @@ export type SyncState = {
 	};
 	lastSyncTimestamp?: string;
 	statusMessage?: string;
+	/**
+	 * ISO timestamp of when the one-shot provider-id backfill (regular Graph ids translated
+	 * to immutable ids) completed for this source. Absent means not yet run; the sync cycle
+	 * enqueues the job until it is set. Microsoft 365 sources only.
+	 */
+	providerIdBackfillCompletedAt?: string;
 };
 
 export type IngestionProvider =
