@@ -423,6 +423,7 @@
 				"oauth_imap_port": "IMAP port",
 				"oauth_redirect_uri_note": "Register this redirect URI in your OAuth app registration:",
 				"oauth_edit_connection_toggle": "Update connection settings",
+				"edit_connection_warning": "The connection settings and stored credentials are left unchanged. Turn on \u201cUpdate connection settings\u201d to change them \u2014 fields left blank keep their stored values.",
 				"oauth_edit_connection_warning": "The mailbox connection and its authorization are left unchanged. Turn on “Update connection settings” to change them — the mailbox will then need to be re-authorized."
 			},
 			"role_form": {

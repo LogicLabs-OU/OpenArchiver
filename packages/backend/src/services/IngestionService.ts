@@ -28,6 +28,7 @@ import {
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
 import { mergeOAuthCredentials, validateOAuthMailboxConfig } from './oauth/oauthHelpers';
+import { mergeProviderCredentials } from './credentialMerge';
 import { ingestionQueue, indexingQueue } from '../jobs/queues';
 import { continuousSyncJobId, initialImportJobId } from '../jobs/helpers/jobIds';
 import { claimJobId } from '../jobs/helpers/claimJobId';
@@ -429,8 +430,17 @@ export class IngestionService {
 				}
 				valuesToUpdate.credentials = CryptoService.encryptObject(merged);
 			} else {
-				// Encrypt the new credentials before updating
-				valuesToUpdate.credentials = CryptoService.encryptObject(providerConfig);
+				// The edit form starts blank for every provider (SafeIngestionSource omits
+				// credentials), so what arrives here is not the new truth — it is whatever
+				// the admin typed over a form that could not show the old values. Merging
+				// keeps stored fields wherever the incoming ones are blank; storing the
+				// incoming object wholesale is how a rename-only edit once wiped a working
+				// Microsoft 365 source down to two IMAP form defaults.
+				const result = mergeProviderCredentials(originalSource.credentials, providerConfig);
+				if (!result.ok) {
+					throw new Error(result.message);
+				}
+				valuesToUpdate.credentials = CryptoService.encryptObject(result.merged);
 			}
 		}
 

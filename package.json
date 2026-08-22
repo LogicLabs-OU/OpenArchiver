@@ -1,6 +1,6 @@
 {
 	"name": "open-archiver",
-	"version": "0.5.3",
+	"version": "0.6.0",
 	"private": true,
 	"license": "SEE LICENSE IN LICENSE file",
 	"scripts": {

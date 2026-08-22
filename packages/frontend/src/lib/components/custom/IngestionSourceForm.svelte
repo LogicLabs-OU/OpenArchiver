@@ -174,10 +174,23 @@
 	/**
 	 * Edit mode ships no stored credentials (SafeIngestionSource omits them), so the
 	 * connection fields would arrive blank and any save would read as changing them —
-	 * which invalidates the tokens. Keeping the fields behind this toggle lets a plain
-	 * rename skip providerConfig entirely; the server-side merge guards the rest.
+	 * for an OAuth source that invalidates the tokens, and for every other provider it
+	 * used to overwrite the stored secrets with the blanks. Keeping the fields behind
+	 * this toggle lets a plain rename skip providerConfig entirely; the server-side
+	 * merge guards whatever does get sent.
 	 */
-	let oauthEditConnection = $state(false);
+	let editConnection = $state(false);
+
+	/** The providers whose credentials the edit dialog must not silently resubmit. */
+	const CREDENTIALED_PROVIDERS = [
+		'google_workspace',
+		'microsoft_365',
+		'generic_imap',
+		'oauth_mailbox',
+	];
+	const showConnectionFields = $derived(
+		!source || !CREDENTIALED_PROVIDERS.includes(formData.provider) || editConnection
+	);
 
 	/**
 	 * The redirect URI to register with the OAuth provider.
@@ -276,10 +289,11 @@
 		event.preventDefault();
 		isSubmitting = true;
 		try {
-			// An oauth_mailbox edit that leaves the connection alone must not send
-			// providerConfig at all — the form's copy is blank, and the backend treats an
-			// arriving providerConfig as the new truth.
-			if (source && formData.provider === 'oauth_mailbox' && !oauthEditConnection) {
+			// An edit that leaves the connection alone must not send providerConfig at
+			// all — the form's copy is blank, and blanks are not an instruction to erase.
+			// The backend merge is the safety net; omitting the object entirely is the
+			// guarantee.
+			if (source && !showConnectionFields) {
 				const { providerConfig, ...withoutConfig } = formData;
 				await onSubmit(withoutConfig as CreateIngestionSourceDto);
 			} else {
@@ -470,11 +484,15 @@
 	</div>
 	<div class="grid grid-cols-4 items-center gap-4">
 		<Label for="provider" class="text-left">{$t('app.ingestions.provider')}</Label>
+		<!-- Editing cannot change the provider: the dialog cannot show the stored
+		     credentials, so a switch could only ever submit a half-blank config for the
+		     new type. A different provider is a new source. -->
 		<Select.Root
 			name="provider"
 			bind:value={formData.provider}
 			onValueChange={handleProviderChange}
 			type="single"
+			disabled={!!source}
 		>
 			<Select.Trigger class="col-span-3">
 				{triggerContent}
@@ -489,7 +507,26 @@
 		</Select.Root>
 	</div>
 
-	{#if formData.provider === 'google_workspace'}
+	{#if source && CREDENTIALED_PROVIDERS.includes(formData.provider)}
+		<!-- The connection fields stay hidden (and unsent) until explicitly opened. -->
+		{#if !editConnection}
+			<Alert.Root>
+				<Alert.Description>
+					{formData.provider === 'oauth_mailbox'
+						? $t('app.components.ingestion_source_form.oauth_edit_connection_warning')
+						: $t('app.components.ingestion_source_form.edit_connection_warning')}
+				</Alert.Description>
+			</Alert.Root>
+		{/if}
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="editConnection" class="text-left"
+				>{$t('app.components.ingestion_source_form.oauth_edit_connection_toggle')}</Label
+			>
+			<Checkbox id="editConnection" bind:checked={editConnection} />
+		</div>
+	{/if}
+
+	{#if formData.provider === 'google_workspace' && showConnectionFields}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="serviceAccountKeyJson" class="text-left"
 				>{$t('app.components.ingestion_source_form.service_account_key')}</Label
@@ -513,7 +550,7 @@
 				class="col-span-3"
 			/>
 		</div>
-	{:else if formData.provider === 'microsoft_365'}
+	{:else if formData.provider === 'microsoft_365' && showConnectionFields}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="clientId" class="text-left"
 				>{$t('app.components.ingestion_source_form.client_id')}</Label
@@ -538,7 +575,7 @@
 			>
 			<Input id="tenantId" bind:value={formData.providerConfig.tenantId} class="col-span-3" />
 		</div>
-	{:else if formData.provider === 'generic_imap'}
+	{:else if formData.provider === 'generic_imap' && showConnectionFields}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label for="host" class="text-left"
 				>{$t('app.components.ingestion_source_form.host')}</Label
@@ -586,231 +623,196 @@
 				bind:checked={formData.providerConfig.allowInsecureCert}
 			/>
 		</div>
-	{:else if formData.provider === 'oauth_mailbox'}
-		{#if source && !oauthEditConnection}
-			<!-- Editing: connection stays untouched unless explicitly opened. -->
-			<Alert.Root>
-				<Alert.Description>
-					{$t('app.components.ingestion_source_form.oauth_edit_connection_warning')}
-				</Alert.Description>
-			</Alert.Root>
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label for="oauthEditConnection" class="text-left"
-					>{$t(
-						'app.components.ingestion_source_form.oauth_edit_connection_toggle'
-					)}</Label
+	{:else if formData.provider === 'oauth_mailbox' && showConnectionFields}
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label class="text-left"
+				>{$t('app.components.ingestion_source_form.oauth_preset')}</Label
+			>
+			<div class="col-span-3">
+				<Select.Root
+					type="single"
+					value={formData.providerConfig.preset}
+					onValueChange={(value) => value && applyOauthPreset(value)}
 				>
-				<Checkbox id="oauthEditConnection" bind:checked={oauthEditConnection} />
+					<Select.Trigger class="w-full">
+						{oauthPresetLabel(formData.providerConfig.preset)}
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Item value="outlook"
+							>{$t(
+								'app.components.ingestion_source_form.oauth_preset_outlook'
+							)}</Select.Item
+						>
+						<Select.Item value="microsoft_work"
+							>{$t(
+								'app.components.ingestion_source_form.oauth_preset_microsoft_work'
+							)}</Select.Item
+						>
+						<Select.Item value="custom"
+							>{$t(
+								'app.components.ingestion_source_form.oauth_preset_custom'
+							)}</Select.Item
+						>
+					</Select.Content>
+				</Select.Root>
+				<p class="text-muted-foreground mt-1 text-xs">
+					{formData.providerConfig.transport === 'graph'
+						? $t('app.components.ingestion_source_form.oauth_transport_graph_hint')
+						: $t('app.components.ingestion_source_form.oauth_transport_imap_hint')}
+				</p>
 			</div>
-		{:else}
-			{#if source}
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthEditConnection" class="text-left"
-						>{$t(
-							'app.components.ingestion_source_form.oauth_edit_connection_toggle'
-						)}</Label
-					>
-					<Checkbox id="oauthEditConnection" bind:checked={oauthEditConnection} />
-				</div>
-			{/if}
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label class="text-left"
-					>{$t('app.components.ingestion_source_form.oauth_preset')}</Label
-				>
-				<div class="col-span-3">
-					<Select.Root
-						type="single"
-						value={formData.providerConfig.preset}
-						onValueChange={(value) => value && applyOauthPreset(value)}
-					>
-						<Select.Trigger class="w-full">
-							{oauthPresetLabel(formData.providerConfig.preset)}
-						</Select.Trigger>
-						<Select.Content>
-							<Select.Item value="outlook"
-								>{$t(
-									'app.components.ingestion_source_form.oauth_preset_outlook'
-								)}</Select.Item
-							>
-							<Select.Item value="microsoft_work"
-								>{$t(
-									'app.components.ingestion_source_form.oauth_preset_microsoft_work'
-								)}</Select.Item
-							>
-							<Select.Item value="custom"
-								>{$t(
-									'app.components.ingestion_source_form.oauth_preset_custom'
-								)}</Select.Item
-							>
-						</Select.Content>
-					</Select.Root>
-					<p class="text-muted-foreground mt-1 text-xs">
-						{formData.providerConfig.transport === 'graph'
-							? $t('app.components.ingestion_source_form.oauth_transport_graph_hint')
-							: $t('app.components.ingestion_source_form.oauth_transport_imap_hint')}
-					</p>
-				</div>
-			</div>
-			<div class="grid grid-cols-4 items-start gap-4">
-				<Label class="pt-2 text-left"
-					>{$t('app.components.ingestion_source_form.oauth_flow')}</Label
-				>
-				<RadioGroup.Root bind:value={formData.providerConfig.flow} class="col-span-3">
-					<div class="flex items-start gap-2">
-						<RadioGroup.Item value="auth_code" id="oauth-flow-auth-code" class="mt-1" />
-						<div>
-							<Label for="oauth-flow-auth-code"
-								>{$t(
-									'app.components.ingestion_source_form.oauth_flow_auth_code'
-								)}</Label
-							>
-							<p class="text-muted-foreground text-xs">
-								{$t(
-									'app.components.ingestion_source_form.oauth_flow_auth_code_hint'
-								)}
-							</p>
-						</div>
+		</div>
+		<div class="grid grid-cols-4 items-start gap-4">
+			<Label class="pt-2 text-left"
+				>{$t('app.components.ingestion_source_form.oauth_flow')}</Label
+			>
+			<RadioGroup.Root bind:value={formData.providerConfig.flow} class="col-span-3">
+				<div class="flex items-start gap-2">
+					<RadioGroup.Item value="auth_code" id="oauth-flow-auth-code" class="mt-1" />
+					<div>
+						<Label for="oauth-flow-auth-code"
+							>{$t(
+								'app.components.ingestion_source_form.oauth_flow_auth_code'
+							)}</Label
+						>
+						<p class="text-muted-foreground text-xs">
+							{$t('app.components.ingestion_source_form.oauth_flow_auth_code_hint')}
+						</p>
 					</div>
-					<div class="flex items-start gap-2">
-						<RadioGroup.Item
-							value="device_code"
-							id="oauth-flow-device-code"
-							class="mt-1"
-						/>
-						<div>
-							<Label for="oauth-flow-device-code"
-								>{$t(
-									'app.components.ingestion_source_form.oauth_flow_device_code'
-								)}</Label
-							>
-							<p class="text-muted-foreground text-xs">
-								{$t(
-									'app.components.ingestion_source_form.oauth_flow_device_code_hint'
-								)}
-							</p>
-						</div>
+				</div>
+				<div class="flex items-start gap-2">
+					<RadioGroup.Item value="device_code" id="oauth-flow-device-code" class="mt-1" />
+					<div>
+						<Label for="oauth-flow-device-code"
+							>{$t(
+								'app.components.ingestion_source_form.oauth_flow_device_code'
+							)}</Label
+						>
+						<p class="text-muted-foreground text-xs">
+							{$t('app.components.ingestion_source_form.oauth_flow_device_code_hint')}
+						</p>
 					</div>
-				</RadioGroup.Root>
-			</div>
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label for="oauthEmail" class="text-left"
-					>{$t('app.components.ingestion_source_form.oauth_email')}</Label
-				>
-				<Input
-					id="oauthEmail"
-					type="email"
-					bind:value={formData.providerConfig.email}
-					class="col-span-3"
-					placeholder="mailbox@outlook.com"
-				/>
-			</div>
-			<div class="grid grid-cols-4 items-center gap-4">
-				<Label for="oauthClientId" class="text-left"
-					>{$t('app.components.ingestion_source_form.client_id')}</Label
-				>
-				<Input
-					id="oauthClientId"
-					bind:value={formData.providerConfig.clientId}
-					class="col-span-3"
-				/>
-			</div>
-			<!-- The device-code flow is a public-client flow: a secret is neither needed nor
+				</div>
+			</RadioGroup.Root>
+		</div>
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="oauthEmail" class="text-left"
+				>{$t('app.components.ingestion_source_form.oauth_email')}</Label
+			>
+			<Input
+				id="oauthEmail"
+				type="email"
+				bind:value={formData.providerConfig.email}
+				class="col-span-3"
+				placeholder="mailbox@outlook.com"
+			/>
+		</div>
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="oauthClientId" class="text-left"
+				>{$t('app.components.ingestion_source_form.client_id')}</Label
+			>
+			<Input
+				id="oauthClientId"
+				bind:value={formData.providerConfig.clientId}
+				class="col-span-3"
+			/>
+		</div>
+		<!-- The device-code flow is a public-client flow: a secret is neither needed nor
 			     wanted, and Microsoft's own guidance is not to create one. Asking for it here
 			     invites an admin to register the app as a confidential client, which then
 			     fails the flow it was meant to help. -->
-			{#if formData.providerConfig.flow !== 'device_code'}
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthClientSecret" class="text-left"
-						>{$t('app.components.ingestion_source_form.client_secret')}</Label
-					>
-					<Input
-						id="oauthClientSecret"
-						type="password"
-						bind:value={formData.providerConfig.clientSecret}
-						class="col-span-3"
-						placeholder={$t(
-							'app.components.ingestion_source_form.oauth_client_secret_placeholder'
-						)}
-					/>
-				</div>
-			{/if}
-			{#if formData.providerConfig.preset === 'custom'}
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthAuthEndpoint" class="text-left"
-						>{$t(
-							'app.components.ingestion_source_form.oauth_authorization_endpoint'
-						)}</Label
-					>
-					<Input
-						id="oauthAuthEndpoint"
-						bind:value={formData.providerConfig.authorizationEndpoint}
-						class="col-span-3"
-					/>
-				</div>
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthTokenEndpoint" class="text-left"
-						>{$t('app.components.ingestion_source_form.oauth_token_endpoint')}</Label
-					>
-					<Input
-						id="oauthTokenEndpoint"
-						bind:value={formData.providerConfig.tokenEndpoint}
-						class="col-span-3"
-					/>
-				</div>
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthDeviceEndpoint" class="text-left"
-						>{$t('app.components.ingestion_source_form.oauth_device_endpoint')}</Label
-					>
-					<Input
-						id="oauthDeviceEndpoint"
-						bind:value={formData.providerConfig.deviceAuthorizationEndpoint}
-						class="col-span-3"
-					/>
-				</div>
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthScopes" class="text-left"
-						>{$t('app.components.ingestion_source_form.oauth_scopes')}</Label
-					>
-					<Input
-						id="oauthScopes"
-						bind:value={formData.providerConfig.scopes}
-						class="col-span-3"
-					/>
-				</div>
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthImapHost" class="text-left"
-						>{$t('app.components.ingestion_source_form.oauth_imap_host')}</Label
-					>
-					<Input
-						id="oauthImapHost"
-						bind:value={formData.providerConfig.imapHost}
-						class="col-span-3"
-					/>
-				</div>
-				<div class="grid grid-cols-4 items-center gap-4">
-					<Label for="oauthImapPort" class="text-left"
-						>{$t('app.components.ingestion_source_form.oauth_imap_port')}</Label
-					>
-					<Input
-						id="oauthImapPort"
-						type="number"
-						bind:value={formData.providerConfig.imapPort}
-						class="col-span-3"
-					/>
-				</div>
-			{/if}
-			{#if formData.providerConfig.flow === 'auth_code'}
-				<Alert.Root>
-					<Alert.Description>
-						<div class="my-1">
-							{$t('app.components.ingestion_source_form.oauth_redirect_uri_note')}
-							<code class="bg-muted mt-1 block break-all rounded px-1 py-0.5 text-xs"
-								>{resolvedRedirectUri}</code
-							>
-						</div>
-					</Alert.Description>
-				</Alert.Root>
-			{/if}
+		{#if formData.providerConfig.flow !== 'device_code'}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="oauthClientSecret" class="text-left"
+					>{$t('app.components.ingestion_source_form.client_secret')}</Label
+				>
+				<Input
+					id="oauthClientSecret"
+					type="password"
+					bind:value={formData.providerConfig.clientSecret}
+					class="col-span-3"
+					placeholder={$t(
+						'app.components.ingestion_source_form.oauth_client_secret_placeholder'
+					)}
+				/>
+			</div>
+		{/if}
+		{#if formData.providerConfig.preset === 'custom'}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="oauthAuthEndpoint" class="text-left"
+					>{$t(
+						'app.components.ingestion_source_form.oauth_authorization_endpoint'
+					)}</Label
+				>
+				<Input
+					id="oauthAuthEndpoint"
+					bind:value={formData.providerConfig.authorizationEndpoint}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="oauthTokenEndpoint" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_token_endpoint')}</Label
+				>
+				<Input
+					id="oauthTokenEndpoint"
+					bind:value={formData.providerConfig.tokenEndpoint}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="oauthDeviceEndpoint" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_device_endpoint')}</Label
+				>
+				<Input
+					id="oauthDeviceEndpoint"
+					bind:value={formData.providerConfig.deviceAuthorizationEndpoint}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="oauthScopes" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_scopes')}</Label
+				>
+				<Input
+					id="oauthScopes"
+					bind:value={formData.providerConfig.scopes}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="oauthImapHost" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_imap_host')}</Label
+				>
+				<Input
+					id="oauthImapHost"
+					bind:value={formData.providerConfig.imapHost}
+					class="col-span-3"
+				/>
+			</div>
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="oauthImapPort" class="text-left"
+					>{$t('app.components.ingestion_source_form.oauth_imap_port')}</Label
+				>
+				<Input
+					id="oauthImapPort"
+					type="number"
+					bind:value={formData.providerConfig.imapPort}
+					class="col-span-3"
+				/>
+			</div>
+		{/if}
+		{#if formData.providerConfig.flow === 'auth_code'}
+			<Alert.Root>
+				<Alert.Description>
+					<div class="my-1">
+						{$t('app.components.ingestion_source_form.oauth_redirect_uri_note')}
+						<code class="bg-muted mt-1 block break-all rounded px-1 py-0.5 text-xs"
+							>{resolvedRedirectUri}</code
+						>
+					</div>
+				</Alert.Description>
+			</Alert.Root>
 		{/if}
 	{:else if formData.provider === 'pst_import'}
 		<div class="grid grid-cols-4 items-start gap-4">
