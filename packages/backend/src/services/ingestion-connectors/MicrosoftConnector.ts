@@ -202,17 +202,6 @@ export class MicrosoftConnector implements IEmailConnector {
 	}
 
 	/**
-	 * The Graph path prefix for one mailbox. Every mailbox-scoped request goes through this
-	 * rather than templating `/users/...` inline, because a delegated connector addresses the
-	 * signed-in mailbox as `/me` and has no permission to name it any other way. Overriding
-	 * this one method is what lets the delta sync, folder walk and raw-MIME fetch below be
-	 * shared between the app-only tenant connector and a single-mailbox delegated one.
-	 */
-	protected mailboxPath(userEmail: string): string {
-		return `/users/${userEmail}`;
-	}
-
-	/**
 	 * Tests the connection and authentication by attempting to list the first user
 	 * from the directory.
 	 */
