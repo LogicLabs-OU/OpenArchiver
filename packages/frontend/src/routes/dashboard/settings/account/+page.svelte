@@ -35,7 +35,7 @@
 	async function startSetup() {
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/setup', { method: 'POST' });
+			const res = await api('/auth/mfa/setup', { method: 'POST' });
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || $t('app.security.setup_failed'));
@@ -60,7 +60,7 @@
 		if (!setupData) return;
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/enroll', {
+			const res = await api('/auth/mfa/enroll', {
 				method: 'POST',
 				// The secret is stored server-side in Redis — only the code is needed here.
 				body: JSON.stringify({ code: verifyCode }),
@@ -97,7 +97,7 @@
 		e.preventDefault();
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/disable', {
+			const res = await api('/auth/mfa/disable', {
 				method: 'POST',
 				body: JSON.stringify({ code: disableCode }),
 			});
@@ -132,7 +132,7 @@
 		e.preventDefault();
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/backup-codes', {
+			const res = await api('/auth/mfa/backup-codes', {
 				method: 'POST',
 				body: JSON.stringify({ code: regenCode }),
 			});
@@ -292,7 +292,7 @@
 		</Card.Footer>
 	</Card.Root>
 
-	<!-- Two-Factor Authentication (enterprise only) -->
+	<!-- Two-Factor Authentication -->
 	{#if data.mfaStatus !== null}
 		<Card.Root>
 			<Card.Header class="flex flex-row items-center justify-between space-y-0">

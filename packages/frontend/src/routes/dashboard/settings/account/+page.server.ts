@@ -13,13 +13,12 @@ export const load: PageServerLoad = async (event) => {
 	}
 	const user: User = await response.json();
 
-	// Load MFA status only when running in enterprise mode
+	// 2FA is available in both editions. `graceDeadline` on the response is what
+	// differs: only an enterprise deployment with enforcement on ever sets it.
 	let mfaStatus: MfaStatus | null = null;
-	if (event.locals.enterpriseMode) {
-		const mfaRes = await api('/enterprise/advanced-security/mfa/status', event);
-		if (mfaRes.ok) {
-			mfaStatus = await mfaRes.json();
-		}
+	const mfaRes = await api('/auth/mfa/status', event);
+	if (mfaRes.ok) {
+		mfaStatus = await mfaRes.json();
 	}
 
 	return { user, mfaStatus };

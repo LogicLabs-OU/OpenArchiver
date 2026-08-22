@@ -13,7 +13,7 @@ import { db } from '../database';
 import * as schema from '../database/schema';
 import { eq } from 'drizzle-orm';
 
-/** Callback type for checking if MFA is required for a user. Registered by enterprise module. */
+/** Callback type for checking if MFA is required for a user. */
 export type MfaCheckCallback = (userId: string) => Promise<MfaCheckResult>;
 
 export class AuthService {
@@ -36,8 +36,12 @@ export class AuthService {
 	}
 
 	/**
-	 * Registers the MFA check callback. Called by the enterprise advanced-security module
-	 * at startup to hook into the login flow.
+	 * Registers the MFA check callback.
+	 *
+	 * `createServer()` registers the open-source rule — challenge whoever has enrolled —
+	 * before any module loads. The enterprise advanced-security module then calls this
+	 * again to layer its enforcement policy on top. The second call replaces the first;
+	 * this is a single slot, not a list of checks.
 	 */
 	public registerMfaCheck(fn: MfaCheckCallback): void {
 		this.#mfaCheckCallback = fn;
@@ -103,7 +107,7 @@ export class AuthService {
 
 		const { password: _, ...userWithoutPassword } = user;
 
-		// Check if MFA is required (enterprise hook)
+		// Check if MFA is required
 		if (this.#mfaCheckCallback) {
 			const mfaResult = await this.#mfaCheckCallback(user.id);
 

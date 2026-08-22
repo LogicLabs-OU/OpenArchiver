@@ -73,10 +73,9 @@
 		if (!userToDisable2fa) return;
 		isDisabling2fa = true;
 		try {
-			const res = await api(
-				`/enterprise/advanced-security/mfa/users/${userToDisable2fa.id}`,
-				{ method: 'DELETE' }
-			);
+			const res = await api(`/auth/mfa/users/${userToDisable2fa.id}`, {
+				method: 'DELETE',
+			});
 			if (!res.ok) {
 				const errorBody = await res.json().catch(() => ({}));
 				setAlert({
@@ -202,7 +201,7 @@
 											<Edit class="mr-2 h-4 w-4" />
 											{$t('app.users.edit')}</DropdownMenu.Item
 										>
-										{#if data.enterpriseMode && user.totpEnabled}
+										{#if user.totpEnabled}
 											<DropdownMenu.Separator />
 											<DropdownMenu.Item
 												class="cursor-pointer"
