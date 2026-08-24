@@ -361,6 +361,20 @@ export type ProcessMailboxError = {
 };
 
 /**
+ * Returned by a process-mailbox job for a directory entry that has no mailbox to archive —
+ * an Entra ID guest, or a member without an Exchange licence.
+ *
+ * Distinct from ProcessMailboxError because it is not a failure of the cycle: nothing is
+ * wrong, there is simply nothing to fetch. Counting it as an error left the source in
+ * `error` after every cycle, which the scheduler retries every tick forever (#351). The
+ * mailbox counts as completed and the reason is reported alongside the cycle's result.
+ */
+export type ProcessMailboxSkip = {
+	skipped: true;
+	message: string;
+};
+
+/**
  * Returned by IngestionService.processEmail when archiving a single email fails.
  * Distinguishes genuine per-message errors from `null`, which strictly means the
  * email was deduplicated / intentionally skipped.

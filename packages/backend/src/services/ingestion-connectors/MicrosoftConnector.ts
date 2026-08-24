@@ -62,6 +62,51 @@ const isDeltaTokenExpired = (error: unknown): boolean =>
 	);
 
 /**
+ * Whether Graph is saying this directory entry has no mailbox to read, rather than that
+ * something went wrong reading it.
+ *
+ * A tenant's `/users` collection is a directory, not a mailbox list: Entra ID guests (`#EXT#`
+ * UPNs, invited to Teams or SharePoint) and members without an Exchange licence appear there
+ * and own nothing to archive. Asking for their mail is answered with one of these codes on
+ * every cycle, forever — no retry, permission change or resync alters it, because the mailbox
+ * does not exist.
+ *
+ * `MailboxNotEnabledForRESTAPI` is the licensed-but-mailbox-less answer; the ResourceNotFound
+ * family is what a guest gets, since the object is not resolvable as a mail user at all.
+ * Distinguishing them from real failures is what lets a cycle whose only "errors" are these
+ * finish as a success instead of parking the source in `error` for the scheduler to retry
+ * every tick (#351).
+ *
+ * Deliberately narrow. A 403 (missing Mail.Read, unconsented app) is a real misconfiguration
+ * and must keep failing loudly, so status alone is never enough to land here.
+ */
+export const isMailboxUnavailableError = (error: unknown): boolean => {
+	const code = String((error as any)?.code ?? '');
+	if (
+		[
+			'MailboxNotEnabledForRESTAPI',
+			'ResourceNotFound',
+			'Request_ResourceNotFound',
+			'ErrorInvalidUser',
+		].includes(code)
+	) {
+		return true;
+	}
+	// Some of these arrive as a 404 whose code sits in the nested body rather than on the
+	// GraphError itself, so the message is the only place the reason survives.
+	if (statusOf(error) !== 404) {
+		return false;
+	}
+	const message = String((error as any)?.message ?? '');
+	return (
+		/MailboxNotEnabledForRESTAPI/i.test(message) ||
+		/does not exist or one of its queried reference-property objects are not present/i.test(
+			message
+		)
+	);
+};
+
+/**
  * A connector for Microsoft 365 that uses the Microsoft Graph API with client credentials (app-only)
  * to access data on behalf of the organization.
  */
@@ -198,7 +243,13 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * shared between the app-only tenant connector and a single-mailbox delegated one.
 	 */
 	protected mailboxPath(userEmail: string): string {
-		return `/users/${userEmail}`;
+		// Encoded, because a UPN is not URL-safe. A guest's UPN carries `#EXT#`, and `#` starts
+		// the fragment of a URL: interpolated raw, `/users/alice_contoso.com#EXT#@tenant...`
+		// reaches Graph as `/users/alice_contoso.com`, which is a different (usually absent)
+		// user. That is the origin of the "Resource 'x' does not exist" wording in #351 — the
+		// name Graph reports back is the truncated half, not the account that was asked for.
+		// Every UPN with a reserved character had the same problem.
+		return `/users/${encodeURIComponent(userEmail)}`;
 	}
 
 	/**
@@ -217,17 +268,39 @@ export class MicrosoftConnector implements IEmailConnector {
 	}
 
 	/**
-	 * Lists all users in the Microsoft 365 tenant.
-	 * This method handles pagination to retrieve the complete list of users.
-	 * @returns An async generator that yields each user object.
+	 * Lists the tenant's mail-owning users.
+	 *
+	 * `/users` is a directory rather than a mailbox list, so it also returns Entra ID guests —
+	 * external people invited to Teams or SharePoint, who hold no Exchange mailbox. Archiving
+	 * has nothing to fetch for them, and asking anyway failed every cycle and kept the source
+	 * in `error` permanently (#351). Guests are dropped here, at the one place that decides
+	 * what a cycle will even attempt.
+	 *
+	 * Filtered in code rather than with `$filter=userType eq 'Member'`: `userType` is not
+	 * filterable on a plain request, so that query needs `$count=true` plus the
+	 * `ConsistencyLevel: eventual` header, and without them Graph answers 400 and the source
+	 * lists nothing at all. Adding `userType` to `$select` costs nothing and cannot fail.
+	 *
+	 * Members without a mailbox (no Exchange licence) still get through — nothing in the
+	 * directory marks them — and are handled where they surface, by isMailboxUnavailableError.
+	 *
+	 * @returns An async generator that yields each mail-owning user.
 	 */
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		let request = this.request('/users').select('id,userPrincipalName,displayName');
+		let request = this.request('/users').select('id,userPrincipalName,displayName,userType');
+		let skippedGuests = 0;
 
 		try {
 			let response = await request.get();
 			while (response) {
 				for (const user of response.value as User[]) {
+					// Compared case-insensitively; Graph documents 'Guest' but the value is
+					// data, not a contract, and a null userType (rare, directory-synced
+					// objects) must not be mistaken for one.
+					if (String(user.userType ?? '').toLowerCase() === 'guest') {
+						skippedGuests++;
+						continue;
+					}
 					if (user.id && user.userPrincipalName && user.displayName) {
 						yield {
 							id: user.id,
@@ -242,6 +315,15 @@ export class MicrosoftConnector implements IEmailConnector {
 				} else {
 					break;
 				}
+			}
+
+			// One line per cycle, not one per guest: a tenant can hold hundreds, and the
+			// operator only needs to know the omission happened and how large it was.
+			if (skippedGuests > 0) {
+				logger.info(
+					{ skippedGuests },
+					'Skipped Entra ID guest users while listing mailboxes; guests hold no mailbox to archive'
+				);
 			}
 		} catch (error) {
 			logger.error({ err: error }, 'Failed to list all users from Microsoft 365');

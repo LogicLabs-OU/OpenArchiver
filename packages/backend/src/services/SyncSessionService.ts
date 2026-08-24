@@ -1,7 +1,7 @@
 import { db } from '../database';
 import { syncSessions, ingestionSources } from '../database/schema';
 import { and, eq, inArray, lt, notExists, sql, type SQL } from 'drizzle-orm';
-import type { SyncState, ProcessMailboxError } from '@open-archiver/types';
+import type { SyncState, ProcessMailboxError, ProcessMailboxSkip } from '@open-archiver/types';
 import { logger } from '../config/logger';
 import { ingestionQueue } from '../jobs/queues';
 import { isJobLive } from '../jobs/helpers/claimJobId';
@@ -100,15 +100,24 @@ export class SyncSessionService {
 	 * If the result is a successful SyncState, it is merged into the ingestion source's
 	 * syncState column using PostgreSQL's jsonb merge operator.
 	 *
+	 * A third outcome sits between the two: a SKIP, for a directory entry with no mailbox to
+	 * read (see ProcessMailboxSkip). It counts as completed — nothing failed, and the cycle
+	 * must be allowed to end in success — while its reason is appended to the same message
+	 * array a failure uses, so the finalizer can repeat it without a schema change. The array
+	 * is therefore "notes about this cycle", of which errors are one kind; `failedMailboxes`
+	 * alone decides whether the cycle failed.
+	 *
 	 * Returns whether this was the last mailbox job in the session.
 	 */
 	public static async recordMailboxResult(
 		sessionId: string,
-		result: SyncState | ProcessMailboxError
+		result: SyncState | ProcessMailboxError | ProcessMailboxSkip
 	): Promise<MailboxResultOutcome> {
 		const isError = (result as ProcessMailboxError).error === true;
+		const isSkip = (result as ProcessMailboxSkip).skipped === true;
+		const note = isError || isSkip ? (result as { message: string }).message : null;
 
-		// Atomically increment the appropriate counter and append error message if needed.
+		// Atomically increment the appropriate counter and append the note if there is one.
 		// The RETURNING clause ensures we get the post-update values to check if this is the last job.
 		const [updated] = await db
 			.update(syncSessions)
@@ -119,9 +128,10 @@ export class SyncSessionService {
 				failedMailboxes: isError
 					? sql`${syncSessions.failedMailboxes} + 1`
 					: syncSessions.failedMailboxes,
-				errorMessages: isError
-					? sql`array_append(${syncSessions.errorMessages}, ${(result as ProcessMailboxError).message})`
-					: syncSessions.errorMessages,
+				errorMessages:
+					note !== null
+						? sql`array_append(${syncSessions.errorMessages}, ${note})`
+						: syncSessions.errorMessages,
 				// Touch lastActivityAt on every result so the stale-session detector
 				// knows this session is still alive, regardless of how long it has been running.
 				lastActivityAt: new Date(),
@@ -143,7 +153,9 @@ export class SyncSessionService {
 		// ingestion source's syncState column in Postgres. This is done incrementally per mailbox
 		// to avoid the large deepmerge at the end — see buildSyncStateMerge for why the merge has
 		// to reach one level below the top.
-		if (!isError) {
+		// A skip is excluded as firmly as an error: its object is {skipped, message}, not sync
+		// state, and merging it would write those two keys into the source's syncState column.
+		if (!isError && !isSkip) {
 			const syncState = result as SyncState;
 			if (Object.keys(syncState).length > 0) {
 				await db

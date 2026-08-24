@@ -1,5 +1,10 @@
 import { Job } from 'bullmq';
-import { IProcessMailboxJob, ProcessMailboxError, PendingEmail } from '@open-archiver/types';
+import {
+	IProcessMailboxJob,
+	ProcessMailboxError,
+	ProcessMailboxSkip,
+	PendingEmail,
+} from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
 import { logger } from '../../config/logger';
 import { EmailProviderFactory, type IEmailConnector } from '../../services/EmailProviderFactory';
@@ -7,6 +12,7 @@ import { StorageService } from '../../services/StorageService';
 import { config } from '../../config';
 import { indexingQueue, ingestionQueue } from '../queues';
 import { SyncSessionService } from '../../services/SyncSessionService';
+import { isMailboxUnavailableError } from '../../services/ingestion-connectors/MicrosoftConnector';
 import { unlink } from 'fs/promises';
 
 /**
@@ -53,6 +59,40 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			// Ahead of anything buffered while this was in flight: these were archived first.
 			emailBatch = toFlush.concat(emailBatch);
 			throw err;
+		}
+	};
+
+	/**
+	 * Records this mailbox's outcome and, if it was the last one, dispatches the finalizer.
+	 *
+	 * Shared by the failure and the skip paths, which differ only in what they report and must
+	 * not differ in anything else: both count towards the session total, and both have to be
+	 * able to end the cycle. Its own failure is logged and swallowed for the reason the caller
+	 * never re-throws — a second attempt at this job would double-count against the session.
+	 */
+	const reportMailboxOutcome = async (
+		outcome: ProcessMailboxError | ProcessMailboxSkip,
+		kind: 'error' | 'skipped'
+	): Promise<void> => {
+		try {
+			const { isLast } = await SyncSessionService.recordMailboxResult(sessionId, outcome);
+
+			if (isLast) {
+				logger.info(
+					{ ingestionSourceId, sessionId, kind },
+					'Last mailbox job completed, dispatching sync-cycle-finished'
+				);
+				await ingestionQueue.add('sync-cycle-finished', {
+					ingestionSourceId,
+					sessionId,
+					isInitialImport: false,
+				});
+			}
+		} catch (sessionError) {
+			logger.error(
+				{ err: sessionError, sessionId, kind },
+				'Failed to record mailbox result in sync session'
+			);
 		}
 	};
 
@@ -334,6 +374,26 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			);
 		}
 
+		// A directory entry with no mailbox is not a failed mailbox. Reported as a skip, the
+		// cycle can still finish successfully; reported as an error it kept the source in
+		// 'error', which the scheduler retries every tick — forever, since no amount of
+		// retrying gives a guest a mailbox (#351). Checked before the error path below so the
+		// distinction is made once, on the way out.
+		if (isMailboxUnavailableError(error)) {
+			logger.info(
+				{ ingestionSourceId, userEmail },
+				'Skipping mailbox: this account has no mailbox to archive'
+			);
+			await reportMailboxOutcome(
+				{
+					skipped: true,
+					message: `Skipped ${userEmail}: the account has no mailbox to archive (guest or unlicensed user).`,
+				},
+				'skipped'
+			);
+			return;
+		}
+
 		logger.error({ err: error, ingestionSourceId, userEmail }, 'Error processing mailbox');
 		const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
 
@@ -352,29 +412,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		};
 
 		// Report failure to the session — this still counts towards the total
-		try {
-			const { isLast } = await SyncSessionService.recordMailboxResult(
-				sessionId,
-				processMailboxError
-			);
-
-			if (isLast) {
-				logger.info(
-					{ ingestionSourceId, sessionId },
-					'Last mailbox job (with error) completed, dispatching sync-cycle-finished'
-				);
-				await ingestionQueue.add('sync-cycle-finished', {
-					ingestionSourceId,
-					sessionId,
-					isInitialImport: false,
-				});
-			}
-		} catch (sessionError) {
-			logger.error(
-				{ err: sessionError, sessionId },
-				'Failed to record mailbox error in sync session'
-			);
-		}
+		await reportMailboxOutcome(processMailboxError, 'error');
 
 		// Do not re-throw — a single failed mailbox should not mark the BullMQ job as failed
 		// and trigger retries that would double-count against the session counter.

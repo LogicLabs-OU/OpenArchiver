@@ -39,18 +39,29 @@ export default async (job: Job<ISyncCycleFinishedJob>) => {
 			status = 'imported';
 		}
 
+		// The message array holds notes, of which errors are one kind — a mailbox that was
+		// skipped for having nothing to archive also leaves one. Only failedMailboxes decides
+		// whether the cycle failed, so a tenant whose sole "problem" is guest accounts settles
+		// in 'active' instead of being retried every tick forever (#351).
+		const notes = session.errorMessages.join('\n');
+
 		if (session.failedMailboxes > 0) {
 			status = 'error';
-			const errorMessages = session.errorMessages.join('\n');
-			message = `Sync cycle completed with ${session.failedMailboxes} error(s):\n${errorMessages}`;
+			message = `Sync cycle completed with ${session.failedMailboxes} error(s):\n${notes}`;
 			logger.error(
-				{ ingestionSourceId, sessionId, errors: errorMessages },
+				{ ingestionSourceId, sessionId, errors: notes },
 				'Sync cycle finished with errors.'
 			);
 		} else {
 			message = isInitialImport
 				? `Initial import finished for ${session.completedMailboxes} mailboxes.`
 				: 'Continuous sync cycle finished successfully.';
+			// Named rather than merely counted: the operator needs to see WHICH accounts were
+			// passed over, or a mailbox missing from the archive by mistake looks identical to
+			// one skipped on purpose.
+			if (notes) {
+				message += `\n${notes}`;
+			}
 			logger.info({ ingestionSourceId, sessionId }, 'Sync cycle finished successfully.');
 		}
 
