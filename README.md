@@ -121,7 +121,3 @@ We welcome contributions from the community!
 - **Code Contributions**: If you'd like to contribute code, please fork the repository and submit a pull request.
 
 Please read our `CONTRIBUTING.md` file for more details on our code of conduct and the process for submitting pull requests.
-
-## 📈 Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=LogicLabs-OU/OpenArchiver&type=Date)](https://www.star-history.com/#LogicLabs-OU/OpenArchiver&Date)
