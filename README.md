@@ -20,7 +20,7 @@ _Dashboard_
 _Archived emails_
 
 ![Open Archiver Preview](assets/screenshots/search.png)
-_Full-text search across all your emails and attachments_
+_Full-text search across all your emails and attachments with advanced filters_
 
 ## Join our community!
 
