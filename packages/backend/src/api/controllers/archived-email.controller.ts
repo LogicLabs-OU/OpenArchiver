@@ -29,6 +29,24 @@ export class ArchivedEmailController {
 		}
 	};
 
+	public getAllArchivedEmails = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const page = parseInt(req.query.page as string, 10) || 1;
+			const limit = parseInt(req.query.limit as string, 10) || 10;
+			const userId = req.user?.sub;
+
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+
+			const result = await ArchivedEmailService.getAllArchivedEmails(page, limit, userId);
+			return res.status(200).json(result);
+		} catch (error) {
+			console.error('Get all archived emails error:', error);
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
+
 	public getArchivedEmailById = async (req: Request, res: Response): Promise<Response> => {
 		try {
 			const { id } = req.params;

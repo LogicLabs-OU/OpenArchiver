@@ -16,6 +16,8 @@
 
 	let { data }: { data: PageData } = $props();
 
+	const ALL_SOURCES = 'all';
+
 	let ingestionSources = $derived(data.ingestionSources);
 	let archivedEmails = $state<PaginatedArchivedEmails>(data.archivedEmails);
 	let selectedIngestionSourceId = $derived(data.selectedIngestionSourceId);
@@ -40,6 +42,18 @@
 		allEmailIds.length > 0 && allEmailIds.every((id) => selectedIds.includes(id))
 	);
 	const someCurrentPageSelected = $derived(allEmailIds.some((id) => selectedIds.includes(id)));
+
+	// The source column only carries information when the list spans sources; in
+	// single-source mode every row would repeat the name already in the selector.
+	const showSourceColumn = $derived(selectedIngestionSourceId === ALL_SOURCES);
+
+	const selectedSourceLabel = $derived.by(() => {
+		if (!selectedIngestionSourceId)
+			return $t('app.archived_emails_page.select_ingestion_source');
+		if (selectedIngestionSourceId === ALL_SOURCES)
+			return $t('app.archived_emails_page.all_sources');
+		return ingestionSources.find((s) => s.id === selectedIngestionSourceId)?.name;
+	});
 
 	const handleSourceChange = (value: string | undefined) => {
 		if (value) {
@@ -78,6 +92,16 @@
 			isBulkDeleting = false;
 		}
 	};
+
+	const pageHref = (pageNum: number) => {
+		const params = new URLSearchParams();
+		if (selectedIngestionSourceId) {
+			params.set('ingestionSourceId', selectedIngestionSourceId);
+		}
+		params.set('page', String(pageNum));
+		params.set('limit', String(archivedEmails.limit));
+		return `/dashboard/archived-emails?${params.toString()}`;
+	};
 </script>
 
 <svelte:head>
@@ -101,13 +125,12 @@
 				value={selectedIngestionSourceId}
 			>
 				<Select.Trigger class="w-full">
-					<span
-						>{selectedIngestionSourceId
-							? ingestionSources.find((s) => s.id === selectedIngestionSourceId)?.name
-							: $t('app.archived_emails_page.select_ingestion_source')}</span
-					>
+					<span>{selectedSourceLabel}</span>
 				</Select.Trigger>
 				<Select.Content>
+					<Select.Item value={ALL_SOURCES}
+						>{$t('app.archived_emails_page.all_sources')}</Select.Item
+					>
 					{#each ingestionSources as source}
 						<Select.Item value={source.id}>{source.name}</Select.Item>
 					{/each}
@@ -142,6 +165,9 @@
 				<Table.Head>{$t('app.archived_emails_page.date')}</Table.Head>
 				<Table.Head>{$t('app.archived_emails_page.subject')}</Table.Head>
 				<Table.Head>{$t('app.archived_emails_page.sender')}</Table.Head>
+				{#if showSourceColumn}
+					<Table.Head>{$t('app.archived_emails_page.source')}</Table.Head>
+				{/if}
 				<Table.Head>{$t('app.archived_emails_page.inbox')}</Table.Head>
 				<Table.Head>{$t('app.archived_emails_page.path')}</Table.Head>
 				<Table.Head class="text-right">{$t('app.archived_emails_page.actions')}</Table.Head>
@@ -175,6 +201,9 @@
 						<Table.Cell>
 							{email.senderName || email.senderEmail}
 						</Table.Cell>
+						{#if showSourceColumn}
+							<Table.Cell>{email.ingestionSource?.name ?? '—'}</Table.Cell>
+						{/if}
 						<Table.Cell>{email.userEmail}</Table.Cell>
 						<Table.Cell>
 							{#if email.path}
@@ -194,7 +223,7 @@
 				{/each}
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={7} class="text-center"
+					<Table.Cell colspan={showSourceColumn ? 8 : 7} class="text-center"
 						>{$t('app.archived_emails_page.no_emails_found')}</Table.Cell
 					>
 				</Table.Row>
@@ -213,11 +242,7 @@
 			{#snippet children({ pages, currentPage })}
 				<Pagination.Content>
 					<Pagination.Item>
-						<a
-							href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
-								currentPage - 1
-							}&limit=${archivedEmails.limit}`}
-						>
+						<a href={pageHref(currentPage - 1)}>
 							<Pagination.PrevButton>
 								<ChevronLeft class="h-4 w-4" />
 								<span class="hidden sm:block"
@@ -233,9 +258,7 @@
 							</Pagination.Item>
 						{:else}
 							<Pagination.Item>
-								<a
-									href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${page.value}&limit=${archivedEmails.limit}`}
-								>
+								<a href={pageHref(page.value)}>
 									<Pagination.Link {page} isActive={currentPage === page.value}>
 										{page.value}
 									</Pagination.Link>
@@ -244,11 +267,7 @@
 						{/if}
 					{/each}
 					<Pagination.Item>
-						<a
-							href={`/dashboard/archived-emails?ingestionSourceId=${selectedIngestionSourceId}&page=${
-								currentPage + 1
-							}&limit=${archivedEmails.limit}`}
-						>
+						<a href={pageHref(currentPage + 1)}>
 							<Pagination.NextButton>
 								<span class="hidden sm:block"
 									>{$t('app.archived_emails_page.next')}</span
