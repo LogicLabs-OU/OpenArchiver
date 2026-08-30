@@ -76,6 +76,8 @@
 			"strategy_verbatim": "Sõnasõnaline",
 			"strategy_frequency": "Sagedus",
 			"select_strategy": "Valige strateegia",
+			"set_default_strategy": "Määra vaikeväärtuseks",
+			"clear_default_strategy": "Eemalda vaikeväärtus",
 			"error": "Viga",
 			"found_results_in": "Leiti {{total}} tulemust {{seconds}} sekundiga",
 			"found_results": "Leiti {{total}} tulemust",

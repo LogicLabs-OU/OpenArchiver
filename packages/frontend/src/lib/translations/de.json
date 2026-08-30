@@ -112,6 +112,8 @@
 			"strategy_verbatim": "Wörtlich",
 			"strategy_frequency": "Frequenz",
 			"select_strategy": "Wählen Sie eine Strategie",
+			"set_default_strategy": "Als Standard festlegen",
+			"clear_default_strategy": "Standard entfernen",
 			"error": "Fehler",
 			"found_results_in": "{{total}} Ergebnisse in {{seconds}}s gefunden",
 			"found_results": "{{total}} Ergebnisse gefunden",

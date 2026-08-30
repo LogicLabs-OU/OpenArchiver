@@ -76,6 +76,8 @@
 			"strategy_verbatim": "Дословно",
 			"strategy_frequency": "Честота",
 			"select_strategy": "Изберете стратегия",
+			"set_default_strategy": "Задай по подразбиране",
+			"clear_default_strategy": "Изчисти по подразбиране",
 			"error": "Грешка",
 			"found_results_in": "Намерени {{total}} резултати за {{seconds}}и",
 			"found_results": "Намерени {{total}} резултати",

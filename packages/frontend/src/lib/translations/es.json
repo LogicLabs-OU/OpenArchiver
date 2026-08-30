@@ -112,6 +112,8 @@
 			"strategy_verbatim": "Literal",
 			"strategy_frequency": "Frecuencia",
 			"select_strategy": "Seleccione una estrategia",
+			"set_default_strategy": "Establecer como predeterminado",
+			"clear_default_strategy": "Borrar predeterminado",
 			"error": "Error",
 			"found_results_in": "Se encontraron {{total}} resultados en {{seconds}}s",
 			"found_results": "Se encontraron {{total}} resultados",

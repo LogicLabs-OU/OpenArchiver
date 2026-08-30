@@ -84,6 +84,8 @@
 			"strategy_verbatim": "Testuale",
 			"strategy_frequency": "Frequenza",
 			"select_strategy": "Seleziona una strategia",
+			"set_default_strategy": "Imposta come predefinito",
+			"clear_default_strategy": "Rimuovi predefinito",
 			"error": "Errore",
 			"found_results_in": "Trovati {{total}} risultati in {{seconds}}s",
 			"found_results": "Trovati {{total}} risultati",

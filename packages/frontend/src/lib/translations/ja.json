@@ -76,6 +76,8 @@
 			"strategy_verbatim": "逐語的",
 			"strategy_frequency": "頻度",
 			"select_strategy": "戦略を選択",
+			"set_default_strategy": "デフォルトに設定",
+			"clear_default_strategy": "デフォルトを解除",
 			"error": "エラー",
 			"found_results_in": "{{seconds}}秒で{{total}}件の結果が見つかりました",
 			"found_results": "{{total}}件の結果が見つかりました",

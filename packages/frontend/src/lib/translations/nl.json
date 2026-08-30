@@ -76,6 +76,8 @@
 			"strategy_verbatim": "Letterlijk",
 			"strategy_frequency": "Frequentie",
 			"select_strategy": "Selecteer een strategie",
+			"set_default_strategy": "Als standaard instellen",
+			"clear_default_strategy": "Standaard wissen",
 			"error": "Fout",
 			"found_results_in": "{{total}} resultaten gevonden in {{seconds}}s",
 			"found_results": "{{total}} resultaten gevonden",
