@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import { authStore } from '$lib/stores/auth.store';
 	import * as Table from '$lib/components/ui/table';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -14,6 +15,7 @@
 		SafeIngestionSource,
 		CreateIngestionSourceDto,
 		IndexHealth,
+		IngestionStats,
 		ReindexMode,
 		IReindexResponse,
 		OAuthAuthorizeResponse,
@@ -366,6 +368,47 @@
 		}
 	};
 
+	// Per-source statistics, loaded lazily when the emails hover card opens. The
+	// list renders before any of this resolves, so a source whose aggregates are
+	// slow never delays the table. Mirrors loadIndexHealth above.
+	let sourceStats = $state<Record<string, IngestionStats | 'loading' | 'error'>>({});
+	const loadSourceStats = async (id: string) => {
+		const current = sourceStats[id];
+		if (current && current !== 'error') return; // already loaded or loading
+		sourceStats[id] = 'loading';
+		try {
+			const res = await api(`/ingestion-sources/${id}/stats`);
+			if (!res.ok) throw new Error('failed');
+			sourceStats[id] = (await res.json()) as IngestionStats;
+		} catch {
+			sourceStats[id] = 'error';
+		}
+	};
+
+	// The count is the point of the column, so it is fetched for the visible root
+	// sources up front rather than waiting for a hover — a column of dashes would
+	// tell the user nothing. Requests are capped and run concurrently; the hover
+	// card then adds storage and date range on top of the already-loaded object.
+	//
+	// Keyed on the access token, not onMount: the root layout hydrates authStore in
+	// an $effect, which runs after this component mounts, so fetching on mount sends
+	// no Authorization header and every request comes back 401. The hover path never
+	// hit this because by hover time the store is populated.
+	const EAGER_STATS_LIMIT = 25;
+	$effect(() => {
+		if (!$authStore.accessToken) return;
+		for (const s of rootSources.slice(0, EAGER_STATS_LIMIT)) {
+			void loadSourceStats(s.id);
+		}
+	});
+
+	const formatBytes = (bytes: number): string => {
+		if (bytes <= 0) return '0 B';
+		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+		const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+		return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+	};
+
 	const handleToggle = async (source: SafeIngestionSource) => {
 		try {
 			const isPaused = source.status === 'paused';
@@ -678,6 +721,7 @@
 					<Table.Head>{$t('app.ingestions.name')}</Table.Head>
 					<Table.Head>{$t('app.ingestions.provider')}</Table.Head>
 					<Table.Head>{$t('app.ingestions.status')}</Table.Head>
+					<Table.Head>{$t('app.ingestions.emails')}</Table.Head>
 					<Table.Head>{$t('app.ingestions.active')}</Table.Head>
 					<Table.Head>{$t('app.ingestions.created_at')}</Table.Head>
 					<Table.Head class="text-right">{$t('app.ingestions.actions')}</Table.Head>
@@ -779,6 +823,83 @@
 												{/if}
 											</p>
 										</div>
+									</HoverCard.Content>
+								</HoverCard.Root>
+							</Table.Cell>
+							<Table.Cell class="min-w-20">
+								<HoverCard.Root
+									onOpenChange={(open) => open && loadSourceStats(source.id)}
+								>
+									<HoverCard.Trigger>
+										{#if sourceStats[source.id] && sourceStats[source.id] !== 'loading' && sourceStats[source.id] !== 'error'}
+											{@const st = sourceStats[source.id] as IngestionStats}
+											<span class="tabular-nums"
+												>{st.totalEmails.toLocaleString()}</span
+											>
+										{:else if sourceStats[source.id] === 'loading'}
+											<span class="text-muted-foreground">…</span>
+										{:else}
+											<span class="text-muted-foreground">—</span>
+										{/if}
+									</HoverCard.Trigger>
+									<HoverCard.Content class="w-72">
+										{#if !sourceStats[source.id] || sourceStats[source.id] === 'loading'}
+											<p class="text-muted-foreground text-xs">
+												{$t('app.ingestions.loading_stats')}
+											</p>
+										{:else if sourceStats[source.id] === 'error'}
+											<p class="text-muted-foreground text-xs">
+												{$t('app.ingestions.stats_unavailable')}
+											</p>
+										{:else}
+											{@const st = sourceStats[source.id] as IngestionStats}
+											<div class="space-y-1 text-xs">
+												<div class="flex justify-between gap-4">
+													<span class="text-muted-foreground"
+														>{$t('app.ingestions.emails')}</span
+													>
+													<span class="tabular-nums"
+														>{st.totalEmails.toLocaleString()}</span
+													>
+												</div>
+												<div class="flex justify-between gap-4">
+													<span class="text-muted-foreground"
+														>{$t('app.ingestions.storage_used')}</span
+													>
+													<span class="tabular-nums"
+														>{formatBytes(st.totalBytes)}</span
+													>
+												</div>
+												{#if st.firstEmailAt}
+													<div class="flex justify-between gap-4">
+														<span class="text-muted-foreground"
+															>{$t(
+																'app.ingestions.oldest_email'
+															)}</span
+														>
+														<span class="tabular-nums"
+															>{new Date(
+																st.firstEmailAt
+															).toLocaleDateString()}</span
+														>
+													</div>
+												{/if}
+												{#if st.lastEmailAt}
+													<div class="flex justify-between gap-4">
+														<span class="text-muted-foreground"
+															>{$t(
+																'app.ingestions.newest_email'
+															)}</span
+														>
+														<span class="tabular-nums"
+															>{new Date(
+																st.lastEmailAt
+															).toLocaleDateString()}</span
+														>
+													</div>
+												{/if}
+											</div>
+										{/if}
 									</HoverCard.Content>
 								</HoverCard.Root>
 							</Table.Cell>
