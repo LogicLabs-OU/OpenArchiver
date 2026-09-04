@@ -38,7 +38,7 @@ Thumbs.db
 *.sw?
 
 # Docker
-docker-compose.yml
+compose.yaml
 .dockerignore
 Dockerfile
 
