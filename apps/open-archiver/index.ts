@@ -19,6 +19,6 @@ async function start() {
 }
 
 start().catch((error) => {
-	logger.error({ error }, 'Failed to start the server:', error);
+	logger.error({ err: error }, 'Failed to start the server');
 	process.exit(1);
 });
