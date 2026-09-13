@@ -10,6 +10,9 @@ dist
 
 # PNPM
 pnpm-debug.log
+# Repo-local pnpm store: pnpm falls back to this when its configured store is on
+# a different device than node_modules (e.g. the devcontainer bind mount).
+.pnpm-store/
 
 # IDE
 .vscode

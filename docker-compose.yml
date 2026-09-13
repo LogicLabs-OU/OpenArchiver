@@ -2,7 +2,14 @@ version: '3.8'
 
 services:
     open-archiver:
+        # `image` + `build` both set to the same tag: `docker compose up -d`
+        # (or `pull`) uses the published CI image, while `docker compose up -d
+        # --build` builds the local source tree and tags it over the same name.
+        # Lets you switch between pulling and building local changes freely.
         image: logiclabshq/open-archiver:latest
+        build:
+            context: .
+            dockerfile: apps/open-archiver/Dockerfile
         container_name: open-archiver
         restart: unless-stopped
         ports:

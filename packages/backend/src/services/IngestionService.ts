@@ -42,6 +42,7 @@ import type {
 	IngestionStats,
 } from '@open-archiver/types';
 import { stripAttachmentsFromEml } from '../helpers/emlUtils';
+import { sanitizeEmailForStorage, stripNullBytes } from '../helpers/sanitize';
 import {
 	archivedEmails,
 	attachments as attachmentsSchema,
@@ -1482,6 +1483,15 @@ export class IngestionService {
 					.update(rawEmlBuffer)
 					.digest('hex')}-${source.id}-${email.id}`;
 			}
+			// Strip NUL bytes (U+0000) from parsed header fields before they are
+			// used in dedup queries or written to the DB. Postgres text/jsonb
+			// cannot store U+0000 and rejects the insert (error 22021), which
+			// otherwise drops the email. Done before the dedup gates so their
+			// query parameters are clean too, and before the bounding below so
+			// email.id is already clean when it is read.
+			sanitizeEmailForStorage(email);
+			messageId = stripNullBytes(messageId);
+
 			// Both keys are bounded here, once, so the two dedup gates below and all three inserts
 			// agree on them (#440). The provider id needs it as much as the header does: for IMAP
 			// and the file-based connectors email.id IS the parsed Message-ID, and it lands in a
