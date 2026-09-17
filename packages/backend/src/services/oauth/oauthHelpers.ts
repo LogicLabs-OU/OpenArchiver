@@ -97,6 +97,14 @@ export const verifyState = (state: string): { sourceId: string; nonce: string } 
  * mailbox address and `prompt=select_account` stops a stray already-signed-in account
  * from being silently reused — authorizing the wrong mailbox would archive the wrong
  * person's mail.
+ *
+ * `access_type=offline` is required by Google specifically: without it, Google's
+ * auth_code grant returns only a short-lived access token and never issues a refresh
+ * token, so the mailbox silently stops syncing about an hour after every authorization.
+ * Paired with `prompt=consent` so a user who previously authorized this client+scope
+ * without offline access still gets a fresh refresh token rather than Google silently
+ * reusing the old (non-offline) grant. Providers that don't recognize these params
+ * (e.g. Microsoft) simply ignore them.
  */
 export const buildAuthorizationUrl = (
 	credentials: OAuthMailboxCredentials,
@@ -113,7 +121,8 @@ export const buildAuthorizationUrl = (
 	url.searchParams.set('code_challenge', codeChallenge);
 	url.searchParams.set('code_challenge_method', 'S256');
 	url.searchParams.set('login_hint', credentials.email);
-	url.searchParams.set('prompt', 'select_account');
+	url.searchParams.set('access_type', 'offline');
+	url.searchParams.set('prompt', 'consent select_account');
 	return url.toString();
 };
 
