@@ -22,10 +22,8 @@ services:
         image: postgres:17-alpine
         container_name: postgres
         restart: unless-stopped
-        environment:
-            POSTGRES_DB: ${POSTGRES_DB:-open_archive}
-            POSTGRES_USER: ${POSTGRES_USER:-admin}
-            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+        env_file:
+            - .env
         volumes:
             - pgdata:/var/lib/postgresql/data
         networks:
