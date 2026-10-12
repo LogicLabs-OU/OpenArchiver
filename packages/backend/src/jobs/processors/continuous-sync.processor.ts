@@ -1,11 +1,12 @@
 import { Job } from 'bullmq';
 import { IngestionService } from '../../services/IngestionService';
-import { IContinuousSyncJob } from '@open-archiver/types';
+import { IContinuousSyncJob, MailboxUser } from '@open-archiver/types';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
 import { enqueueMailboxJobs } from '../helpers/enqueueMailboxJobs';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
+import { MailboxRegistryService } from '../../services/MailboxRegistryService';
 import { ingestionQueue } from '../queues';
 
 export default async (job: Job<IContinuousSyncJob>) => {
@@ -60,11 +61,24 @@ export default async (job: Job<IContinuousSyncJob>) => {
 		// Phase 1: Collect user emails (async generator — no full buffering of job descriptors).
 		// We need the total count before creating the session so the counter is correct.
 		const userEmails: string[] = [];
+		const listedUsers: MailboxUser[] = [];
 		for await (const user of connector.listAllUsers()) {
 			if (user.primaryEmail) {
 				// Normalized here so the mailbox identity is canonical before it is queued.
 				userEmails.push(normalizeEmailAddress(user.primaryEmail));
+				listedUsers.push(user);
 			}
+		}
+
+		// Recorded every cycle, not only on first import: this is what lets a mailbox reclassified
+		// upstream — a shared mailbox handed to a new hire — correct itself. Never fails the sync.
+		try {
+			await MailboxRegistryService.upsertFromDirectory(source, listedUsers, connector);
+		} catch (error) {
+			logger.error(
+				{ err: error, ingestionSourceId },
+				'Could not record directory mailboxes; seat accounting will recover them at the next reconciliation'
+			);
 		}
 
 		if (userEmails.length === 0) {

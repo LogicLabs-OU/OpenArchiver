@@ -22,3 +22,9 @@ export {
 export { MfaService, mfaService } from './services/MfaService';
 export { mfaChallengeLimiter, mfaManagementLimiter } from './api/middleware/rateLimiter';
 export { IntegrityService } from './services/IntegrityService';
+export {
+	SeatAccountingService,
+	seatAccountingService,
+} from './services/seats/SeatAccountingService';
+export { SeatPolicyService, seatPolicyService } from './services/seats/SeatPolicyService';
+export { MailboxRegistryService } from './services/MailboxRegistryService';

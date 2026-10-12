@@ -160,6 +160,7 @@ export default defineConfig({
 						],
 					},
 					{ text: 'SMTP Journaling', link: '/enterprise/journaling/guide' },
+					{ text: 'Seat Counting', link: '/enterprise/seats/guide' },
 					{
 						text: 'Single Sign-On',
 						link: '/enterprise/sso/guide',

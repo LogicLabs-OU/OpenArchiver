@@ -26,6 +26,7 @@ import { apiKeyRoutes } from './routes/api-key.routes';
 import { integrityRoutes } from './routes/integrity.routes';
 import { createJobsRouter } from './routes/jobs.routes';
 import { createIndexAdminRouter } from './routes/index-admin.routes';
+import { createSeatsRouter } from './routes/seats.routes';
 import { AuthService } from '../services/AuthService';
 import { AuditService } from '../services/AuditService';
 import { mfaService } from '../services/MfaService';
@@ -142,6 +143,7 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	const integrityRouter = integrityRoutes(authService);
 	const jobsRouter = createJobsRouter(authService);
 	const indexAdminRouter = createIndexAdminRouter(authService);
+	const seatsRouter = createSeatsRouter(authService);
 
 	// Middleware for all other routes
 	app.use((req, res, next) => {
@@ -180,6 +182,7 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	app.use(`/${config.api.version}/integrity`, integrityRouter);
 	app.use(`/${config.api.version}/jobs`, jobsRouter);
 	app.use(`/${config.api.version}/index-admin`, indexAdminRouter);
+	app.use(`/${config.api.version}/seats`, seatsRouter);
 
 	// Load all provided extension modules
 	for (const module of modules) {

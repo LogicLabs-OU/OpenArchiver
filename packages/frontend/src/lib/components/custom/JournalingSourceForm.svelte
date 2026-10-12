@@ -5,7 +5,8 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Select from '$lib/components/ui/select';
-	import { Plus, Info, Trash2 } from 'lucide-svelte';
+	import { Info } from 'lucide-svelte';
+	import OrganizationDomainGroupsEditor from './OrganizationDomainGroupsEditor.svelte';
 	import tippy from 'tippy.js';
 	import 'tippy.js/dist/tippy.css';
 	import type {
@@ -55,36 +56,6 @@
 			? (mergeableRootSources.find((s) => s.id === mergedIntoId)?.name ??
 					$t('app.components.ingestion_source_form.merge_into_select'))
 			: $t('app.components.ingestion_source_form.merge_into_select')
-	);
-
-	// --- Domain group helpers ---
-	function addGroup() {
-		domainGroups = [...domainGroups, { main: '', aliases: [] }];
-	}
-
-	function removeGroup(idx: number) {
-		domainGroups = domainGroups.filter((_, i) => i !== idx);
-	}
-
-	function updateMain(idx: number, value: string) {
-		domainGroups = domainGroups.map((g, i) => (i === idx ? { ...g, main: value } : g));
-	}
-
-	function updateAliases(idx: number, raw: string) {
-		const aliases = raw
-			.split(',')
-			.map((d) => d.trim().toLowerCase())
-			.filter(Boolean);
-		domainGroups = domainGroups.map((g, i) => (i === idx ? { ...g, aliases } : g));
-	}
-
-	/** Serialized JSON value for the hidden form input. */
-	const serializedDomains = $derived(
-		JSON.stringify(
-			domainGroups
-				.filter((g) => g.main.trim().length > 0)
-				.map((g) => ({ main: g.main.trim().toLowerCase(), aliases: g.aliases }))
-		)
 	);
 </script>
 
@@ -152,56 +123,7 @@
 		</span>
 	</div>
 
-	{#if domainGroups.length === 0}
-		<p class="text-muted-foreground text-xs italic">
-			{$t('app.journaling.no_domain_groups')}
-		</p>
-	{/if}
-
-	{#each domainGroups as group, idx (idx)}
-		<div class="bg-muted/30 space-y-2 rounded-md border p-3">
-			<div class="flex items-center justify-between">
-				<span class="text-xs font-medium">
-					{$t('app.journaling.domain_group_primary')} #{idx + 1}
-				</span>
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon"
-					class="text-destructive hover:text-destructive h-6 w-6"
-					onclick={() => removeGroup(idx)}
-				>
-					<Trash2 class="h-3.5 w-3.5" />
-				</Button>
-			</div>
-			<div class="space-y-1.5">
-				<Label class="text-xs">{$t('app.journaling.domain_group_primary')}</Label>
-				<Input
-					class="h-8 text-sm"
-					placeholder={$t('app.journaling.domain_group_primary_placeholder')}
-					value={group.main}
-					oninput={(e) => updateMain(idx, (e.target as HTMLInputElement).value)}
-				/>
-			</div>
-			<div class="space-y-1.5">
-				<Label class="text-xs">{$t('app.journaling.domain_group_aliases')}</Label>
-				<Input
-					class="h-8 text-sm"
-					placeholder={$t('app.journaling.domain_group_aliases_placeholder')}
-					value={group.aliases.join(', ')}
-					oninput={(e) => updateAliases(idx, (e.target as HTMLInputElement).value)}
-				/>
-			</div>
-		</div>
-	{/each}
-
-	<Button type="button" variant="outline" size="sm" class="h-7 text-xs" onclick={addGroup}>
-		<Plus class="mr-1 h-3 w-3" />
-		{$t('app.journaling.add_domain_group')}
-	</Button>
-
-	<!-- Hidden input carries the serialized JSON to the server action -->
-	<input type="hidden" name="organizationDomains" value={serializedDomains} />
+	<OrganizationDomainGroupsEditor bind:groups={domainGroups} name="organizationDomains" />
 </div>
 
 <!-- Require TLS -->

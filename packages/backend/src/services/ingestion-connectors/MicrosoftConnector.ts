@@ -5,6 +5,7 @@ import type {
 	EmailAddress,
 	SyncState,
 	MailboxUser,
+	MailboxDirectoryFacts,
 } from '@open-archiver/types';
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { findByEmailKey } from '../../helpers/emailAddress';
@@ -105,6 +106,21 @@ export const isMailboxUnavailableError = (error: unknown): boolean => {
 		)
 	);
 };
+
+/**
+ * Thrown when the tenant has not granted the MailboxSettings.Read application permission, so a
+ * mailbox's purpose cannot be asked for at all.
+ *
+ * Distinct from a general failure because it is a permanent configuration state rather than an
+ * outage: the caller stops asking for a while instead of retrying every mailbox of every cycle
+ * against a wall. Detected by `name`, the way the workers detect BullMQ's UnrecoverableError.
+ */
+export class MailboxSettingsForbiddenError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'MailboxSettingsForbiddenError';
+	}
+}
 
 /**
  * A connector for Microsoft 365 that uses the Microsoft Graph API with client credentials (app-only)
@@ -287,7 +303,9 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * @returns An async generator that yields each mail-owning user.
 	 */
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		let request = this.request('/users').select('id,userPrincipalName,displayName,userType');
+		let request = this.request('/users').select(
+			'id,userPrincipalName,mail,displayName,userType,accountEnabled,assignedLicenses,proxyAddresses'
+		);
 		let skippedGuests = 0;
 
 		try {
@@ -306,6 +324,16 @@ export class MicrosoftConnector implements IEmailConnector {
 							id: user.id,
 							primaryEmail: user.userPrincipalName,
 							displayName: user.displayName,
+							directory: {
+								aliases: MicrosoftConnector.aliasesOf(user),
+								// A mailbox with no licence that nonetheless holds mail is the
+								// signature of an Exchange shared mailbox, which is how a tenant
+								// without MailboxSettings.Read is still classified. `purpose` is
+								// left to getMailboxPurpose, which the registry calls on its own
+								// schedule rather than once per user per cycle.
+								licensed: (user.assignedLicenses?.length ?? 0) > 0,
+								accountEnabled: user.accountEnabled ?? undefined,
+							},
 						};
 					}
 				}
@@ -327,6 +355,88 @@ export class MicrosoftConnector implements IEmailConnector {
 			}
 		} catch (error) {
 			logger.error({ err: error }, 'Failed to list all users from Microsoft 365');
+			throw error;
+		}
+	}
+
+	/**
+	 * Every address that reaches this object's mailbox, apart from the UPN it is archived under.
+	 *
+	 * `proxyAddresses` carries them prefixed: `SMTP:` marks the primary address, `smtp:` the
+	 * secondaries, and other schemes (`X500:`, `sip:`) address things that are not mail at all.
+	 * Only the SMTP entries could have received a message, so only they can show that a mailbox
+	 * archived under another address is the same person. `mail` is included because a tenant whose
+	 * UPNs differ from its mail addresses files everything under the UPN.
+	 */
+	private static aliasesOf(user: User): string[] {
+		const found = new Set<string>();
+		if (user.mail) {
+			found.add(user.mail.toLowerCase());
+		}
+		for (const entry of user.proxyAddresses ?? []) {
+			if (/^smtp:/i.test(entry)) {
+				found.add(entry.slice(5).toLowerCase());
+			}
+		}
+		found.delete((user.userPrincipalName ?? '').toLowerCase());
+		found.delete('');
+		return [...found];
+	}
+
+	/**
+	 * What Exchange says a mailbox is for: a person, a shared mailbox, a meeting room, equipment.
+	 *
+	 * This is the one authoritative answer to "is anyone actually behind this address", which is
+	 * why seat accounting prefers it to every heuristic. It needs the MailboxSettings.Read
+	 * application permission, which deployments predating seat accounting have not granted, so a
+	 * 403 is expected rather than exceptional and is raised as its own type.
+	 *
+	 * Deliberately not called from listAllUsers(): one request per user per cycle would be
+	 * thousands of extra calls on a large tenant. The registry refreshes it on its own schedule.
+	 *
+	 * @param userId The directory object id, or the UPN.
+	 * @returns The purpose, or undefined when Graph answered without one.
+	 */
+	public async getMailboxPurpose(userId: string): Promise<MailboxDirectoryFacts['purpose']> {
+		try {
+			const settings = await this.request(
+				`/users/${encodeURIComponent(userId)}/mailboxSettings`
+			)
+				.select('userPurpose')
+				.get();
+
+			switch (String(settings?.userPurpose ?? '').toLowerCase()) {
+				case 'shared':
+					return 'shared';
+				case 'room':
+					return 'room';
+				case 'equipment':
+					return 'equipment';
+				// 'linked' is a person whose account lives in another forest — still a person.
+				case 'user':
+				case 'linked':
+					return 'user';
+				case 'others':
+					return 'unknown';
+				default:
+					return undefined;
+			}
+		} catch (error) {
+			if (
+				statusOf(error) === 403 ||
+				['ErrorAccessDenied', 'Authorization_RequestDenied', 'accessDenied'].includes(
+					String((error as any)?.code ?? '')
+				)
+			) {
+				throw new MailboxSettingsForbiddenError(
+					'Reading mailbox settings requires the MailboxSettings.Read application permission.'
+				);
+			}
+			// No mailbox to describe is an answer, not a failure: the account is classified from
+			// its licence state instead.
+			if (isMailboxUnavailableError(error)) {
+				return undefined;
+			}
 			throw error;
 		}
 	}

@@ -22,6 +22,12 @@ export type SyncState = {
 	 * enqueues the job until it is set. Microsoft 365 sources only.
 	 */
 	providerIdBackfillCompletedAt?: string;
+	/**
+	 * ISO timestamp of the last time Graph refused to disclose mailbox purposes for this source
+	 * (no MailboxSettings.Read permission). Set so the registry stops asking every cycle and
+	 * retries occasionally instead, in case the permission is granted later. Microsoft only.
+	 */
+	mailboxSettingsForbiddenAt?: string;
 };
 
 export type IngestionProvider =
@@ -349,10 +355,35 @@ export interface IPstProcessingJob {
 	originalFilename: string;
 }
 
+/**
+ * What a directory says about one mailbox, beyond its address.
+ *
+ * Every field is optional and `undefined` means "this provider has no opinion", which is not the
+ * same as a negative answer: Google exposes no shared-mailbox concept at all, so `purpose` is
+ * always absent there, while a Microsoft tenant that has not granted MailboxSettings.Read leaves
+ * it absent only because the question could not be asked. Seat accounting treats an absent field
+ * as no evidence and falls back to the next rule rather than guessing.
+ */
+export interface MailboxDirectoryFacts {
+	/** Every other address that reaches this same mailbox, lowercased, excluding `primaryEmail`. */
+	aliases?: string[];
+	/** The provider's own classification of the mailbox. */
+	purpose?: 'user' | 'shared' | 'room' | 'equipment' | 'unknown';
+	/** Whether the account holds a paid license. */
+	licensed?: boolean;
+	/** Whether the account is enabled (Microsoft) or neither suspended nor archived (Google). */
+	accountEnabled?: boolean;
+}
+
 export type MailboxUser = {
 	id: string;
 	primaryEmail: string;
 	displayName: string;
+	/**
+	 * Directory metadata, when the connector's listing carries it. Omitted by the single-mailbox
+	 * and file-import connectors, which have no directory to ask.
+	 */
+	directory?: MailboxDirectoryFacts;
 };
 
 export type ProcessMailboxError = {

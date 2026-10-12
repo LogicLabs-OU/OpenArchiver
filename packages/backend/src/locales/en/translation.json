@@ -96,5 +96,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "Super Admin role is required to manage single sign-on."
+	},
+	"seats": {
+		"mailboxNotFound": "Mailbox not found.",
+		"targetNotFound": "The mailbox to link to was not found.",
+		"sentinelNotAMailbox": "This is a placeholder the archive created when no owner could be determined, not a mailbox. It never counts as a seat.",
+		"sentinelCannotLink": "A placeholder address cannot be linked to a person.",
+		"sentinelCannotBeTarget": "A placeholder address cannot be linked to.",
+		"providerClassified": "The directory reports this mailbox as \"{{kind}}\". A mailbox the provider has classified cannot be declared shared here; change it in the directory instead.",
+		"licensedUser": "The directory reports this mailbox as a licensed user, so it counts as a seat. It cannot be declared shared here; change its licence in the directory instead.",
+		"selfLink": "A mailbox cannot be linked to itself.",
+		"targetAlreadyLinked": "That mailbox is itself linked to another. Link to the mailbox at the end of the chain instead.",
+		"sameDirectory": "These are two separate accounts in the same directory, so they are two people. Only mailboxes from different sources, or addresses the directory itself lists as aliases, can be one seat.",
+		"invalidClassification": "Invalid classification.",
+		"invalidLink": "Invalid link.",
+		"invalidPolicy": "Invalid seat policy.",
+		"aliasesRequired": "Each organization domain group needs at least one alias domain."
 	}
 }

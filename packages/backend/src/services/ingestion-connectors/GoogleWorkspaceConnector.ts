@@ -179,12 +179,50 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 							id: user.id,
 							primaryEmail: user.primaryEmail,
 							displayName: user.name.fullName,
+							directory: {
+								aliases: GoogleWorkspaceConnector.aliasesOf(user),
+								// Google has no shared-mailbox account type — a role address is
+								// normally a Group, which this listing never returns — and every
+								// account it does list is a paid user, `info@` included. Neither
+								// fact says whether a person sits behind the account, so Google
+								// reports no purpose and no licence state at all: role names and
+								// administrator declarations decide. (Reporting `licensed: true`
+								// would make every account a provider-confirmed person, blocking
+								// "mark as shared" and flagging every role address as a
+								// contradiction to the licence server.)
+								purpose: undefined,
+								accountEnabled: !user.suspended && !user.archived,
+							},
 						};
 					}
 				}
 			}
 			pageToken = res.data.nextPageToken ?? undefined;
 		} while (pageToken);
+	}
+
+	/**
+	 * Every other address that delivers to this account: its domain aliases, plus any address in
+	 * `emails[]` that is not the primary one.
+	 *
+	 * Already present in the basic projection the listing receives, so reading them costs no extra
+	 * call and no extra scope. They are what shows that `john@main.com` and `john@alias.com` are
+	 * one account rather than two people.
+	 */
+	private static aliasesOf(user: admin_directory_v1.Schema$User): string[] {
+		const found = new Set<string>();
+		for (const alias of user.aliases ?? []) {
+			found.add(String(alias).toLowerCase());
+		}
+		for (const entry of user.emails ?? []) {
+			const address = (entry as { address?: string })?.address;
+			if (address) {
+				found.add(address.toLowerCase());
+			}
+		}
+		found.delete((user.primaryEmail ?? '').toLowerCase());
+		found.delete('');
+		return [...found];
 	}
 
 	/**

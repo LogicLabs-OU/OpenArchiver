@@ -35,6 +35,11 @@ export const AuditLogActions = [
 	'SSO_LOGIN',
 	'SSO_JIT_PROVISION',
 	'SSO_CONFIG_UPDATED',
+
+	// Seat accounting
+	'SEAT_CLASSIFICATION_UPDATED',
+	'SEAT_IDENTITY_LINK_UPDATED',
+	'SEAT_POLICY_UPDATED',
 ] as const;
 
 export const AuditLogTargetTypes = [
@@ -53,6 +58,8 @@ export const AuditLogTargetTypes = [
 	'File', // For uploads and downloads
 	'SecurityPolicy',
 	'SsoConnection',
+	'Mailbox',
+	'SeatPolicy',
 ] as const;
 
 export type AuditLogAction = (typeof AuditLogActions)[number];

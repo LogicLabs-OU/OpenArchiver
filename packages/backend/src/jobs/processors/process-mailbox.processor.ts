@@ -6,6 +6,7 @@ import {
 	PendingEmail,
 } from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
+import { MailboxRegistryService } from '../../services/MailboxRegistryService';
 import { logger } from '../../config/logger';
 import { EmailProviderFactory, type IEmailConnector } from '../../services/EmailProviderFactory';
 import { StorageService } from '../../services/StorageService';
@@ -328,6 +329,15 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			`Finished processing mailbox for user`
 		);
 
+		// The connector reached this mailbox, so it exists. Recorded from the fetch outcome rather
+		// than from archived emails — see MailboxRegistryService.markHasMailbox. Never fails the job.
+		await MailboxRegistryService.markHasMailbox(userEmail).catch((registryError) =>
+			logger.warn(
+				{ err: registryError, userEmail },
+				'Could not record that this mailbox is reachable'
+			)
+		);
+
 		// Report the result to the session and check if this is the last job.
 		// Any per-message failure marks the mailbox as failed so the source ends the
 		// cycle in 'error' status with the counts visible, instead of a silent success.
@@ -383,6 +393,15 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			logger.info(
 				{ ingestionSourceId, userEmail },
 				'Skipping mailbox: this account has no mailbox to archive'
+			);
+			// Recorded so seat accounting can tell an unlicensed account that owns no mailbox from an
+			// unlicensed account that does — the latter is what an Exchange shared mailbox looks like
+			// to a tenant that withholds MailboxSettings.Read.
+			await MailboxRegistryService.markNoMailbox(userEmail).catch((registryError) =>
+				logger.warn(
+					{ err: registryError, userEmail },
+					'Could not record that this mailbox is unavailable'
+				)
 			);
 			await reportMailboxOutcome(
 				{

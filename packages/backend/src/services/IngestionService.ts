@@ -40,8 +40,10 @@ import type {
 	ReindexMode,
 	IReindexDispatch,
 	IngestionStats,
+	MailboxUser,
 } from '@open-archiver/types';
 import { stripAttachmentsFromEml } from '../helpers/emlUtils';
+import { MailboxRegistryService } from './MailboxRegistryService';
 import { streamToBuffer } from '../helpers/streamToBuffer';
 import { isStorageObjectExistsError } from './storage/errors';
 import {
@@ -1091,17 +1093,33 @@ export class IngestionService {
 		try {
 			if (connector.listAllUsers) {
 				// For multi-mailbox providers, dispatch a job for each user
+				const listedUsers: MailboxUser[] = [];
 				for await (const user of connector.listAllUsers()) {
 					// Normalized here so the mailbox identity is canonical before it is queued.
 					const userEmail = user.primaryEmail
 						? normalizeEmailAddress(user.primaryEmail)
 						: '';
 					if (userEmail) {
+						listedUsers.push(user);
 						await ingestionQueue.add('process-mailbox', {
 							ingestionSourceId: source.id,
 							userEmail: userEmail,
 						});
 					}
+				}
+				// Same directory capture as the master processors, so a source imported through
+				// this path is not invisible to seat accounting. Never fails the import.
+				try {
+					await MailboxRegistryService.upsertFromDirectory(
+						source,
+						listedUsers,
+						connector
+					);
+				} catch (error) {
+					logger.error(
+						{ err: error, ingestionSourceId: source.id },
+						'Could not record directory mailboxes during bulk import'
+					);
 				}
 			} else {
 				// For single-mailbox providers, dispatch a single job
