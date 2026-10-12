@@ -104,6 +104,30 @@ export class SearchService {
 	}
 
 	/**
+	 * The subset of the given ids that have a document in the index.
+	 *
+	 * A primary-key lookup through `POST /indexes/{uid}/documents/fetch` with `ids`, which needs
+	 * Meilisearch 1.14 or newer; `id` does not have to be filterable. Called directly rather than
+	 * through `index.getDocuments({ ids })`, because this client only takes the POST route when a
+	 * `filter` is present and otherwise puts every id in a GET query string — unusable for a page
+	 * of thousands of UUIDs. `limit` is set explicitly: the server's default of 20 would report
+	 * every id past the twentieth as missing.
+	 */
+	public async getExistingDocumentIds(indexName: string, ids: string[]): Promise<Set<string>> {
+		if (ids.length === 0) {
+			return new Set();
+		}
+		const index = await this.getIndex<EmailDocument>(indexName);
+		const page = await index.httpRequest.post<{ results: { id?: unknown }[] }>({
+			path: `indexes/${indexName}/documents/fetch`,
+			body: { ids, fields: ['id'], limit: ids.length },
+		});
+		return new Set(
+			page.results.map((d) => d.id).filter((id): id is string => typeof id === 'string')
+		);
+	}
+
+	/**
 	 * Instance-level overview of the search engine for the admin index page:
 	 * host, version, health, database size, and the `emails` index metadata.
 	 * Never exposes the API key. Best-effort — a failing sub-call degrades that

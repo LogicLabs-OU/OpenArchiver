@@ -996,7 +996,22 @@
 			"cleanup_no_worker_title": "Queued, but nothing is indexing",
 			"cleanup_no_worker": "The cleanup is queued. No indexing worker is currently consuming the queue, so it will start once one connects.",
 			"cleanup_already_running_title": "Cleanup already in progress",
-			"cleanup_already_running": "A cleanup is already running. This request joined it rather than starting a second one."
+			"cleanup_already_running": "A cleanup is already running. This request joined it rather than starting a second one.",
+			"verify_index": "Verify index coverage",
+			"verify_confirmation_title": "Verify search index coverage?",
+			"verify_confirmation_description": "This checks every email marked as indexed against the search index and queues the ones whose entry is missing for indexing again. Such emails do not appear in search, and the automatic self-healing does not pick them up because it only looks at emails marked as not yet indexed.",
+			"verify_warning_safe": "Nothing is deleted. Emails, attachments, stored files and existing index entries are left as they are.",
+			"verify_warning_reindex": "Emails whose index entry is missing are marked as not indexed and queued for indexing. Their progress shows on the indexing queue in Admin → Jobs.",
+			"verify_warning_background": "The check runs in the background and can take a while on large archives. Requires Meilisearch 1.14 or newer.",
+			"verify_confirm": "Verify",
+			"verifying": "Verifying",
+			"verify_started": "Verification queued",
+			"verify_started_message": "Missing emails are being found and queued for indexing in the background. The result appears on the verify-index job in Admin → Jobs.",
+			"verify_failed": "Could not start verification",
+			"verify_no_worker_title": "Queued, but nothing is indexing",
+			"verify_no_worker": "The verification is queued. No indexing worker is currently consuming the queue, so it will start once one connects.",
+			"verify_already_running_title": "Verification already in progress",
+			"verify_already_running": "A verification is already running. This request joined it rather than starting a second one."
 		},
 		"journaling": {
 			"title": "SMTP Journaling",

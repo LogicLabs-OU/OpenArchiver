@@ -2397,6 +2397,55 @@
         }
       }
     },
+    "/v1/index-admin/verify": {
+      "post": {
+        "summary": "Verify search index coverage",
+        "description": "Queues a background job that checks every email marked as indexed against the `emails` index and re-queues for indexing those whose document is missing. Such emails are otherwise never picked up again, because the self-healing reconcile only looks at emails marked as unindexed. Nothing is deleted. Requires Meilisearch 1.14 or newer and `manage:all` (Super Admin) permission.",
+        "operationId": "verifyIndexCoverage",
+        "tags": [
+          "Index Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Verification job accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "workerAlive": {
+                      "type": "boolean",
+                      "description": "Whether an indexing worker is available to run the job."
+                    },
+                    "alreadyRunning": {
+                      "type": "boolean",
+                      "description": "True when a verification was already queued or running, so this request joined it instead of starting a second one."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/v1/ingestion-sources": {
       "post": {
         "summary": "Create an ingestion source",

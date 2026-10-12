@@ -72,7 +72,8 @@
 		"invalidParam": "One or more search parameters have an invalid value"
 	},
 	"index": {
-		"cleanupTriggered": "Index cleanup has been queued."
+		"cleanupTriggered": "Index cleanup has been queued.",
+		"verifyTriggered": "Index verification has been queued."
 	},
 	"storage": {
 		"filePathRequired": "File path is required",
