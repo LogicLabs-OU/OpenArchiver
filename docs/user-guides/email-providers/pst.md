@@ -22,7 +22,7 @@ To ensure a successful import, you should prepare your PST file according to the
     > **Note on Local Path:** When using Docker, the "Local Path" is relative to the container's filesystem.
     >
     > - **Recommended:** Place your file in a `temp` folder inside your configured storage directory (`STORAGE_LOCAL_ROOT_PATH`). This path is already mounted. For example, if your storage path is `/data`, put the file in `/data/temp/archive.pst` and enter `/data/temp/archive.pst` as the path.
-    > - **Alternative:** Mount a separate volume in `docker-compose.yml` (e.g., `- /host/path:/container/path`) and use the container path.
+    > - **Alternative:** Mount a separate volume in `compose.yaml` (e.g., `- /host/path:/container/path`) and use the container path.
 
 6.  Click the **Submit** button.
 
