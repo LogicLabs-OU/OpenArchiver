@@ -89,7 +89,7 @@ This ensures that every automated deletion is fully traceable back to the specif
 
 | Environment Variable   | Description                                      | Default |
 | ---------------------- | ------------------------------------------------ | ------- |
-| `RETENTION_BATCH_SIZE` | Number of emails to process per batch iteration. | —       |
+| `RETENTION_BATCH_SIZE` | Number of emails to process per batch iteration. | 100     |
 
 ## BullMQ Worker Settings
 
