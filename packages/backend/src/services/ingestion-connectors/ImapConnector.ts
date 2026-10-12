@@ -123,12 +123,77 @@ export class ImapConnector implements IEmailConnector {
 			logger: logger.child({ module: 'ImapFlow' }),
 		});
 
+		const host = this.credentials.host.trim().toLowerCase().replace(/\.$/, '');
+		if (host === '163.com' || host.endsWith('.163.com')) {
+			const imapClient = client as ImapFlow & {
+				run(command: string, ...args: unknown[]): Promise<unknown>;
+			};
+			const runCommand = imapClient.run.bind(client);
+			imapClient.run = async (command, ...args) => {
+				const result = await runCommand(command, ...args);
+				if (
+					result !== false &&
+					(command.toUpperCase() === 'LOGIN' || command.toUpperCase() === 'AUTHENTICATE')
+				) {
+					await this.send163ClientId(client);
+				}
+				return result;
+			};
+		}
+
 		// Handles client-level errors, like unexpected disconnects, to prevent crashes.
 		client.on('error', (err) => {
 			logger.error({ err }, 'IMAP client error');
 		});
 
 		return client;
+	}
+
+	private async send163ClientId(client: ImapFlow): Promise<void> {
+		const host = this.credentials.host.trim().toLowerCase().replace(/\.$/, '');
+		if (host !== '163.com' && !host.endsWith('.163.com')) {
+			return;
+		}
+
+		// ImapFlow only runs ID when the server advertises the capability. 163.com
+		// requires it before mailbox selection even when it does not advertise ID.
+		const hadIdCapability = client.capabilities.has('ID');
+		if (!hadIdCapability) {
+			client.capabilities.set('ID', true);
+		}
+
+		const runCommand = (client as ImapFlow & {
+			run(command: string, ...args: unknown[]): Promise<unknown>;
+		}).run.bind(client);
+		const clientInfo = {
+			name: 'Open Archiver',
+			version: '0.6.0',
+			vendor: 'LogicLabs OU',
+		};
+
+		try {
+			let accepted = false;
+			for (const payload of [clientInfo, null]) {
+				try {
+					if ((await runCommand('ID', payload)) !== false) {
+						accepted = true;
+						break;
+					}
+				} catch {
+					// Try ID NIL as a compatibility fallback for stricter server parsers.
+				}
+			}
+
+			if (!accepted) {
+				client.close();
+				this.client = null;
+				throw new Error('163.com rejected both IMAP ID client-identification forms.');
+			}
+		} finally {
+			if (!hadIdCapability) {
+				client.capabilities.delete('ID');
+			}
+		}
 	}
 
 	/**
@@ -316,38 +381,45 @@ export class ImapConnector implements IEmailConnector {
 						async () => await this.imap.mailboxOpen(mailboxPath)
 					);
 					const lastUid = syncState?.imap?.[mailboxPath]?.maxUid;
-					let currentMaxUid = lastUid || 0;
+					const startUid = (lastUid || 0) + 1;
 
-					if (mailbox.exists > 0) {
-						const lastMessage = await this.imap.fetchOne(String(mailbox.exists), {
-							uid: true,
-						});
-						if (lastMessage && lastMessage.uid > currentMaxUid) {
-							currentMaxUid = lastMessage.uid;
-						}
-					}
+					// Search for existing UIDs instead of walking every numeric UID range. Servers may
+					// retain very large UID counters after messages are deleted; the gaps can dwarf the
+					// number of messages and otherwise leave a large mailbox scanning empty ranges for hours.
+					const mailboxUids =
+						mailbox.exists > 0
+							? await this.withRetry(async () => {
+									const uids = await this.imap.search(
+										{ uid: `${startUid}:*` },
+										{ uid: true }
+									);
+									if (uids === false) {
+										throw new Error('IMAP UID search failed.');
+									}
+									return uids;
+								})
+							: [];
 
 					// Initialize with last synced UID, not the maximum UID in mailbox
 					this.newMaxUids[mailboxPath] = lastUid || 0;
 
-					// Only fetch if the mailbox has messages, to avoid errors on empty mailboxes with some IMAP servers.
-					if (mailbox.exists > 0) {
+					if (mailboxUids.length > 0) {
 						const BATCH_SIZE = 250;
-						let startUid = (lastUid || 0) + 1;
-						const maxUidToFetch = currentMaxUid;
-
-						while (startUid <= maxUidToFetch) {
-							const endUid = Math.min(startUid + BATCH_SIZE - 1, maxUidToFetch);
-							const searchCriteria = { uid: `${startUid}:${endUid}` };
+						for (let offset = 0; offset < mailboxUids.length; offset += BATCH_SIZE) {
+							const uidBatch = mailboxUids.slice(offset, offset + BATCH_SIZE);
 
 							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
 							const uidsToFetch: number[] = [];
 
-							for await (const msg of this.imap.fetch(searchCriteria, {
-								envelope: true,
-								uid: true,
-								flags: true,
-							})) {
+							for await (const msg of this.imap.fetch(
+								uidBatch,
+								{
+									envelope: true,
+									uid: true,
+									flags: true,
+								},
+								{ uid: true }
+							)) {
 								if (lastUid && msg.uid <= lastUid) {
 									continue;
 								}
@@ -426,9 +498,6 @@ export class ImapConnector implements IEmailConnector {
 									throw err;
 								}
 							}
-
-							// Move to the next batch
-							startUid = endUid + 1;
 						}
 					}
 				} catch (err: any) {
