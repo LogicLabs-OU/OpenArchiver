@@ -152,6 +152,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		let messagesSeen = 0;
 		let messagesArchived = 0;
 		let messagesFailed = 0;
+		let messagesSkipped = 0;
 		const failureSamples: string[] = [];
 		const MAX_FAILURE_SAMPLES = 5;
 
@@ -323,9 +324,28 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			}
 		}
 
+		// Messages the provider refused to hand over, identically on every attempt (#487). Not added
+		// to messagesFailed: that would discard this run's sync state on every cycle over messages
+		// that will never arrive. Logged instead, so operators have a record of what is missing.
+		const skippedMessages = connector.getSkippedMessages?.();
+		if (skippedMessages && skippedMessages.count > 0) {
+			messagesSkipped = skippedMessages.count;
+			logger.warn(
+				{ ingestionSourceId, userEmail, messagesSkipped, samples: skippedMessages.samples },
+				'Messages the provider could not render were skipped and are not in the archive'
+			);
+		}
+
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
 		logger.info(
-			{ ingestionSourceId, userEmail, messagesSeen, messagesArchived, messagesFailed },
+			{
+				ingestionSourceId,
+				userEmail,
+				messagesSeen,
+				messagesArchived,
+				messagesFailed,
+				messagesSkipped,
+			},
 			`Finished processing mailbox for user`
 		);
 
