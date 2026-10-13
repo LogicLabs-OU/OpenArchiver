@@ -169,6 +169,58 @@ export class ArchivedEmailService {
 		return Boolean(carrier);
 	}
 
+	public static async getAllArchivedEmails(
+		page: number,
+		limit: number,
+		userId: string
+	): Promise<PaginatedArchivedEmails> {
+		const offset = (page - 1) * limit;
+		const { drizzleFilter } = await FilterBuilder.create(userId, 'archive', 'read');
+
+		const countQuery = db
+			.select({
+				count: count(archivedEmails.id),
+			})
+			.from(archivedEmails)
+			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id));
+
+		if (drizzleFilter) {
+			countQuery.where(drizzleFilter);
+		}
+
+		const [total] = await countQuery;
+
+		const itemsQuery = db
+			.select()
+			.from(archivedEmails)
+			.leftJoin(ingestionSources, eq(archivedEmails.ingestionSourceId, ingestionSources.id))
+			.orderBy(desc(archivedEmails.sentAt))
+			.limit(limit)
+			.offset(offset);
+
+		if (drizzleFilter) {
+			itemsQuery.where(drizzleFilter);
+		}
+
+		const results = await itemsQuery;
+
+		return {
+			// The join is already here for the permission filter, so carrying the source
+			// through costs nothing and is what makes a cross-source list readable: without
+			// it every row looks the same regardless of which mailbox it came from (#380).
+			items: results.map(({ archived_emails: item, ingestion_sources: source }) => ({
+				...item,
+				ingestionSource: source ? { id: source.id, name: source.name } : null,
+				recipients: this.mapRecipients(item.recipients),
+				tags: (item.tags as string[] | null) || null,
+				path: item.path || null,
+			})),
+			total: total.count,
+			page,
+			limit,
+		};
+	}
+
 	public static async getArchivedEmailById(
 		emailId: string,
 		userId: string,
