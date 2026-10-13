@@ -23,6 +23,11 @@
 	import Paperclip from 'lucide-svelte/icons/paperclip';
 	import AdvancedSearchPanel from '$lib/components/search/AdvancedSearchPanel.svelte';
 	import EmptyStateIcon from '$lib/components/custom/EmptyStateIcon.svelte';
+	import {
+		readStrategyPreference,
+		writeStrategyPreference,
+		clearStrategyPreference,
+	} from './strategy-preference';
 	import Search from 'lucide-svelte/icons/search';
 	import SearchX from 'lucide-svelte/icons/search-x';
 
@@ -97,9 +102,39 @@
 	);
 
 	let isMounted = $state(false);
+	// Mirrors the stored preference so the save/clear affordance re-renders when it changes.
+	let savedStrategy = $state<MatchingStrategy | undefined>(undefined);
+
 	onMount(() => {
 		isMounted = true;
+		savedStrategy = readStrategyPreference();
+
+		// An explicit ?matchingStrategy= in the URL always wins — a shared or
+		// bookmarked search must reproduce itself regardless of local preference.
+		// Only when the URL is silent does the saved default apply, and then the
+		// URL is rewritten so a submit or pagination carries it forward.
+		if (!savedStrategy) return;
+		if (urlHasStrategy()) return;
+		if (savedStrategy === matchingStrategy) return;
+		matchingStrategy = savedStrategy;
+		goto(buildPageUrl(page), { replaceState: true, keepFocus: true, noScroll: true });
 	});
+
+	function urlHasStrategy(): boolean {
+		return new URL(window.location.href).searchParams.has('matchingStrategy');
+	}
+
+	const strategyIsSaved = $derived(savedStrategy === matchingStrategy);
+
+	function saveStrategyDefault() {
+		writeStrategyPreference(matchingStrategy);
+		savedStrategy = matchingStrategy;
+	}
+
+	function clearStrategyDefault() {
+		clearStrategyPreference();
+		savedStrategy = undefined;
+	}
 
 	// Escape all HTML, then restore only Meilisearch's <em> highlight tags. Prevents
 	// XSS from attacker-controlled field content (subjects, addresses, attachment names)
@@ -260,6 +295,19 @@
 							{/each}
 						</Select.Content>
 					</Select.Root>
+					<!-- #247: one click to make the current strategy the default for
+					     this browser, so users who always want Verbatim stop re-picking it. -->
+					{#if isMounted}
+						<button
+							type="button"
+							class="text-muted-foreground hover:text-foreground cursor-pointer text-xs underline-offset-2 hover:underline"
+							onclick={strategyIsSaved ? clearStrategyDefault : saveStrategyDefault}
+						>
+							{strategyIsSaved
+								? $t('app.search.clear_default_strategy')
+								: $t('app.search.set_default_strategy')}
+						</button>
+					{/if}
 				</div>
 				<AdvancedSearchPanel
 					availableSources={data.ingestionSources}

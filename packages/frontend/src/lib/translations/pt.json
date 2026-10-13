@@ -76,6 +76,8 @@
 			"strategy_verbatim": "Verbatim",
 			"strategy_frequency": "Frequência",
 			"select_strategy": "Selecione uma estratégia",
+			"set_default_strategy": "Definir como padrão",
+			"clear_default_strategy": "Limpar padrão",
 			"error": "Erro",
 			"found_results_in": "Encontrados {{total}} resultados em {{seconds}}s",
 			"found_results": "Encontrados {{total}} resultados",
