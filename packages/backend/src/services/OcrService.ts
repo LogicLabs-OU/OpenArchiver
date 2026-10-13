@@ -141,33 +141,44 @@ export class OcrService {
 
 			logger.debug(`Executing Tika request for ${mimeType} (${buffer.length} bytes)`);
 
+			// Tika 4.x no longer routes /tika on the Accept header; bare /tika returns
+			// Markdown. /tika/text returns body-only plain text (the 3.x text/plain output).
+			const endpoint = '/tika/text';
+
 			// DNS fallback: If "tika" hostname, also try localhost
 			const urlsToTry = [
-				`${tikaUrl}/tika`,
-				// Fallback falls DNS-Problem mit "tika" hostname
+				`${tikaUrl}${endpoint}`,
+				// Fallback in case of DNS problems with the "tika" hostname
 				...(tikaUrl.includes('://tika:')
-					? [`${tikaUrl.replace('://tika:', '://localhost:')}/tika`]
+					? [`${tikaUrl.replace('://tika:', '://localhost:')}${endpoint}`]
 					: []),
 			];
+
+			// Set when a failure may succeed on a later attempt (server busy, network error),
+			// so the empty result is not cached.
+			let transientFailure = false;
 
 			for (const url of urlsToTry) {
 				try {
 					logger.debug(`Trying Tika URL: ${url}`);
-					const response = await fetch(url, {
-						method: 'PUT',
-						headers: {
-							'Content-Type': mimeType || 'application/octet-stream',
-							Accept: 'text/plain',
-							Connection: 'close',
-						},
-						body: buffer,
-						signal: AbortSignal.timeout(180000),
-					});
+					const response = await this.putWithBackpressureRetry(url, buffer, mimeType);
 
-					if (!response.ok) {
+					// 422: Tika 4.x returns the partially extracted content when the parser
+					// hit a document-level exception (e.g. a malformed or encrypted file).
+					if (response.status === 422) {
 						logger.warn(
-							`Tika extraction failed at ${url}: ${response.status} ${response.statusText}`
+							`Tika reported a parse exception for ${mimeType} (${buffer.length} bytes); using partial content`
 						);
+					} else if (!response.ok) {
+						// Tika 4.x error bodies are JSON: {"status": "...", "message": "..."}
+						const tikaStatus = await this.readTikaErrorStatus(response);
+						logger.warn(
+							`Tika extraction failed at ${url}: ${response.status} ${response.statusText}${tikaStatus ? ` (${tikaStatus})` : ''}`
+						);
+						// 429 = all forks busy even after retries; worth trying again later.
+						if (response.status === 429) {
+							transientFailure = true;
+						}
 						continue; // Try next URL
 					}
 
@@ -189,15 +200,74 @@ export class OcrService {
 						`Tika extraction error at ${url}:`,
 						error instanceof Error ? error.message : 'Unknown error'
 					);
+					transientFailure = true;
 					// Continue to next URL
 				}
 			}
 
-			// All URLs failed - cache this too (as empty string)
 			logger.error('All Tika URLs failed');
-			this.tikaCache.set(hash, '');
+			// Cache definitive failures only, so a busy or unreachable server is retried later
+			if (!transientFailure) {
+				this.tikaCache.set(hash, '');
+			}
 			return '';
 		});
+	}
+
+	// Maximum number of retries when Tika answers 429 (all forked parsers busy)
+	private static readonly MAX_BACKPRESSURE_RETRIES = 3;
+	// Upper bound for a single Retry-After wait
+	private static readonly MAX_RETRY_AFTER_MS = 30000;
+
+	/**
+	 * PUTs the document to Tika. Tika 4.x parses in a fixed pool of forked JVMs and answers
+	 * 429 with a Retry-After header when no fork is free; those responses are retried here.
+	 */
+	private async putWithBackpressureRetry(
+		url: string,
+		buffer: Buffer,
+		mimeType: string
+	): Promise<Response> {
+		for (let attempt = 0; ; attempt++) {
+			const response = await fetch(url, {
+				method: 'PUT',
+				headers: {
+					// Tika 4.x treats this as a soft hint refined by content-based detection
+					'Content-Type': mimeType || 'application/octet-stream',
+					Connection: 'close',
+				},
+				body: buffer,
+				signal: AbortSignal.timeout(180000),
+			});
+
+			if (response.status !== 429 || attempt >= OcrService.MAX_BACKPRESSURE_RETRIES) {
+				return response;
+			}
+
+			const retryAfterSeconds = Number(response.headers.get('Retry-After'));
+			const waitMs = Math.min(
+				Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+					? retryAfterSeconds * 1000
+					: 1000 * 2 ** attempt,
+				OcrService.MAX_RETRY_AFTER_MS
+			);
+			// Drain the body so the connection can be released
+			await response.body?.cancel();
+			logger.debug(
+				`Tika busy (429), retrying in ${waitMs}ms (attempt ${attempt + 1}/${OcrService.MAX_BACKPRESSURE_RETRIES})`
+			);
+			await new Promise((resolve) => setTimeout(resolve, waitMs));
+		}
+	}
+
+	// Extracts the "status" field from a Tika 4.x JSON error body, if present
+	private async readTikaErrorStatus(response: Response): Promise<string | undefined> {
+		try {
+			const body = (await response.json()) as { status?: unknown };
+			return typeof body.status === 'string' ? body.status : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	// Helper function to check Tika availability

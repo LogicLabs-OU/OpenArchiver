@@ -51,7 +51,7 @@ When `TIKA_URL` is configured, the service can process a vast range of file form
 - Archive formats (ZIP, TAR, GZ)
 - Email formats (EML, MSG)
 
-For a complete and up-to-date list, please refer to the official [Apache Tika documentation](https://tika.apache.org/3.2.3/formats.html).
+For a complete and up-to-date list, please refer to the official [Apache Tika documentation](https://tika.apache.org/docs/4.1.x/formats.html).
 
 ### With Legacy Fallback
 
