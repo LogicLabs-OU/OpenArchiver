@@ -13,7 +13,11 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { api } from '$lib/api.client';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
-	import type { ICleanupOrphansResponse, SearchTaskStatus } from '@open-archiver/types';
+	import type {
+		ICleanupOrphansResponse,
+		IVerifyIndexResponse,
+		SearchTaskStatus,
+	} from '@open-archiver/types';
 	import { t } from '$lib/translations';
 
 	let { data }: { data: PageData } = $props();
@@ -23,6 +27,8 @@
 
 	let isCleanupDialogOpen = $state(false);
 	let isCleaning = $state(false);
+	let isVerifyDialogOpen = $state(false);
+	let isVerifying = $state(false);
 
 	// Documents the index holds beyond the emails the database still has. Shown so the operator
 	// sees the size of the problem before agreeing to it, though it understates: emails archived
@@ -113,6 +119,68 @@
 		goto(url.toString(), { invalidateAll: true });
 	};
 
+	const confirmVerify = async () => {
+		isVerifying = true;
+		let body: Partial<IVerifyIndexResponse>;
+
+		try {
+			const res = await api('/index-admin/verify', { method: 'POST' });
+			body = await res.json().catch(() => ({}));
+
+			if (!res.ok) {
+				setAlert({
+					type: 'error',
+					title: $t('app.index_admin.verify_failed'),
+					message: (body as { message?: string }).message ?? `HTTP ${res.status}`,
+					duration: 5000,
+					show: true,
+				});
+				return;
+			}
+		} catch (error) {
+			setAlert({
+				type: 'error',
+				title: $t('app.index_admin.verify_failed'),
+				message: error instanceof Error ? error.message : String(error),
+				duration: 5000,
+				show: true,
+			});
+			return;
+		} finally {
+			isVerifying = false;
+			isVerifyDialogOpen = false;
+		}
+
+		if (body.alreadyRunning) {
+			setAlert({
+				type: 'warning',
+				title: $t('app.index_admin.verify_already_running_title'),
+				message: $t('app.index_admin.verify_already_running'),
+				duration: 8000,
+				show: true,
+			});
+		} else if (body.workerAlive === false) {
+			setAlert({
+				type: 'warning',
+				title: $t('app.index_admin.verify_no_worker_title'),
+				message: $t('app.index_admin.verify_no_worker'),
+				duration: 10000,
+				show: true,
+			});
+		} else {
+			setAlert({
+				type: 'success',
+				title: $t('app.index_admin.verify_started'),
+				message: $t('app.index_admin.verify_started_message'),
+				duration: 8000,
+				show: true,
+			});
+		}
+
+		const url = new URL(window.location.href);
+		goto(url.toString(), { invalidateAll: true });
+	};
+
 	const relative = (d: string | null) => {
 		if (!d) return '—';
 		try {
@@ -178,6 +246,11 @@
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content>
 				<DropdownMenu.Label>{$t('app.index_admin.actions')}</DropdownMenu.Label>
+				<!-- Not gated on the counts: emails marked indexed without a document can hide
+				     behind orphans one for one, so equal totals do not mean full coverage. -->
+				<DropdownMenu.Item onclick={() => (isVerifyDialogOpen = true)}>
+					{$t('app.index_admin.verify_index')}
+				</DropdownMenu.Item>
 				<DropdownMenu.Item
 					class={canCleanup ? 'text-red-600' : ''}
 					disabled={!canCleanup}
@@ -547,6 +620,48 @@
 					{$t('app.index_admin.cleaning')}...
 				{:else}
 					{$t('app.index_admin.cleanup_confirm')}
+				{/if}
+			</Button>
+			<Dialog.Close>
+				<Button type="button" variant="secondary">{$t('app.index_admin.cancel')}</Button>
+			</Dialog.Close>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Index verification confirmation. Not destructive: it only resets flags and queues indexing. -->
+<Dialog.Root bind:open={isVerifyDialogOpen}>
+	<Dialog.Content class="sm:max-w-lg">
+		<Dialog.Header>
+			<Dialog.Title>{$t('app.index_admin.verify_confirmation_title')}</Dialog.Title>
+			<Dialog.Description>
+				{$t('app.index_admin.verify_confirmation_description')}
+			</Dialog.Description>
+		</Dialog.Header>
+		<ul class="text-muted-foreground my-2 ml-4 list-disc space-y-1 text-sm">
+			<li>{$t('app.index_admin.verify_warning_safe')}</li>
+			<li>{$t('app.index_admin.verify_warning_reindex')}</li>
+			<li>{$t('app.index_admin.verify_warning_background')}</li>
+		</ul>
+		<div class="bg-muted/50 rounded-md border p-3 text-sm">
+			<div class="flex items-center justify-between">
+				<span class="text-muted-foreground">{$t('app.index_admin.documents_in_index')}</span
+				>
+				<span class="font-mono"
+					>{(overview.index?.numberOfDocuments ?? 0).toLocaleString()}</span
+				>
+			</div>
+			<div class="flex items-center justify-between">
+				<span class="text-muted-foreground">{$t('app.index_admin.archived_emails')}</span>
+				<span class="font-mono">{overview.archivedCount.toLocaleString()}</span>
+			</div>
+		</div>
+		<Dialog.Footer class="sm:justify-start">
+			<Button type="button" onclick={confirmVerify} disabled={isVerifying}>
+				{#if isVerifying}
+					{$t('app.index_admin.verifying')}...
+				{:else}
+					{$t('app.index_admin.verify_confirm')}
 				{/if}
 			</Button>
 			<Dialog.Close>

@@ -29,3 +29,15 @@ No emails, attachments or stored files are touched: the database and the stored 
 Only one sweep runs at a time. A request made while one is already queued or running joins it instead of starting a second, and says so via `alreadyRunning` in the response. Once a sweep has finished, the action can be triggered again — including after a failed run.
 
 <OAOperation operationId="cleanupOrphanedIndexDocuments" />
+
+## Verify Index Coverage
+
+Queues a background job that checks every email marked as indexed against the `emails` index, and queues for indexing again those whose document is missing.
+
+An email is marked as indexed only once the search engine confirms the write, but it can still end up marked without a document: the upgrade to v0.5.1 marked every existing email as indexed without asking the search engine, and a search index restored from an old dump, or one whose data was lost, leaves the same state. The automatic reconcile only looks at emails marked as not yet indexed, so it never finds these. The job reads the archive page by page in id order, asks the search engine which of those emails it holds, marks the missing ones as not indexed and queues them on the `indexing` queue.
+
+Nothing is deleted: emails, attachments, stored files and existing index entries are left as they are. The lookup needs **Meilisearch 1.14 or newer**; on an older engine the job fails on its first page and says so. The numbers checked, reset and queued, with a breakdown per ingestion source, are written to the worker log and the job's result on **Admin → Jobs**.
+
+Only one verification runs at a time. A request made while one is already queued or running joins it and says so via `alreadyRunning`. Running it again is safe: a second pass only finds what the first did not already queue.
+
+<OAOperation operationId="verifyIndexCoverage" />

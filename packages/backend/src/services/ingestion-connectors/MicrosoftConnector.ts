@@ -21,8 +21,10 @@ import {
 	isTransportError,
 	MessageFailureTally,
 	REQUEST_TIMEOUT_MS,
+	SkippedMessageRegister,
 	withRetry,
 } from './helpers/retry';
+import { attachGraphErrorBody } from './helpers/graphErrorBody';
 import { TimeboundMsalNetworkClient } from './helpers/msalNetworkClient';
 
 /** The HTTP status behind a Graph failure. `GraphError` carries it on `statusCode`. */
@@ -40,7 +42,22 @@ const statusOf = (error: any): number | undefined =>
  * errno, so the status is the only signal left to read. Retrying them is what keeps one connection
  * reset from costing a message or a whole folder.
  */
+/**
+ * Graph codes that say the message exists but cannot be produced as MIME. Under app-only access,
+ * `$value` answers `ErrorMimeContentConversionFailed` for S/MIME-encrypted and opaque-signed items
+ * (`IPM.Note.SMIME`) and for non-delivery reports about signed mail
+ * (`REPORT.IPM.Note.SMIME.*.NDR`), identically on every attempt while the metadata read on the same
+ * id succeeds (#487). Only readable once the stream error has had its body attached — see
+ * attachGraphErrorBody.
+ */
+const UNRENDERABLE_MESSAGE_CODES = new Set(['ErrorMimeContentConversionFailed']);
+
+const isUnrenderableMessageError = (error: unknown): boolean =>
+	UNRENDERABLE_MESSAGE_CODES.has(String((error as any)?.code ?? ''));
+
 const isRetryableGraphError = (error: unknown): boolean => {
+	// A fixed answer: the same request gets the same refusal, so a repeat only costs time.
+	if (isUnrenderableMessageError(error)) return false;
 	const status = statusOf(error);
 	if (status === undefined) {
 		// Not a GraphError. `getStream` resolves once the headers arrive, so everything thrown while
@@ -134,6 +151,8 @@ export class MicrosoftConnector implements IEmailConnector {
 	protected options: ConnectorOptions;
 	/** Messages skipped so the rest of the mailbox could finish. One connector serves one mailbox. */
 	private failures = new MessageFailureTally();
+	/** Messages Graph refused to render, left out of the archive on purpose. Reported, not counted. */
+	private skipped = new SkippedMessageRegister();
 
 	/**
 	 * @param credentials Tenant credentials for the app-only flow. Null when `authProvider`
@@ -700,6 +719,21 @@ export class MicrosoftConnector implements IEmailConnector {
 				this.failures.succeeded();
 				return null;
 			}
+			if (isUnrenderableMessageError(error)) {
+				// Not counted, for the same reason as the 404 above: an identical request returns the
+				// identical refusal, so counting it would fail the mailbox on every cycle and hold the
+				// delta marker in place forever over messages that will never arrive — and a cluster
+				// of them tripped the consecutive-failure brake and abandoned the whole mailbox (#487).
+				// The message stays out of the archive; the warn line and the register are the record.
+				const messageClass = await this.getMessageClass(userEmail, messageId);
+				logger.warn(
+					{ messageId, userEmail, path, code: (error as any).code, messageClass },
+					'Graph cannot render this message as MIME, skipping it.'
+				);
+				this.failures.succeeded();
+				this.skipped.record(`${messageId} (${messageClass})`);
+				return null;
+			}
 			logger.error(
 				{ err: error, messageId, userEmail },
 				'Giving up on message after retries, skipping it and continuing with the mailbox.'
@@ -714,17 +748,53 @@ export class MicrosoftConnector implements IEmailConnector {
 		return this.failures.result;
 	}
 
-	private async getRawEmail(userEmail: string, messageId: string): Promise<Buffer> {
-		// The deadline covers the body read too, not just the response headers — an abort tears down
-		// the stream, so a download that stalls mid-message fails instead of hanging the job.
-		const response = await this.request(
-			`${this.mailboxPath(userEmail)}/messages/${messageId}/$value`
-		).getStream();
-		const chunks: any[] = [];
-		for await (const chunk of response) {
-			chunks.push(chunk);
+	/** Messages Graph refused to render, for the mailbox job to report without failing. */
+	public getSkippedMessages(): { count: number; samples: string[] } {
+		return this.skipped.result;
+	}
+
+	/**
+	 * The message class (PidTagMessageClass, `String 0x001A`) of one message, read only for the log
+	 * line of a message Graph would not render — it says whether the item was S/MIME or something
+	 * new. Best effort: the message is being skipped whatever this returns.
+	 */
+	private async getMessageClass(userEmail: string, messageId: string): Promise<string> {
+		try {
+			const response = await withRetry(
+				() =>
+					this.request(`${this.mailboxPath(userEmail)}/messages/${messageId}`)
+						.select('id')
+						.expand("singleValueExtendedProperties($filter=id eq 'String 0x001A')")
+						.get(),
+				isRetryableGraphError,
+				{ userEmail, messageId, call: 'messages/messageClass' }
+			);
+			const value = response?.singleValueExtendedProperties?.[0]?.value;
+			return typeof value === 'string' && value ? value : 'unknown';
+		} catch (error) {
+			logger.debug({ err: error, messageId, userEmail }, 'Could not read the message class.');
+			return 'unknown';
 		}
-		return Buffer.concat(chunks);
+	}
+
+	private async getRawEmail(userEmail: string, messageId: string): Promise<Buffer> {
+		try {
+			// The deadline covers the body read too, not just the response headers — an abort tears
+			// down the stream, so a download that stalls mid-message fails instead of hanging the job.
+			const response = await this.request(
+				`${this.mailboxPath(userEmail)}/messages/${messageId}/$value`
+			).getStream();
+			const chunks: any[] = [];
+			for await (const chunk of response) {
+				chunks.push(chunk);
+			}
+			return Buffer.concat(chunks);
+		} catch (error) {
+			// A failed stream request arrives with no code — the client never reads the body on this
+			// path — so the retry and skip decisions above would see nothing but a status.
+			await attachGraphErrorBody(error);
+			throw error;
+		}
 	}
 
 	private async parseEmail(

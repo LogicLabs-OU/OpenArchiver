@@ -99,6 +99,43 @@ export interface ICleanupOrphansResult {
 }
 
 /**
+ * Payload for the `verify-index` job on the indexing queue (no fields needed).
+ *
+ * Finds emails the database marks as indexed whose document is not in the search index, and queues
+ * them for indexing again. The reconcile job only looks at rows marked unindexed, so a row marked
+ * indexed without a document behind it is otherwise invisible to self-healing.
+ */
+export interface IVerifyIndexJob {}
+
+/** What a verify request could establish before the walk itself runs. */
+export interface IVerifyIndexDispatch {
+	/** Whether an indexing worker has reported a heartbeat recently enough to be doing the work. */
+	workerAlive: boolean;
+	/**
+	 * True when a verification was already queued or running, so this request joined it rather
+	 * than starting another.
+	 */
+	alreadyRunning: boolean;
+}
+
+/** Body returned by the verify endpoint. */
+export interface IVerifyIndexResponse extends IVerifyIndexDispatch {
+	message: string;
+}
+
+/** What a completed verification found and did. Logged by the job and returned as its result. */
+export interface IVerifyIndexResult {
+	/** Rows marked indexed that were checked against the search index. */
+	rowsChecked: number;
+	/** Rows whose document was missing, reset to unindexed. */
+	rowsReset: number;
+	/** Reset rows handed to index-email-batch jobs. Equals `rowsReset` unless enqueuing failed. */
+	enqueued: number;
+	/** `rowsReset` broken down by ingestion source id. */
+	resetBySource: Record<string, number>;
+}
+
+/**
  * Payload for the `cleanup-duplicates` job on the indexing queue.
  *
  * Removes the surplus copies left when two sync cycles ran over one mailbox at the same time and

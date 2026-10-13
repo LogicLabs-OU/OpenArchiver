@@ -3,6 +3,7 @@ import { syncSessions, ingestionSources } from '../database/schema';
 import { and, eq, inArray, lt, notExists, sql, type SQL } from 'drizzle-orm';
 import type { SyncState, ProcessMailboxError, ProcessMailboxSkip } from '@open-archiver/types';
 import { logger } from '../config/logger';
+import { stripNullBytes } from '../helpers/stripNullBytes';
 import { ingestionQueue } from '../jobs/queues';
 import { isJobLive } from '../jobs/helpers/claimJobId';
 import { continuousSyncJobId, initialImportJobId } from '../jobs/helpers/jobIds';
@@ -115,7 +116,10 @@ export class SyncSessionService {
 	): Promise<MailboxResultOutcome> {
 		const isError = (result as ProcessMailboxError).error === true;
 		const isSkip = (result as ProcessMailboxSkip).skipped === true;
-		const note = isError || isSkip ? (result as { message: string }).message : null;
+		// Stripped here as the last line of defence: a NUL in a note once failed the very update
+		// that reports a failure (#479), and no caller should be able to poison the session row.
+		const note =
+			isError || isSkip ? stripNullBytes((result as { message: string }).message) : null;
 
 		// Atomically increment the appropriate counter and append the note if there is one.
 		// The RETURNING clause ensures we get the post-update values to check if this is the last job.

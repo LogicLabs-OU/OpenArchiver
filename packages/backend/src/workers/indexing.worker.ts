@@ -5,6 +5,7 @@ import reindexProcessor from '../jobs/processors/reindex.processor';
 import reconcileIndexProcessor from '../jobs/processors/reconcile-index.processor';
 import cleanupOrphansProcessor from '../jobs/processors/cleanup-orphans.processor';
 import cleanupDuplicatesProcessor from '../jobs/processors/cleanup-duplicates.processor';
+import verifyIndexProcessor from '../jobs/processors/verify-index.processor';
 import { logger } from '../config/logger';
 import { config } from '../config';
 import { superviseWorker } from './supervision';
@@ -21,6 +22,8 @@ const processor = async (job: any) => {
 			return cleanupOrphansProcessor(job);
 		case 'cleanup-duplicates':
 			return cleanupDuplicatesProcessor(job);
+		case 'verify-index':
+			return verifyIndexProcessor(job);
 		default:
 			throw new Error(`Unknown job name: ${job.name}`);
 	}

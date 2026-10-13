@@ -171,11 +171,12 @@ You supply:
 | IMAP host / port       | `imap.gmail.com` / `993`                       |
 | Authorization method   | **Sign in via browser** — see below            |
 
-Create the OAuth client in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials), and note three things Google does differently from Microsoft:
+Create the OAuth client in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials), and note four things Google does differently from Microsoft:
 
 - **Use the browser method.** Google's device flow accepts only `email`, `openid`, `profile`, `drive.appdata`, `drive.file`, `youtube` and `youtube.readonly`. No Gmail scope is on that list, so a device-code request for `https://mail.google.com/` is rejected outright ([Google's device-flow documentation](https://developers.google.com/identity/protocols/oauth2/limited-input-device)).
 - **A client secret is required**, even for a Desktop app client. Enter it in the form.
 - **Publish the OAuth consent screen.** Left in _Testing_ mode, Google expires refresh tokens after seven days, which means re-authorizing every week.
+- **Re-authorize once after upgrading from 0.6.0 or earlier.** Those versions never asked Google for a refresh token, so a Gmail source authorized on them stopped syncing about an hour after each sign-in. Click **Re-authorize** once on the new version; from then on the token refreshes on its own.
 
 ## Troubleshooting
 

@@ -1,5 +1,12 @@
-import { count, inArray } from 'drizzle-orm';
-import type { ICleanupOrphansDispatch, ICleanupOrphansResult } from '@open-archiver/types';
+import { and, asc, count, eq, gt, inArray, type SQL } from 'drizzle-orm';
+import { MeiliSearchApiError } from 'meilisearch';
+import type {
+	ICleanupOrphansDispatch,
+	ICleanupOrphansResult,
+	IVerifyIndexDispatch,
+	IVerifyIndexResult,
+	PendingEmail,
+} from '@open-archiver/types';
 import { db } from '../database';
 import { archivedEmails } from '../database/schema';
 import { SearchService } from './SearchService';
@@ -8,6 +15,7 @@ import { quoteMeiliString } from '../helpers/meiliFilter';
 import { indexingQueue } from '../jobs/queues';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
 import { claimJobId } from '../jobs/helpers/claimJobId';
+import { config } from '../config';
 import { logger } from '../config/logger';
 
 /** Document ids read from the index per page. Ids only, so ~36 bytes each. */
@@ -18,6 +26,15 @@ const DELETE_BATCH_SIZE = 5_000;
 
 /** The one job id a sweep ever runs under, so two can never overlap. */
 const CLEANUP_JOB_ID = 'cleanup-orphans';
+
+/** The one job id a verification ever runs under, for the same reason. */
+const VERIFY_JOB_ID = 'verify-index';
+
+/** Rows checked per page of the verification walk: one Postgres read and one index lookup each. */
+const VERIFY_PAGE_SIZE = 2_000;
+
+/** Ids per reset statement, matching IndexingService.markIndexed. */
+const RESET_CHUNK_SIZE = 1_000;
 
 /** Ids per existence query, keeping the IN(...) list and its bind parameters bounded. */
 const EXISTENCE_CHUNK_SIZE = 5_000;
@@ -73,6 +90,141 @@ export class IndexMaintenanceService {
 			workerAlive,
 			alreadyRunning,
 		};
+	}
+
+	/**
+	 * Queues a verification walk.
+	 *
+	 * Same single-instance rule as the orphan sweep: a fixed `jobId`, `attempts: 1`. Re-running is
+	 * safe — a second pass only finds what the first did not already queue — so an interrupted
+	 * verification is resumed by triggering it again.
+	 */
+	public static async triggerVerifyIndex(): Promise<IVerifyIndexDispatch> {
+		const workerAlive = await isIndexingWorkerAlive();
+		const alreadyRunning = await claimJobId(indexingQueue, VERIFY_JOB_ID);
+
+		if (!alreadyRunning) {
+			await indexingQueue.add('verify-index', {}, { jobId: VERIFY_JOB_ID, attempts: 1 });
+		}
+
+		return { workerAlive, alreadyRunning };
+	}
+
+	/**
+	 * Finds emails marked indexed whose document the search index does not have, and queues them
+	 * for indexing again.
+	 *
+	 * `is_indexed` is only set once Meilisearch confirms a write, but rows can still end up marked
+	 * without a document: the upgrade to v0.5.1 marked every existing row indexed without asking the
+	 * engine (migration 0037), and an index restored from an old dump or a lost data directory leaves
+	 * the same state. Reconcile only looks at unmarked rows, so nothing else ever finds these.
+	 *
+	 * The walk reads a page of marked rows from the database first, then asks the index which of
+	 * those ids it holds. That order keeps the answer exact while indexing carries on: a row read as
+	 * marked had its write confirmed before the read, so an id the lookup does not return is absent
+	 * rather than not yet visible. Memory is one page of ids, whatever the size of the archive.
+	 *
+	 * Missing rows are reset and queued here, not left for reconcile: reconcile scans every unmarked
+	 * row, and would pick up rows that in-flight jobs already own. The reset is needed even though the
+	 * rows are queued straight after, because the indexer skips any id still marked indexed.
+	 */
+	public async verifyIndex(indexName = 'emails'): Promise<IVerifyIndexResult> {
+		const batchSize = config.meili.indexingBatchSize;
+		const resetBySource: Record<string, number> = {};
+		let rowsChecked = 0;
+		let rowsReset = 0;
+		let enqueued = 0;
+		let toEnqueue: PendingEmail[] = [];
+		let cursor: string | null = null;
+
+		const flush = async (all: boolean): Promise<void> => {
+			while (toEnqueue.length >= batchSize || (all && toEnqueue.length > 0)) {
+				const emails = toEnqueue.slice(0, batchSize);
+				await indexingQueue.add('index-email-batch', { emails });
+				toEnqueue = toEnqueue.slice(emails.length);
+				enqueued += emails.length;
+			}
+		};
+
+		for (;;) {
+			const conditions: SQL[] = [eq(archivedEmails.isIndexed, true)];
+			if (cursor) {
+				conditions.push(gt(archivedEmails.id, cursor));
+			}
+
+			const rows = await db
+				.select({ id: archivedEmails.id, sourceId: archivedEmails.ingestionSourceId })
+				.from(archivedEmails)
+				.where(and(...conditions))
+				.orderBy(asc(archivedEmails.id))
+				.limit(VERIFY_PAGE_SIZE);
+
+			if (rows.length === 0) {
+				break;
+			}
+
+			const existing = await this.#lookupExisting(
+				indexName,
+				rows.map((r) => r.id),
+				rowsChecked === 0
+			);
+			const missing = rows.filter((r) => !existing.has(r.id));
+
+			if (missing.length > 0) {
+				const ids = missing.map((r) => r.id);
+				for (let i = 0; i < ids.length; i += RESET_CHUNK_SIZE) {
+					await db
+						.update(archivedEmails)
+						.set({ isIndexed: false, indexAttempts: 0 })
+						.where(inArray(archivedEmails.id, ids.slice(i, i + RESET_CHUNK_SIZE)));
+				}
+
+				for (const row of missing) {
+					resetBySource[row.sourceId] = (resetBySource[row.sourceId] ?? 0) + 1;
+				}
+				rowsReset += missing.length;
+				toEnqueue.push(...ids.map((id) => ({ archivedEmailId: id })));
+				await flush(false);
+
+				logger.info(
+					{ checked: rows.length, missing: missing.length },
+					'Index verification reset emails missing from the search index'
+				);
+			}
+
+			rowsChecked += rows.length;
+			cursor = rows[rows.length - 1].id;
+
+			if (rows.length < VERIFY_PAGE_SIZE) {
+				break;
+			}
+		}
+
+		await flush(true);
+
+		return { rowsChecked, rowsReset, enqueued, resetBySource };
+	}
+
+	/**
+	 * The index lookup for one page. On the first page only, a request the engine does not
+	 * understand is reported as the version requirement it almost certainly is, so an operator on
+	 * an old Meilisearch sees why the job failed instead of a bare "bad request".
+	 */
+	async #lookupExisting(indexName: string, ids: string[], firstPage: boolean) {
+		try {
+			return await this.#searchService.getExistingDocumentIds(indexName, ids);
+		} catch (error) {
+			if (
+				firstPage &&
+				error instanceof MeiliSearchApiError &&
+				error.cause?.code === 'bad_request'
+			) {
+				throw new Error(
+					`Index verification needs Meilisearch 1.14 or newer (document lookup by id): ${error.message}`
+				);
+			}
+			throw error;
+		}
 	}
 
 	/**

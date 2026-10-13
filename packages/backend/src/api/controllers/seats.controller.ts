@@ -5,10 +5,18 @@ import { db } from '../../database';
 import { mailboxes } from '../../database/schema/mailboxes';
 import { AuditService } from '../../services/AuditService';
 import type { MailboxKind } from '@open-archiver/types';
-import { seatAccountingService } from '../../services/seats/SeatAccountingService';
+import {
+	DEPARTED_AFTER_MS,
+	seatAccountingService,
+} from '../../services/seats/SeatAccountingService';
 import { seatPolicyService } from '../../services/seats/SeatPolicyService';
 import { DEFAULT_ROLE_LOCAL_PARTS } from '../../services/seats/roleLocalParts';
-import { deriveProviderKind } from '../../services/seats/seatRules';
+import {
+	deriveProviderKind,
+	directoryObjectsCollide,
+	directoryObjectsOf,
+	isUnlisted,
+} from '../../services/seats/seatRules';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
 
 const auditService = new AuditService();
@@ -74,6 +82,12 @@ const IdentityLinkSchema = z.object({
 	reason: z.string().trim().max(500).optional(),
 });
 
+/** Mailbox ids are uuids; anything else cannot name a row, so it is answered as not found. */
+const MailboxIdSchema = z.string().uuid();
+
+/** `ilike` treats `%`, `_` and `\` as pattern syntax; a search for `john_doe` means the literal text. */
+const escapeLikePattern = (value: string): string => value.replace(/[\\%_]/g, (c) => `\\${c}`);
+
 /** The seat summary, plus the policy in force. */
 export const getReport = async (req: Request, res: Response): Promise<Response> => {
 	try {
@@ -92,6 +106,8 @@ export const getReport = async (req: Request, res: Response): Promise<Response> 
 			report,
 			policy,
 			defaultRoleLocalParts: DEFAULT_ROLE_LOCAL_PARTS,
+			// True when a stale report was returned and a recount is running behind it.
+			reconciling: seatAccountingService.isReconciling,
 		});
 	} catch (error) {
 		console.error('getSeatReport error:', error);
@@ -138,11 +154,9 @@ export const listMailboxes = async (req: Request, res: Response): Promise<Respon
 		}
 		const search = String(req.query.search ?? '').trim();
 		if (search) {
+			const pattern = `%${escapeLikePattern(search)}%`;
 			filters.push(
-				or(
-					ilike(mailboxes.address, `%${search}%`),
-					ilike(mailboxes.displayName, `%${search}%`)
-				)!
+				or(ilike(mailboxes.address, pattern), ilike(mailboxes.displayName, pattern))!
 			);
 		}
 		const where = filters.length > 0 ? and(...filters) : undefined;
@@ -212,7 +226,11 @@ export const updateClassification = async (req: Request, res: Response): Promise
 			});
 		}
 
-		const mailbox = await seatAccountingService.findMailboxById(req.params.id);
+		const mailboxId = MailboxIdSchema.safeParse(req.params.id);
+		if (!mailboxId.success) {
+			return res.status(404).json({ message: req.t('seats.mailboxNotFound') });
+		}
+		const mailbox = await seatAccountingService.findMailboxById(mailboxId.data);
 		if (!mailbox) {
 			return res.status(404).json({ message: req.t('seats.mailboxNotFound') });
 		}
@@ -225,7 +243,8 @@ export const updateClassification = async (req: Request, res: Response): Promise
 					message: req.t('seats.providerClassified', { kind: mailbox.providerKind }),
 				});
 			}
-			if (deriveProviderKind(mailbox) === 'user') {
+			const unlisted = isUnlisted(mailbox, new Date(Date.now() - DEPARTED_AFTER_MS));
+			if (deriveProviderKind(mailbox, unlisted) === 'user') {
 				return res.status(422).json({ message: req.t('seats.licensedUser') });
 			}
 		}
@@ -285,7 +304,11 @@ export const updateIdentityLink = async (req: Request, res: Response): Promise<R
 				.json({ message: req.t('seats.invalidLink'), errors: parsed.error.flatten() });
 		}
 
-		const mailbox = await seatAccountingService.findMailboxById(req.params.id);
+		const mailboxId = MailboxIdSchema.safeParse(req.params.id);
+		if (!mailboxId.success) {
+			return res.status(404).json({ message: req.t('seats.mailboxNotFound') });
+		}
+		const mailbox = await seatAccountingService.findMailboxById(mailboxId.data);
 		if (!mailbox) {
 			return res.status(404).json({ message: req.t('seats.mailboxNotFound') });
 		}
@@ -316,14 +339,25 @@ export const updateIdentityLink = async (req: Request, res: Response): Promise<R
 			if (target.linkedToMailboxId) {
 				return res.status(422).json({ message: req.t('seats.targetAlreadyLinked') });
 			}
-			if (
-				mailbox.providerObjectId &&
-				target.providerObjectId &&
-				mailbox.providerObjectId !== target.providerObjectId &&
-				mailbox.rootSourceId &&
-				mailbox.rootSourceId === target.rootSourceId
-			) {
-				return res.status(422).json({ message: req.t('seats.sameDirectory') });
+			// Tested against both whole identity groups, not only the two rows: the grouping
+			// refuses a union that puts two objects of one directory together anywhere in the
+			// joined group, and a link it would refuse must not be stored, audited and counted.
+			if (mailbox.identityKey !== target.identityKey) {
+				const members = await seatAccountingService.findMailboxesByIdentityKeys([
+					mailbox.identityKey,
+					target.identityKey,
+				]);
+				const left = directoryObjectsOf([
+					mailbox,
+					...members.filter((m) => m.identityKey === mailbox.identityKey),
+				]);
+				const right = directoryObjectsOf([
+					target,
+					...members.filter((m) => m.identityKey === target.identityKey),
+				]);
+				if (directoryObjectsCollide(left, right)) {
+					return res.status(422).json({ message: req.t('seats.sameDirectory') });
+				}
 			}
 			targetId = target.id;
 		}

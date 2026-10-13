@@ -316,16 +316,6 @@ export class ImapConnector implements IEmailConnector {
 						async () => await this.imap.mailboxOpen(mailboxPath)
 					);
 					const lastUid = syncState?.imap?.[mailboxPath]?.maxUid;
-					let currentMaxUid = lastUid || 0;
-
-					if (mailbox.exists > 0) {
-						const lastMessage = await this.imap.fetchOne(String(mailbox.exists), {
-							uid: true,
-						});
-						if (lastMessage && lastMessage.uid > currentMaxUid) {
-							currentMaxUid = lastMessage.uid;
-						}
-					}
 
 					// Initialize with last synced UID, not the maximum UID in mailbox
 					this.newMaxUids[mailboxPath] = lastUid || 0;
@@ -333,21 +323,45 @@ export class ImapConnector implements IEmailConnector {
 					// Only fetch if the mailbox has messages, to avoid errors on empty mailboxes with some IMAP servers.
 					if (mailbox.exists > 0) {
 						const BATCH_SIZE = 250;
-						let startUid = (lastUid || 0) + 1;
-						const maxUidToFetch = currentMaxUid;
+						const fromUid = (lastUid || 0) + 1;
 
-						while (startUid <= maxUidToFetch) {
-							const endUid = Math.min(startUid + BATCH_SIZE - 1, maxUidToFetch);
-							const searchCriteria = { uid: `${startUid}:${endUid}` };
+						// Ask the server which UIDs exist instead of walking the UID range. Providers
+						// such as web.de and GMX number UIDs across the whole account, so a folder's
+						// first message can sit tens of millions of UIDs above 1, and two messages in
+						// one folder can be millions apart. Walking those ranges sent one empty FETCH
+						// per 250 UIDs: about an hour per folder before the first message (#483).
+						const found = await this.withRetry(
+							async () =>
+								await this.imap.search({ uid: `${fromUid}:*` }, { uid: true })
+						);
+						// `n:*` returns the highest message even when n is past it (RFC 3501), and a
+						// server is free to return UIDs in any order, so both are normalised here.
+						const uids = (found || [])
+							.filter((uid) => uid >= fromUid)
+							.sort((a, b) => a - b);
+
+						logger.info(
+							{ mailboxPath, messages: mailbox.exists, toCheck: uids.length },
+							'Mailbox scan'
+						);
+
+						for (let i = 0; i < uids.length; i += BATCH_SIZE) {
+							const batch = uids.slice(i, i + BATCH_SIZE);
 
 							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
 							const uidsToFetch: number[] = [];
 
-							for await (const msg of this.imap.fetch(searchCriteria, {
-								envelope: true,
-								uid: true,
-								flags: true,
-							})) {
+							// `{ uid: true }` makes imapflow read the array as UIDs; without it the
+							// numbers would be taken as sequence numbers.
+							for await (const msg of this.imap.fetch(
+								batch,
+								{
+									envelope: true,
+									uid: true,
+									flags: true,
+								},
+								{ uid: true }
+							)) {
 								if (lastUid && msg.uid <= lastUid) {
 									continue;
 								}
@@ -427,8 +441,10 @@ export class ImapConnector implements IEmailConnector {
 								}
 							}
 
-							// Move to the next batch
-							startUid = endUid + 1;
+							logger.debug(
+								{ mailboxPath, checked: i + batch.length, of: uids.length },
+								'Mailbox scan progress'
+							);
 						}
 					}
 				} catch (err: any) {

@@ -56,6 +56,12 @@ export interface IEmailConnector {
 	 * the skipped messages are reported instead of disappearing without a trace.
 	 */
 	getFetchFailures?(): { count: number; samples: string[] };
+	/**
+	 * Messages the provider refuses to hand over, identically on every attempt, and which were left
+	 * out so the mailbox could finish. Reported by the process-mailbox job but, unlike fetch
+	 * failures, not counted against the mailbox: they would fail it on every cycle.
+	 */
+	getSkippedMessages?(): { count: number; samples: string[] };
 }
 
 export class EmailProviderFactory {

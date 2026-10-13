@@ -5,6 +5,7 @@ import { EmailProviderFactory } from '../../services/EmailProviderFactory';
 import { enqueueMailboxJobs } from '../helpers/enqueueMailboxJobs';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
+import { describeError } from '../../helpers/describeError';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
 import { MailboxRegistryService } from '../../services/MailboxRegistryService';
 
@@ -87,7 +88,7 @@ export default async (job: Job<IInitialImportJob>) => {
 		logger.error({ err: error, ingestionSourceId }, 'Error in initial import master job');
 		await IngestionService.update(ingestionSourceId, {
 			status: 'error',
-			lastSyncStatusMessage: `Initial import failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			lastSyncStatusMessage: `Initial import failed: ${describeError(error)}`,
 		});
 		throw error;
 	}
