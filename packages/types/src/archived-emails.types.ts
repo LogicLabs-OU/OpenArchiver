@@ -52,7 +52,7 @@ export interface ArchivedEmail {
 	isJournaled: boolean | null;
 	archivedAt: Date;
 	attachments?: Attachment[];
-	raw?: Buffer;
+	raw?: string;
 	thread?: ThreadEmail[];
 	path: string | null;
 	tags: string[] | null;
