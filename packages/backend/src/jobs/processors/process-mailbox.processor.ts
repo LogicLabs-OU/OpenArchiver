@@ -8,6 +8,7 @@ import {
 import { IngestionService } from '../../services/IngestionService';
 import { MailboxRegistryService } from '../../services/MailboxRegistryService';
 import { logger } from '../../config/logger';
+import { describeError } from '../../helpers/describeError';
 import { EmailProviderFactory, type IEmailConnector } from '../../services/EmailProviderFactory';
 import { StorageService } from '../../services/StorageService';
 import { config } from '../../config';
@@ -261,9 +262,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 					// would reject the slot wait below and with it the rest of the mailbox.
 					messagesFailed++;
 					if (failureSamples.length < MAX_FAILURE_SAMPLES) {
-						failureSamples.push(
-							`Email ${email.id}: ${err instanceof Error ? err.message : 'unknown error'}`
-						);
+						failureSamples.push(`Email ${email.id}: ${describeError(err)}`);
 					}
 					logger.error(
 						{ err, ingestionSourceId, userEmail, emailId: email.id },
@@ -434,7 +433,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		}
 
 		logger.error({ err: error, ingestionSourceId, userEmail }, 'Error processing mailbox');
-		const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+		const errorMessage = describeError(error);
 
 		// Messages the connector skipped before whatever ended the mailbox. The tally's own abort
 		// throw unwinds past the success path that normally reads this, so without it the count

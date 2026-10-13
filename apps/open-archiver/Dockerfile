@@ -13,13 +13,7 @@ COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/types/package.json ./packages/types/
 COPY apps/open-archiver/package.json ./apps/open-archiver/
 
-# Install the exact pnpm the repo pins. Unversioned, this installed whatever npm called latest, and
-# a newer pnpm answers the packageManager field by fetching @pnpm/exe to switch itself back down to
-# the pinned version — a download its own integrity check then refuses, because pnpm-lock.yaml has
-# no entry for it. Installing the pinned version outright leaves nothing to switch to. Read from
-# packageManager so the version lives in one place rather than two. The `+sha512.…` suffix on that
-# field is for corepack and pnpm's own version switch; npm does not accept it in a version, so it is
-# dropped here.
+# Install the pnpm the repo pins.
 RUN --mount=type=cache,target=/root/.npm \
     npm install -g "pnpm@$(node -p 'require("/app/package.json").packageManager.split("@")[1].split("+")[0]')"
 
@@ -38,11 +32,7 @@ COPY . .
 # Build the OSS packages.
 RUN pnpm build:oss
 
-# 2. Production dependencies, installed here rather than at container start. buildx runs every
-#    stage on the target platform, so native and optional packages already match the image's
-#    architecture, and a container no longer needs the npm registry to boot (#481). Only the
-#    manifests and lockfile in `base` are needed for this; the frontend's prepare hook tolerates
-#    the absent source, as it did in the old startup install.
+# 2. Production dependencies. 
 FROM base AS prod-deps
 ENV PNPM_HOME="/pnpm"
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \

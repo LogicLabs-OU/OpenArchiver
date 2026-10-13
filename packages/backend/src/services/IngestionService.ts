@@ -63,6 +63,8 @@ import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { truncateToBytes } from '../helpers/truncateToBytes';
+import { stripNullBytes } from '../helpers/stripNullBytes';
+import { describeError } from '../helpers/describeError';
 import { quoteMeiliString } from '../helpers/meiliFilter';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
 import { buildReindexWhere } from '../jobs/helpers/indexBacklog';
@@ -1138,8 +1140,7 @@ export class IngestionService {
 				{
 					status: 'error',
 					lastSyncFinishedAt: new Date(),
-					lastSyncStatusMessage:
-						error instanceof Error ? error.message : 'An unknown error occurred.',
+					lastSyncStatusMessage: describeError(error),
 				},
 				actor,
 				actorIp
@@ -1384,7 +1385,12 @@ export class IngestionService {
 	 * be discarded as a duplicate — a silent loss, which is the one outcome an archive must not
 	 * have. The full header is untouched in the stored .eml either way.
 	 */
-	public static boundMessageKey(value: string): string {
+	public static boundMessageKey(rawValue: string): string {
+		// NUL first: Postgres rejects it in every text column, and this is the one path every
+		// message key takes — the header, the provider id, and the ids the pre-fetch duplicate
+		// check receives — so stripping here keeps the lookups keyed exactly like the stored rows
+		// (#479).
+		const value = stripNullBytes(rawValue);
 		if (Buffer.byteLength(value) <= IngestionService.MESSAGE_KEY_MAX_BYTES) {
 			return value;
 		}
@@ -1394,6 +1400,41 @@ export class IngestionService {
 			IngestionService.MESSAGE_KEY_MAX_BYTES - digest.length - 1
 		);
 		return `${truncated}-${digest}`;
+	}
+
+	/**
+	 * Strips NUL characters from every text field of an email before any of them is written.
+	 *
+	 * Postgres rejects a NUL in any text column, and some old automated messages carry one at the
+	 * end of the Subject or a display name (#479); one such email failed its insert, and the
+	 * report of that failure then failed on the same byte. In place rather than a copy: the
+	 * journaling fan-out calls processEmail several times with one EmailObject, and the mailbox
+	 * job logs email.id after the call, so every reader should see the same values. The Message-ID
+	 * header is left alone here — it reaches the database only through boundMessageKey, which
+	 * strips it too — and the stored .eml keeps the original bytes either way.
+	 */
+	private static stripNullBytesFromEmail(email: EmailObject): void {
+		email.id = stripNullBytes(email.id);
+		email.subject = stripNullBytes(email.subject);
+		if (email.threadId !== undefined) {
+			email.threadId = stripNullBytes(email.threadId);
+		}
+		if (email.path !== undefined) {
+			email.path = stripNullBytes(email.path);
+		}
+		if (email.tags) {
+			email.tags = email.tags.map(stripNullBytes);
+		}
+		for (const list of [email.from, email.to, email.cc, email.bcc]) {
+			for (const entry of list ?? []) {
+				entry.name = stripNullBytes(entry.name ?? '');
+				entry.address = stripNullBytes(entry.address ?? '');
+			}
+		}
+		for (const attachment of email.attachments) {
+			attachment.filename = stripNullBytes(attachment.filename ?? '');
+			attachment.contentType = stripNullBytes(attachment.contentType ?? '');
+		}
 	}
 
 	/**
@@ -1591,6 +1632,7 @@ export class IngestionService {
 		// Normalized once here so the dedup gates and all three inserts below agree on what
 		// counts as the same mailbox, whatever casing or padding the provider sent.
 		const userEmail = normalizeEmailAddress(rawUserEmail);
+		IngestionService.stripNullBytesFromEmail(email);
 		try {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
@@ -1939,10 +1981,12 @@ export class IngestionService {
 				ingestionSourceId: source.id,
 			});
 			// Return a distinct error object rather than null so callers can count
-			// genuine failures separately from dedup skips (#403).
+			// genuine failures separately from dedup skips (#403). describeError keeps the
+			// database's own sentence and drops Drizzle's parameter dump, which would otherwise
+			// carry the email's subject — NUL and all — into the session row (#479).
 			return {
 				error: true,
-				message: `Email ${email.id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+				message: `Email ${email.id}: ${describeError(error)}`,
 			};
 		} finally {
 			// Clean up the temp file unless the caller opted out (e.g. journaling
