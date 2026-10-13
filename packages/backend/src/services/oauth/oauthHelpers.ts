@@ -100,11 +100,15 @@ export const verifyState = (state: string): { sourceId: string; nonce: string } 
  *
  * `access_type=offline` is required by Google specifically: without it, Google's
  * auth_code grant returns only a short-lived access token and never issues a refresh
- * token, so the mailbox silently stops syncing about an hour after every authorization.
- * Paired with `prompt=consent` so a user who previously authorized this client+scope
- * without offline access still gets a fresh refresh token rather than Google silently
- * reusing the old (non-offline) grant. Providers that don't recognize these params
- * (e.g. Microsoft) simply ignore them.
+ * token, so the mailbox silently stops syncing about an hour after every authorization
+ * (#477). Paired with `prompt=consent` so a user who previously authorized this
+ * client+scope without offline access still gets a fresh refresh token rather than
+ * Google silently reusing the old (non-offline) grant.
+ *
+ * Both are sent to Google only. Microsoft reads `prompt` as well, and `prompt=consent`
+ * forces the user-consent screen, which blocks sign-in in work tenants where users may
+ * not consent themselves even after an admin has. Microsoft issues refresh tokens through
+ * the `offline_access` scope its presets request, so it needs neither parameter.
  */
 export const buildAuthorizationUrl = (
 	credentials: OAuthMailboxCredentials,
@@ -121,8 +125,11 @@ export const buildAuthorizationUrl = (
 	url.searchParams.set('code_challenge', codeChallenge);
 	url.searchParams.set('code_challenge_method', 'S256');
 	url.searchParams.set('login_hint', credentials.email);
-	url.searchParams.set('access_type', 'offline');
-	url.searchParams.set('prompt', 'consent select_account');
+	const isGoogle = url.hostname === 'accounts.google.com';
+	if (isGoogle) {
+		url.searchParams.set('access_type', 'offline');
+	}
+	url.searchParams.set('prompt', isGoogle ? 'consent select_account' : 'select_account');
 	return url.toString();
 };
 
