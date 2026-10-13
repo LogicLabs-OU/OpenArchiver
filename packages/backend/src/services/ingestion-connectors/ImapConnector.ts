@@ -317,6 +317,7 @@ export class ImapConnector implements IEmailConnector {
 					);
 					const lastUid = syncState?.imap?.[mailboxPath]?.maxUid;
 					let currentMaxUid = lastUid || 0;
+					let firstUidInMailbox: number | undefined;
 
 					if (mailbox.exists > 0) {
 						const lastMessage = await this.imap.fetchOne(String(mailbox.exists), {
@@ -324,6 +325,14 @@ export class ImapConnector implements IEmailConnector {
 						});
 						if (lastMessage && lastMessage.uid > currentMaxUid) {
 							currentMaxUid = lastMessage.uid;
+						}
+						// The lowest UID that actually exists here. Providers assigning UIDs
+						// account-wide rather than per mailbox (web.de, GMX) leave the entire
+						// low UID range of every mailbox empty, so a scan starting at 1 spends
+						// tens of thousands of round trips on UIDs that cannot match.
+						const firstMessage = await this.imap.fetchOne('1', { uid: true });
+						if (firstMessage && firstMessage.uid) {
+							firstUidInMailbox = firstMessage.uid;
 						}
 					}
 
@@ -334,6 +343,13 @@ export class ImapConnector implements IEmailConnector {
 					if (mailbox.exists > 0) {
 						const BATCH_SIZE = 250;
 						let startUid = (lastUid || 0) + 1;
+						// Skip the empty range below the first existing message. Messages are
+						// never assigned a UID lower than one already in the mailbox, so this
+						// cannot skip anything fetchable, and an incremental sync keeps its own
+						// higher starting point.
+						if (firstUidInMailbox && firstUidInMailbox > startUid) {
+							startUid = firstUidInMailbox;
+						}
 						const maxUidToFetch = currentMaxUid;
 
 						while (startUid <= maxUidToFetch) {
