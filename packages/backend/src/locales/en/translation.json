@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "Email and password are required",
-			"invalidCredentials": "Invalid credentials"
+			"invalidCredentials": "Invalid credentials",
+			"ssoEnforced": "Password sign-in is disabled for this account. Please use single sign-on."
 		}
 	},
 	"errors": {
@@ -20,7 +21,11 @@
 	"user": {
 		"notFound": "User not found",
 		"cannotDeleteOnlyUser": "You are trying to delete the only user in the database, this is not allowed.",
-		"requiresSuperAdminRole": "Super Admin role is required to manage users."
+		"requiresSuperAdminRole": "Super Admin role is required to manage users.",
+		"emailManagedByProvider": "Your email address is managed by your identity provider and cannot be changed here.",
+		"emailReservedByIdp": "This email domain is managed by an identity provider. Ask an administrator to change the address for you.",
+		"emailAlreadyInUse": "Another account already uses this email address.",
+		"emailInvalid": "Enter a valid email address."
 	},
 	"iam": {
 		"failedToGetRoles": "Failed to get roles.",
@@ -51,7 +56,10 @@
 		"duplicateCleanupTriggered": "Duplicate cleanup started. It runs in the background.",
 		"duplicateCleanupUnavailable": "Duplicate email cleanup is not available in this version.",
 		"deletionDisabled": "Deletion is disabled for this instance. Set ENABLE_DELETION=true to remove duplicate emails.",
-		"journalingSourceManagedByJournaling": "SMTP journaling sources are managed through the Journaling page and cannot be modified via the ingestion source API."
+		"journalingSourceManagedByJournaling": "SMTP journaling sources are managed through the Journaling page and cannot be modified via the ingestion source API.",
+		"oauthNotOAuthSource": "This ingestion source does not use OAuth authorization.",
+		"oauthAuthorizeFailed": "Could not start the mailbox authorization.",
+		"oauthPollFailed": "Could not check the authorization status."
 	},
 	"archivedEmail": {
 		"notFound": "Archived email not found"
@@ -64,7 +72,8 @@
 		"invalidParam": "One or more search parameters have an invalid value"
 	},
 	"index": {
-		"cleanupTriggered": "Index cleanup has been queued."
+		"cleanupTriggered": "Index cleanup has been queued.",
+		"verifyTriggered": "Index verification has been queued."
 	},
 	"storage": {
 		"filePathRequired": "File path is required",
@@ -85,5 +94,24 @@
 		"parse_error": "Failed to parse the uploaded file data.",
 		"storage_error": "Failed to save the uploaded file to storage. Please try again.",
 		"connection_error": "The connection was lost during the upload."
+	},
+	"sso": {
+		"requiresSuperAdminRole": "Super Admin role is required to manage single sign-on."
+	},
+	"seats": {
+		"mailboxNotFound": "Mailbox not found.",
+		"targetNotFound": "The mailbox to link to was not found.",
+		"sentinelNotAMailbox": "This is a placeholder the archive created when no owner could be determined, not a mailbox. It never counts as a seat.",
+		"sentinelCannotLink": "A placeholder address cannot be linked to a person.",
+		"sentinelCannotBeTarget": "A placeholder address cannot be linked to.",
+		"providerClassified": "The directory reports this mailbox as \"{{kind}}\". A mailbox the provider has classified cannot be declared shared here; change it in the directory instead.",
+		"licensedUser": "The directory reports this mailbox as a licensed user, so it counts as a seat. It cannot be declared shared here; change its licence in the directory instead.",
+		"selfLink": "A mailbox cannot be linked to itself.",
+		"targetAlreadyLinked": "That mailbox is itself linked to another. Link to the mailbox at the end of the chain instead.",
+		"sameDirectory": "These are two separate accounts in the same directory, so they are two people. Only mailboxes from different sources, or addresses the directory itself lists as aliases, can be one seat.",
+		"invalidClassification": "Invalid classification.",
+		"invalidLink": "Invalid link.",
+		"invalidPolicy": "Invalid seat policy.",
+		"aliasesRequired": "Each organization domain group needs at least one alias domain."
 	}
 }

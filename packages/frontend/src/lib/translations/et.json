@@ -144,7 +144,8 @@
 			"delete_confirmation_description": "Seda toimingut ei saa tagasi võtta. See kustutab kasutaja jäädavalt ja eemaldab tema andmed meie serveritest.",
 			"deleting": "Kustutamine",
 			"confirm": "Kinnita",
-			"cancel": "Tühista"
+			"cancel": "Tühista",
+			"email_managed_by_idp": "Haldab identiteedipakkuja"
 		},
 		"setup": {
 			"title": "Seadistamine",

@@ -142,6 +142,8 @@
 			"date_format_iso": "ISO 8601 (AAAA-MM-GG)",
 			"date_format_eu": "Europeo (GG/MM/AAAA)",
 			"date_format_us": "USA (MM/GG/AAAA)"
+			"email_managed_by_idp": "Gestito dal tuo provider di identità",
+			"password_managed_by_idp": "Gestito dal tuo provider di identità"
 		},
 		"system_settings": {
 			"title": "Impostazioni di sistema",
@@ -177,7 +179,8 @@
 			"delete_confirmation_description": "Questa azione non può essere annullata. Questo cancellerà definitivamente l'utente e rimuoverà i suoi dati dai nostri server.",
 			"deleting": "Eliminazione in corso",
 			"confirm": "Conferma",
-			"cancel": "Annulla"
+			"cancel": "Annulla",
+			"email_managed_by_idp": "Gestito dal provider di identità"
 		},
 		"components": {
 			"charts": {

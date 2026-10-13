@@ -20,7 +20,11 @@
 	"user": {
 		"notFound": "ユーザーが見つかりません",
 		"cannotDeleteOnlyUser": "データベース内の唯一のユーザーを削除しようとしていますが、これは許可されていません。",
-		"requiresSuperAdminRole": "ユーザーを管理するには、スーパー管理者ロールが必要です。"
+		"requiresSuperAdminRole": "ユーザーを管理するには、スーパー管理者ロールが必要です。",
+		"emailManagedByProvider": "メールアドレスは ID プロバイダーによって管理されているため、ここでは変更できません。",
+		"emailReservedByIdp": "このメールドメインは ID プロバイダーによって管理されています。アドレスの変更は管理者に依頼してください。",
+		"emailAlreadyInUse": "このメールアドレスは別のアカウントで既に使用されています。",
+		"emailInvalid": "有効なメールアドレスを入力してください。"
 	},
 	"iam": {
 		"failedToGetRoles": "役割の取得に失敗しました。",
@@ -73,5 +77,8 @@
 		"parse_error": "アップロードされたファイルのデータを処理できませんでした。",
 		"storage_error": "アップロードされたファイルを保存できませんでした。もう一度お試しください。",
 		"connection_error": "アップロード中に接続が切断されました。"
+	},
+	"sso": {
+		"requiresSuperAdminRole": "シングルサインオンを管理するには、スーパー管理者ロールが必要です。"
 	}
 }

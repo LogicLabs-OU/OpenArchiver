@@ -30,6 +30,27 @@
 
 	let { data, form } = $props();
 	let user = $derived(data.user);
+	/**
+	 * Password controls are hidden only for accounts that authenticate through
+	 * single sign-on AND hold no password. Both conditions matter: auto-linking
+	 * sets `provider` to 'oidc' or 'saml' on an account whose original password
+	 * remains a working credential — hiding the controls there would leave a live
+	 * password nobody can rotate. `hasPassword === false` is checked explicitly
+	 * rather than falsily, so an older payload without the field keeps the
+	 * controls visible instead of hiding them by accident.
+	 */
+	let isSsoAccount = $derived(
+		Boolean(user?.provider && user.provider !== 'local' && user.hasPassword === false)
+	);
+	/**
+	 * The address, unlike the password controls, turns on `provider` alone.
+	 * `isSsoAccount` is deliberately narrower — it also requires the account to hold
+	 * no password — and reusing it here would leave the address editable on exactly
+	 * the linked accounts where a self-chosen address does the most damage: it is
+	 * what a future assertion links to, and what the "require single sign-on" policy
+	 * reads to decide whom it covers.
+	 */
+	let isFederatedAccount = $derived(Boolean(user?.provider && user.provider !== 'local'));
 
 	// ---- 2FA state (only used in enterprise mode) ----
 	type SetupStep = 'idle' | 'qr' | 'backup-codes';
@@ -49,7 +70,7 @@
 	async function startSetup() {
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/setup', { method: 'POST' });
+			const res = await api('/auth/mfa/setup', { method: 'POST' });
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || $t('app.security.setup_failed'));
@@ -74,7 +95,7 @@
 		if (!setupData) return;
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/enroll', {
+			const res = await api('/auth/mfa/enroll', {
 				method: 'POST',
 				// The secret is stored server-side in Redis — only the code is needed here.
 				body: JSON.stringify({ code: verifyCode }),
@@ -111,7 +132,7 @@
 		e.preventDefault();
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/disable', {
+			const res = await api('/auth/mfa/disable', {
 				method: 'POST',
 				body: JSON.stringify({ code: disableCode }),
 			});
@@ -146,7 +167,7 @@
 		e.preventDefault();
 		mfaLoading = true;
 		try {
-			const res = await api('/enterprise/advanced-security/mfa/backup-codes', {
+			const res = await api('/auth/mfa/backup-codes', {
 				method: 'POST',
 				body: JSON.stringify({ code: regenCode }),
 			});
@@ -295,15 +316,28 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<Label class="text-muted-foreground">{$t('app.auth.password')}</Label>
-					<p class="text-sm">*************</p>
+					{#if isSsoAccount}
+						<p class="text-muted-foreground text-sm">
+							{$t('app.account.password_managed_by_idp')}
+						</p>
+					{:else}
+						<p class="text-sm">*************</p>
+					{/if}
 				</div>
 			</div>
 		</Card.Content>
-		<Card.Footer>
-			<Button variant="outline" onclick={openPasswordDialog}
-				>{$t('app.account.change_password')}</Button
-			>
-		</Card.Footer>
+		<!--
+			An SSO account has no password to change: it was provisioned by the
+			identity provider and authenticates there. Offering the dialog would
+			produce a failure with no explanation.
+		-->
+		{#if !isSsoAccount}
+			<Card.Footer>
+				<Button variant="outline" onclick={openPasswordDialog}
+					>{$t('app.account.change_password')}</Button
+				>
+			</Card.Footer>
+		{/if}
 	</Card.Root>
 
 	<!-- Preferences -->
@@ -342,7 +376,7 @@
 			</div>
 		</Card.Content>
 	</Card.Root>
-	<!-- Two-Factor Authentication (enterprise only) -->
+	<!-- Two-Factor Authentication -->
 	{#if data.mfaStatus !== null}
 		<Card.Root>
 			<Card.Header class="flex flex-row items-center justify-between space-y-0">
@@ -552,13 +586,24 @@
 			</div>
 			<div class="grid grid-cols-4 items-center gap-4">
 				<Label for="email" class="text-right">{$t('app.users.email')}</Label>
-				<Input
-					id="email"
-					name="email"
-					type="email"
-					bind:value={profileEmail}
-					class="col-span-3"
-				/>
+				{#if isFederatedAccount}
+					<!-- Shown rather than edited. The server refuses the change either way;
+					     this is what keeps the form from offering something it cannot do. -->
+					<div class="col-span-3 space-y-1">
+						<p class="text-sm font-medium">{user?.email}</p>
+						<p class="text-muted-foreground text-xs">
+							{$t('app.account.email_managed_by_idp')}
+						</p>
+					</div>
+				{:else}
+					<Input
+						id="email"
+						name="email"
+						type="email"
+						bind:value={profileEmail}
+						class="col-span-3"
+					/>
+				{/if}
 			</div>
 			<Dialog.Footer>
 				<Button type="submit" disabled={isSubmitting}>

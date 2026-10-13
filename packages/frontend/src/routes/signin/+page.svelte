@@ -1,18 +1,78 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { Separator } from '$lib/components/ui/separator';
 	import { api } from '$lib/api.client';
 	import { authStore } from '$lib/stores/auth.store';
-	import type { LoginResponse } from '@open-archiver/types';
+	import type { LoginResponse, PublicSsoConfig } from '@open-archiver/types';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import { t } from '$lib/translations';
+
+	interface Props {
+		data: { publicSso: PublicSsoConfig | null };
+	}
+
+	let { data }: Props = $props();
 
 	let email = $state('');
 	let password = $state('');
 	let isLoading = $state(false);
+	let ssoLoadingId = $state<string | null>(null);
+
+	const sso = $derived(data.publicSso);
+	const hasSso = $derived(Boolean(sso?.enabled && sso.connections.length > 0));
+	/**
+	 * When SSO is required, the password form is hidden behind a link rather than
+	 * removed. Super Admins are exempt from enforcement, and that link is how they
+	 * get in when the identity provider is misconfigured.
+	 */
+	const ssoEnforced = $derived(Boolean(sso?.enforced));
+	let showPasswordForm = $state(false);
+	const passwordFormVisible = $derived(!ssoEnforced || showPasswordForm);
+
+	// The callback page redirects here with a reason when an SSO login fails.
+	$effect(() => {
+		const ssoError = page.url.searchParams.get('ssoError');
+		if (!ssoError) return;
+		setAlert({
+			type: 'error',
+			title: $t('app.auth.sso_failed'),
+			message: $t('app.auth.sso_failed_tip'),
+			duration: 6000,
+			show: true,
+		});
+	});
+
+	async function startSso(connection: { id: string; protocol: string }) {
+		ssoLoadingId = connection.id;
+		try {
+			const response = await api(
+				`/enterprise/sso/${connection.protocol}/${connection.id}/start`,
+				{ method: 'POST' }
+			);
+			if (!response.ok) {
+				const { message } = await response.json().catch(() => ({ message: '' }));
+				throw new Error(message || $t('app.auth.sso_failed_tip'));
+			}
+			const { authorizationUrl }: { authorizationUrl: string } = await response.json();
+			// A full navigation, not a fetch: the user has to meet the identity
+			// provider's own login page.
+			window.location.assign(authorizationUrl);
+		} catch (e: unknown) {
+			ssoLoadingId = null;
+			setAlert({
+				type: 'error',
+				title: $t('app.auth.sso_failed'),
+				message: e instanceof Error ? e.message : String(e),
+				duration: 5000,
+				show: true,
+			});
+		}
+	}
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -90,26 +150,66 @@
 			<Card.Description>{$t('app.auth.login_tip')}</Card.Description>
 		</Card.Header>
 		<Card.Content class="grid gap-4">
-			<form onsubmit={handleSubmit} class="grid gap-4">
+			{#if hasSso && sso}
 				<div class="grid gap-2">
-					<Label for="email">{$t('app.auth.email')}</Label>
-					<Input
-						id="email"
-						type="email"
-						placeholder="m@example.com"
-						bind:value={email}
-						required
-					/>
-				</div>
-				<div class="grid gap-2">
-					<Label for="password">{$t('app.auth.password')}</Label>
-					<Input id="password" type="password" bind:value={password} required />
+					{#each sso.connections as connection (connection.id)}
+						<Button
+							type="button"
+							variant={ssoEnforced ? 'default' : 'outline'}
+							class="w-full"
+							disabled={ssoLoadingId !== null}
+							onclick={() => startSso(connection)}
+						>
+							{ssoLoadingId === connection.id
+								? $t('app.common.working')
+								: $t('app.auth.sso_continue_with', {
+										name: connection.name,
+									} as any)}
+						</Button>
+					{/each}
 				</div>
 
-				<Button type="submit" class=" w-full" disabled={isLoading}>
-					{isLoading ? $t('app.common.working') : $t('app.auth.login')}
-				</Button>
-			</form>
+				{#if passwordFormVisible}
+					<div class="flex items-center gap-3">
+						<Separator class="flex-1" />
+						<span class="text-muted-foreground text-xs uppercase"
+							>{$t('app.auth.sso_or')}</span
+						>
+						<Separator class="flex-1" />
+					</div>
+				{/if}
+			{/if}
+
+			{#if passwordFormVisible}
+				<form onsubmit={handleSubmit} class="grid gap-4">
+					<div class="grid gap-2">
+						<Label for="email">{$t('app.auth.email')}</Label>
+						<Input
+							id="email"
+							type="email"
+							placeholder="m@example.com"
+							bind:value={email}
+							required
+						/>
+					</div>
+					<div class="grid gap-2">
+						<Label for="password">{$t('app.auth.password')}</Label>
+						<Input id="password" type="password" bind:value={password} required />
+					</div>
+
+					<Button type="submit" class=" w-full" disabled={isLoading}>
+						{isLoading ? $t('app.common.working') : $t('app.auth.login')}
+					</Button>
+				</form>
+			{:else}
+				<button
+					type="button"
+					class="text-muted-foreground hover:text-foreground text-center text-xs underline"
+					onclick={() => (showPasswordForm = true)}
+				>
+					{$t('app.auth.sso_use_password')}
+				</button>
+			{/if}
 		</Card.Content>
 	</Card.Root>
 </div>

@@ -5,6 +5,7 @@ import type {
 	EmailAddress,
 	SyncState,
 	MailboxUser,
+	MailboxDirectoryFacts,
 } from '@open-archiver/types';
 import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory';
 import { findByEmailKey } from '../../helpers/emailAddress';
@@ -20,8 +21,10 @@ import {
 	isTransportError,
 	MessageFailureTally,
 	REQUEST_TIMEOUT_MS,
+	SkippedMessageRegister,
 	withRetry,
 } from './helpers/retry';
+import { attachGraphErrorBody } from './helpers/graphErrorBody';
 import { TimeboundMsalNetworkClient } from './helpers/msalNetworkClient';
 
 /** The HTTP status behind a Graph failure. `GraphError` carries it on `statusCode`. */
@@ -39,7 +42,22 @@ const statusOf = (error: any): number | undefined =>
  * errno, so the status is the only signal left to read. Retrying them is what keeps one connection
  * reset from costing a message or a whole folder.
  */
+/**
+ * Graph codes that say the message exists but cannot be produced as MIME. Under app-only access,
+ * `$value` answers `ErrorMimeContentConversionFailed` for S/MIME-encrypted and opaque-signed items
+ * (`IPM.Note.SMIME`) and for non-delivery reports about signed mail
+ * (`REPORT.IPM.Note.SMIME.*.NDR`), identically on every attempt while the metadata read on the same
+ * id succeeds (#487). Only readable once the stream error has had its body attached — see
+ * attachGraphErrorBody.
+ */
+const UNRENDERABLE_MESSAGE_CODES = new Set(['ErrorMimeContentConversionFailed']);
+
+const isUnrenderableMessageError = (error: unknown): boolean =>
+	UNRENDERABLE_MESSAGE_CODES.has(String((error as any)?.code ?? ''));
+
 const isRetryableGraphError = (error: unknown): boolean => {
+	// A fixed answer: the same request gets the same refusal, so a repeat only costs time.
+	if (isUnrenderableMessageError(error)) return false;
 	const status = statusOf(error);
 	if (status === undefined) {
 		// Not a GraphError. `getStream` resolves once the headers arrive, so everything thrown while
@@ -62,28 +80,120 @@ const isDeltaTokenExpired = (error: unknown): boolean =>
 	);
 
 /**
+ * Whether Graph is saying this directory entry has no mailbox to read, rather than that
+ * something went wrong reading it.
+ *
+ * A tenant's `/users` collection is a directory, not a mailbox list: Entra ID guests (`#EXT#`
+ * UPNs, invited to Teams or SharePoint) and members without an Exchange licence appear there
+ * and own nothing to archive. Asking for their mail is answered with one of these codes on
+ * every cycle, forever — no retry, permission change or resync alters it, because the mailbox
+ * does not exist.
+ *
+ * `MailboxNotEnabledForRESTAPI` is the licensed-but-mailbox-less answer; the ResourceNotFound
+ * family is what a guest gets, since the object is not resolvable as a mail user at all.
+ * Distinguishing them from real failures is what lets a cycle whose only "errors" are these
+ * finish as a success instead of parking the source in `error` for the scheduler to retry
+ * every tick (#351).
+ *
+ * Deliberately narrow. A 403 (missing Mail.Read, unconsented app) is a real misconfiguration
+ * and must keep failing loudly, so status alone is never enough to land here.
+ */
+export const isMailboxUnavailableError = (error: unknown): boolean => {
+	const code = String((error as any)?.code ?? '');
+	if (
+		[
+			'MailboxNotEnabledForRESTAPI',
+			'ResourceNotFound',
+			'Request_ResourceNotFound',
+			'ErrorInvalidUser',
+		].includes(code)
+	) {
+		return true;
+	}
+	// Some of these arrive as a 404 whose code sits in the nested body rather than on the
+	// GraphError itself, so the message is the only place the reason survives.
+	if (statusOf(error) !== 404) {
+		return false;
+	}
+	const message = String((error as any)?.message ?? '');
+	return (
+		/MailboxNotEnabledForRESTAPI/i.test(message) ||
+		/does not exist or one of its queried reference-property objects are not present/i.test(
+			message
+		)
+	);
+};
+
+/**
+ * Thrown when the tenant has not granted the MailboxSettings.Read application permission, so a
+ * mailbox's purpose cannot be asked for at all.
+ *
+ * Distinct from a general failure because it is a permanent configuration state rather than an
+ * outage: the caller stops asking for a while instead of retrying every mailbox of every cycle
+ * against a wall. Detected by `name`, the way the workers detect BullMQ's UnrecoverableError.
+ */
+export class MailboxSettingsForbiddenError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'MailboxSettingsForbiddenError';
+	}
+}
+
+/**
  * A connector for Microsoft 365 that uses the Microsoft Graph API with client credentials (app-only)
  * to access data on behalf of the organization.
  */
 export class MicrosoftConnector implements IEmailConnector {
-	private credentials: Microsoft365Credentials;
-	private graphClient: Client;
+	private credentials: Microsoft365Credentials | null;
+	protected graphClient: Client;
 	// Store delta tokens for each folder during a sync operation.
 	private newDeltaTokens: { [folderId: string]: string };
-	private options: ConnectorOptions;
+	protected options: ConnectorOptions;
 	/** Messages skipped so the rest of the mailbox could finish. One connector serves one mailbox. */
 	private failures = new MessageFailureTally();
+	/** Messages Graph refused to render, left out of the archive on purpose. Reported, not counted. */
+	private skipped = new SkippedMessageRegister();
 
-	constructor(credentials: Microsoft365Credentials, options?: ConnectorOptions) {
+	/**
+	 * @param credentials Tenant credentials for the app-only flow. Null when `authProvider`
+	 *   is supplied, because a delegated caller authenticates as a user and has no tenant
+	 *   client secret to offer.
+	 * @param authProvider Overrides how a Graph token is obtained. A delegated subclass passes
+	 *   its own here; everything downstream — delta sync, folder walk, raw MIME — is unaware
+	 *   of which one was used.
+	 */
+	constructor(
+		credentials: Microsoft365Credentials | null,
+		options?: ConnectorOptions,
+		authProvider?: AuthProvider
+	) {
 		this.credentials = credentials;
 		this.options = options ?? { preserveOriginalFile: false };
 		this.newDeltaTokens = {}; // Initialize as an empty object
 
+		this.graphClient = Client.init({
+			authProvider: authProvider ?? this.createAppOnlyAuthProvider(),
+		});
+	}
+
+	/**
+	 * The app-only token source: one client-credentials grant for the whole tenant.
+	 *
+	 * Private rather than protected on purpose. It runs from the constructor, where a
+	 * subclass override would execute before the subclass's own fields exist — a delegated
+	 * connector supplies its provider through the constructor argument instead.
+	 */
+	private createAppOnlyAuthProvider(): AuthProvider {
+		const credentials = this.credentials;
+		if (!credentials) {
+			throw new Error('Microsoft 365 credentials are required for app-only Graph access.');
+		}
+
 		const msalConfig: Configuration = {
 			auth: {
-				clientId: this.credentials.clientId,
-				authority: `https://login.microsoftonline.com/${this.credentials.tenantId}`,
-				clientSecret: this.credentials.clientSecret,
+				clientId: credentials.clientId,
+				authority: `https://login.microsoftonline.com/${credentials.tenantId}`,
+				clientSecret: credentials.clientSecret,
 			},
 			system: {
 				loggerOptions: {
@@ -117,7 +227,7 @@ export class MicrosoftConnector implements IEmailConnector {
 
 		const msalClient = new ConfidentialClientApplication(msalConfig);
 
-		const authProvider: AuthProvider = async (done) => {
+		return async (done) => {
 			try {
 				const response = await msalClient.acquireTokenByClientCredential({
 					scopes: ['https://graph.microsoft.com/.default'],
@@ -131,8 +241,6 @@ export class MicrosoftConnector implements IEmailConnector {
 				done(error, null);
 			}
 		};
-
-		this.graphClient = Client.init({ authProvider });
 	}
 
 	/**
@@ -145,8 +253,38 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * passes straight through, and an abort arrives back as a `GraphError` with the `-1` status
 	 * `isRetryableGraphError` already retries.
 	 */
-	private request(url: string) {
-		return this.graphClient.api(url).option('signal', AbortSignal.timeout(REQUEST_TIMEOUT_MS));
+	protected request(url: string) {
+		return (
+			this.graphClient
+				.api(url)
+				// Immutable ids for every Outlook item this request returns. Regular Graph ids
+				// change when a message is moved between folders, which silently rots every
+				// stored provider_message_id; immutable ids survive folder moves (#428). The
+				// header must accompany EVERY request for the id format to be consistent, and
+				// this method is the one path every Graph call takes — which is what makes
+				// that guarantee hold. Non-Outlook resources (/users) ignore it, and stored
+				// delta tokens are documented as compatible with both formats, so no source
+				// has to resync when this ships.
+				.header('Prefer', 'IdType="ImmutableId"')
+				.option('signal', AbortSignal.timeout(REQUEST_TIMEOUT_MS))
+		);
+	}
+
+	/**
+	 * The Graph path prefix for one mailbox. Every mailbox-scoped request goes through this
+	 * rather than templating `/users/...` inline, because a delegated connector addresses the
+	 * signed-in mailbox as `/me` and has no permission to name it any other way. Overriding
+	 * this one method is what lets the delta sync, folder walk and raw-MIME fetch below be
+	 * shared between the app-only tenant connector and a single-mailbox delegated one.
+	 */
+	protected mailboxPath(userEmail: string): string {
+		// Encoded, because a UPN is not URL-safe. A guest's UPN carries `#EXT#`, and `#` starts
+		// the fragment of a URL: interpolated raw, `/users/alice_contoso.com#EXT#@tenant...`
+		// reaches Graph as `/users/alice_contoso.com`, which is a different (usually absent)
+		// user. That is the origin of the "Resource 'x' does not exist" wording in #351 — the
+		// name Graph reports back is the truncated half, not the account that was asked for.
+		// Every UPN with a reserved character had the same problem.
+		return `/users/${encodeURIComponent(userEmail)}`;
 	}
 
 	/**
@@ -165,22 +303,56 @@ export class MicrosoftConnector implements IEmailConnector {
 	}
 
 	/**
-	 * Lists all users in the Microsoft 365 tenant.
-	 * This method handles pagination to retrieve the complete list of users.
-	 * @returns An async generator that yields each user object.
+	 * Lists the tenant's mail-owning users.
+	 *
+	 * `/users` is a directory rather than a mailbox list, so it also returns Entra ID guests —
+	 * external people invited to Teams or SharePoint, who hold no Exchange mailbox. Archiving
+	 * has nothing to fetch for them, and asking anyway failed every cycle and kept the source
+	 * in `error` permanently (#351). Guests are dropped here, at the one place that decides
+	 * what a cycle will even attempt.
+	 *
+	 * Filtered in code rather than with `$filter=userType eq 'Member'`: `userType` is not
+	 * filterable on a plain request, so that query needs `$count=true` plus the
+	 * `ConsistencyLevel: eventual` header, and without them Graph answers 400 and the source
+	 * lists nothing at all. Adding `userType` to `$select` costs nothing and cannot fail.
+	 *
+	 * Members without a mailbox (no Exchange licence) still get through — nothing in the
+	 * directory marks them — and are handled where they surface, by isMailboxUnavailableError.
+	 *
+	 * @returns An async generator that yields each mail-owning user.
 	 */
 	public async *listAllUsers(): AsyncGenerator<MailboxUser> {
-		let request = this.request('/users').select('id,userPrincipalName,displayName');
+		let request = this.request('/users').select(
+			'id,userPrincipalName,mail,displayName,userType,accountEnabled,assignedLicenses,proxyAddresses'
+		);
+		let skippedGuests = 0;
 
 		try {
 			let response = await request.get();
 			while (response) {
 				for (const user of response.value as User[]) {
+					// Compared case-insensitively; Graph documents 'Guest' but the value is
+					// data, not a contract, and a null userType (rare, directory-synced
+					// objects) must not be mistaken for one.
+					if (String(user.userType ?? '').toLowerCase() === 'guest') {
+						skippedGuests++;
+						continue;
+					}
 					if (user.id && user.userPrincipalName && user.displayName) {
 						yield {
 							id: user.id,
 							primaryEmail: user.userPrincipalName,
 							displayName: user.displayName,
+							directory: {
+								aliases: MicrosoftConnector.aliasesOf(user),
+								// A mailbox with no licence that nonetheless holds mail is the
+								// signature of an Exchange shared mailbox, which is how a tenant
+								// without MailboxSettings.Read is still classified. `purpose` is
+								// left to getMailboxPurpose, which the registry calls on its own
+								// schedule rather than once per user per cycle.
+								licensed: (user.assignedLicenses?.length ?? 0) > 0,
+								accountEnabled: user.accountEnabled ?? undefined,
+							},
 						};
 					}
 				}
@@ -191,8 +363,99 @@ export class MicrosoftConnector implements IEmailConnector {
 					break;
 				}
 			}
+
+			// One line per cycle, not one per guest: a tenant can hold hundreds, and the
+			// operator only needs to know the omission happened and how large it was.
+			if (skippedGuests > 0) {
+				logger.info(
+					{ skippedGuests },
+					'Skipped Entra ID guest users while listing mailboxes; guests hold no mailbox to archive'
+				);
+			}
 		} catch (error) {
 			logger.error({ err: error }, 'Failed to list all users from Microsoft 365');
+			throw error;
+		}
+	}
+
+	/**
+	 * Every address that reaches this object's mailbox, apart from the UPN it is archived under.
+	 *
+	 * `proxyAddresses` carries them prefixed: `SMTP:` marks the primary address, `smtp:` the
+	 * secondaries, and other schemes (`X500:`, `sip:`) address things that are not mail at all.
+	 * Only the SMTP entries could have received a message, so only they can show that a mailbox
+	 * archived under another address is the same person. `mail` is included because a tenant whose
+	 * UPNs differ from its mail addresses files everything under the UPN.
+	 */
+	private static aliasesOf(user: User): string[] {
+		const found = new Set<string>();
+		if (user.mail) {
+			found.add(user.mail.toLowerCase());
+		}
+		for (const entry of user.proxyAddresses ?? []) {
+			if (/^smtp:/i.test(entry)) {
+				found.add(entry.slice(5).toLowerCase());
+			}
+		}
+		found.delete((user.userPrincipalName ?? '').toLowerCase());
+		found.delete('');
+		return [...found];
+	}
+
+	/**
+	 * What Exchange says a mailbox is for: a person, a shared mailbox, a meeting room, equipment.
+	 *
+	 * This is the one authoritative answer to "is anyone actually behind this address", which is
+	 * why seat accounting prefers it to every heuristic. It needs the MailboxSettings.Read
+	 * application permission, which deployments predating seat accounting have not granted, so a
+	 * 403 is expected rather than exceptional and is raised as its own type.
+	 *
+	 * Deliberately not called from listAllUsers(): one request per user per cycle would be
+	 * thousands of extra calls on a large tenant. The registry refreshes it on its own schedule.
+	 *
+	 * @param userId The directory object id, or the UPN.
+	 * @returns The purpose, or undefined when Graph answered without one.
+	 */
+	public async getMailboxPurpose(userId: string): Promise<MailboxDirectoryFacts['purpose']> {
+		try {
+			const settings = await this.request(
+				`/users/${encodeURIComponent(userId)}/mailboxSettings`
+			)
+				.select('userPurpose')
+				.get();
+
+			switch (String(settings?.userPurpose ?? '').toLowerCase()) {
+				case 'shared':
+					return 'shared';
+				case 'room':
+					return 'room';
+				case 'equipment':
+					return 'equipment';
+				// 'linked' is a person whose account lives in another forest — still a person.
+				case 'user':
+				case 'linked':
+					return 'user';
+				case 'others':
+					return 'unknown';
+				default:
+					return undefined;
+			}
+		} catch (error) {
+			if (
+				statusOf(error) === 403 ||
+				['ErrorAccessDenied', 'Authorization_RequestDenied', 'accessDenied'].includes(
+					String((error as any)?.code ?? '')
+				)
+			) {
+				throw new MailboxSettingsForbiddenError(
+					'Reading mailbox settings requires the MailboxSettings.Read application permission.'
+				);
+			}
+			// No mailbox to describe is an answer, not a failure: the account is classified from
+			// its licence state instead.
+			if (isMailboxUnavailableError(error)) {
+				return undefined;
+			}
 			throw error;
 		}
 	}
@@ -207,7 +470,7 @@ export class MicrosoftConnector implements IEmailConnector {
 	public async *fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string, internetMessageId?: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
 		// Looked up case-insensitively: the key was written from the user principal name, whose
 		// casing Graph reports as it was created, while `userEmail` now arrives normalized. A plain
@@ -242,14 +505,53 @@ export class MicrosoftConnector implements IEmailConnector {
 	 * @param userEmail The user principal name or ID.
 	 * @returns An async generator that yields each mail folder.
 	 */
+	/**
+	 * Translates regular ("restId") Graph message ids to their immutable form, up to 1000 per
+	 * call, for the provider-id backfill job. Returns a map of sourceId → targetId containing
+	 * only the ids Graph could resolve; ids that no longer resolve (message deleted, id already
+	 * immutable) are simply absent, and a whole-batch rejection comes back as an empty map —
+	 * the backfill treats anything unresolved as "leave the row alone", so this method never
+	 * needs to fail hard.
+	 */
+	public async translateIds(userEmail: string, ids: string[]): Promise<Map<string, string>> {
+		const translated = new Map<string, string>();
+		if (ids.length === 0) {
+			return translated;
+		}
+		try {
+			const response = await withRetry(
+				() =>
+					this.request(`${this.mailboxPath(userEmail)}/translateExchangeIds`).post({
+						inputIds: ids,
+						sourceIdType: 'restId',
+						targetIdType: 'restImmutableEntryId',
+					}),
+				isRetryableGraphError,
+				{ userEmail, call: 'translateExchangeIds' }
+			);
+			for (const entry of response?.value ?? []) {
+				if (typeof entry?.sourceId === 'string' && typeof entry?.targetId === 'string') {
+					translated.set(entry.sourceId, entry.targetId);
+				}
+			}
+		} catch (error) {
+			logger.warn(
+				{ err: error, userEmail, batchSize: ids.length },
+				'translateExchangeIds batch failed; leaving these rows on their stored ids'
+			);
+		}
+		return translated;
+	}
+
 	private async *listAllFolders(
 		userEmail: string,
 		parentFolderId?: string,
 		currentPath = ''
 	): AsyncGenerator<MailFolder & { path: string }> {
+		const mailbox = this.mailboxPath(userEmail);
 		const requestUrl = parentFolderId
-			? `/users/${userEmail}/mailFolders/${parentFolderId}/childFolders`
-			: `/users/${userEmail}/mailFolders`;
+			? `${mailbox}/mailFolders/${parentFolderId}/childFolders`
+			: `${mailbox}/mailFolders`;
 
 		try {
 			let response = await withRetry(
@@ -299,9 +601,9 @@ export class MicrosoftConnector implements IEmailConnector {
 		folderId: string,
 		path: string,
 		deltaToken?: string,
-		checkDuplicate?: (messageId: string) => Promise<boolean>
+		checkDuplicate?: (messageId: string, internetMessageId?: string) => Promise<boolean>
 	): AsyncGenerator<EmailObject> {
-		const initialUrl = `/users/${userEmail}/mailFolders/${folderId}/messages/delta`;
+		const initialUrl = `${this.mailboxPath(userEmail)}/mailFolders/${folderId}/messages/delta`;
 		let requestUrl: string | undefined = deltaToken || initialUrl;
 		let hasResynced = false;
 
@@ -310,8 +612,16 @@ export class MicrosoftConnector implements IEmailConnector {
 			try {
 				response = await withRetry(
 					// isDraft rides along with the delta response, so no extra request is needed to
-					// tell an unsent draft from a real message.
-					() => this.request(requestUrl!).select('id,conversationId,isDraft').get(),
+					// tell an unsent draft from a real message. internetMessageId is the RFC
+					// Message-ID, carried for the dedup pre-check: it is the key that still
+					// matches when the stored provider id is NULL (pre-migration rows) or stale
+					// (id re-keyed). A deltaLink minted before this select was added keeps its
+					// old field list until the folder rebuilds from initialUrl, so the field is
+					// treated as optional everywhere it is read.
+					() =>
+						this.request(requestUrl!)
+							.select('id,conversationId,isDraft,internetMessageId')
+							.get(),
 					isRetryableGraphError,
 					{ userEmail, folderId, call: 'messages/delta' }
 				);
@@ -347,7 +657,10 @@ export class MicrosoftConnector implements IEmailConnector {
 			for (const message of response.value) {
 				if (message.id && !message['@removed']) {
 					// Skip fetching raw content for already-imported messages
-					if (checkDuplicate && (await checkDuplicate(message.id))) {
+					if (
+						checkDuplicate &&
+						(await checkDuplicate(message.id, message.internetMessageId ?? undefined))
+					) {
 						logger.debug(
 							{ messageId: message.id, userEmail },
 							'Skipping duplicate email (pre-check)'
@@ -406,6 +719,21 @@ export class MicrosoftConnector implements IEmailConnector {
 				this.failures.succeeded();
 				return null;
 			}
+			if (isUnrenderableMessageError(error)) {
+				// Not counted, for the same reason as the 404 above: an identical request returns the
+				// identical refusal, so counting it would fail the mailbox on every cycle and hold the
+				// delta marker in place forever over messages that will never arrive — and a cluster
+				// of them tripped the consecutive-failure brake and abandoned the whole mailbox (#487).
+				// The message stays out of the archive; the warn line and the register are the record.
+				const messageClass = await this.getMessageClass(userEmail, messageId);
+				logger.warn(
+					{ messageId, userEmail, path, code: (error as any).code, messageClass },
+					'Graph cannot render this message as MIME, skipping it.'
+				);
+				this.failures.succeeded();
+				this.skipped.record(`${messageId} (${messageClass})`);
+				return null;
+			}
 			logger.error(
 				{ err: error, messageId, userEmail },
 				'Giving up on message after retries, skipping it and continuing with the mailbox.'
@@ -420,17 +748,53 @@ export class MicrosoftConnector implements IEmailConnector {
 		return this.failures.result;
 	}
 
-	private async getRawEmail(userEmail: string, messageId: string): Promise<Buffer> {
-		// The deadline covers the body read too, not just the response headers — an abort tears down
-		// the stream, so a download that stalls mid-message fails instead of hanging the job.
-		const response = await this.request(
-			`/users/${userEmail}/messages/${messageId}/$value`
-		).getStream();
-		const chunks: any[] = [];
-		for await (const chunk of response) {
-			chunks.push(chunk);
+	/** Messages Graph refused to render, for the mailbox job to report without failing. */
+	public getSkippedMessages(): { count: number; samples: string[] } {
+		return this.skipped.result;
+	}
+
+	/**
+	 * The message class (PidTagMessageClass, `String 0x001A`) of one message, read only for the log
+	 * line of a message Graph would not render — it says whether the item was S/MIME or something
+	 * new. Best effort: the message is being skipped whatever this returns.
+	 */
+	private async getMessageClass(userEmail: string, messageId: string): Promise<string> {
+		try {
+			const response = await withRetry(
+				() =>
+					this.request(`${this.mailboxPath(userEmail)}/messages/${messageId}`)
+						.select('id')
+						.expand("singleValueExtendedProperties($filter=id eq 'String 0x001A')")
+						.get(),
+				isRetryableGraphError,
+				{ userEmail, messageId, call: 'messages/messageClass' }
+			);
+			const value = response?.singleValueExtendedProperties?.[0]?.value;
+			return typeof value === 'string' && value ? value : 'unknown';
+		} catch (error) {
+			logger.debug({ err: error, messageId, userEmail }, 'Could not read the message class.');
+			return 'unknown';
 		}
-		return Buffer.concat(chunks);
+	}
+
+	private async getRawEmail(userEmail: string, messageId: string): Promise<Buffer> {
+		try {
+			// The deadline covers the body read too, not just the response headers — an abort tears
+			// down the stream, so a download that stalls mid-message fails instead of hanging the job.
+			const response = await this.request(
+				`${this.mailboxPath(userEmail)}/messages/${messageId}/$value`
+			).getStream();
+			const chunks: any[] = [];
+			for await (const chunk of response) {
+				chunks.push(chunk);
+			}
+			return Buffer.concat(chunks);
+		} catch (error) {
+			// A failed stream request arrives with no code — the client never reads the body on this
+			// path — so the retry and skip decisions above would see nothing but a status.
+			await attachGraphErrorBody(error);
+			throw error;
+		}
 	}
 
 	private async parseEmail(

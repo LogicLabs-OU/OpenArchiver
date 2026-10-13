@@ -1,11 +1,13 @@
 import { Job } from 'bullmq';
 import { IngestionService } from '../../services/IngestionService';
-import { IInitialImportJob, IngestionStatus } from '@open-archiver/types';
+import { IInitialImportJob, IngestionStatus, MailboxUser } from '@open-archiver/types';
 import { EmailProviderFactory } from '../../services/EmailProviderFactory';
 import { enqueueMailboxJobs } from '../helpers/enqueueMailboxJobs';
 import { SyncSessionService } from '../../services/SyncSessionService';
 import { logger } from '../../config/logger';
+import { describeError } from '../../helpers/describeError';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
+import { MailboxRegistryService } from '../../services/MailboxRegistryService';
 
 export default async (job: Job<IInitialImportJob>) => {
 	const { ingestionSourceId } = job.data;
@@ -31,11 +33,25 @@ export default async (job: Job<IInitialImportJob>) => {
 		// old FlowChildJob descriptors (~500 bytes each), and we need the count before we can
 		// create the session.
 		const userEmails: string[] = [];
+		const listedUsers: MailboxUser[] = [];
 		for await (const user of connector.listAllUsers()) {
 			if (user.primaryEmail) {
 				// Normalized here so the mailbox identity is canonical before it is queued.
 				userEmails.push(normalizeEmailAddress(user.primaryEmail));
+				listedUsers.push(user);
 			}
+		}
+
+		// Recorded before any mailbox job runs, so a mailbox is known to seat accounting before
+		// its first message is archived. Never allowed to fail the import: what the directory says
+		// about a mailbox is useful, but it is not what the customer asked this job to do.
+		try {
+			await MailboxRegistryService.upsertFromDirectory(source, listedUsers, connector);
+		} catch (error) {
+			logger.error(
+				{ err: error, ingestionSourceId },
+				'Could not record directory mailboxes; seat accounting will recover them at the next reconciliation'
+			);
 		}
 
 		if (userEmails.length === 0) {
@@ -72,7 +88,7 @@ export default async (job: Job<IInitialImportJob>) => {
 		logger.error({ err: error, ingestionSourceId }, 'Error in initial import master job');
 		await IngestionService.update(ingestionSourceId, {
 			status: 'error',
-			lastSyncStatusMessage: `Initial import failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			lastSyncStatusMessage: `Initial import failed: ${describeError(error)}`,
 		});
 		throw error;
 	}

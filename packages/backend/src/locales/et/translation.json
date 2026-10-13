@@ -20,7 +20,11 @@
 	"user": {
 		"notFound": "Kasutajat ei leitud",
 		"cannotDeleteOnlyUser": "Püüate kustutada andmebaasi ainsat kasutajat, see pole lubatud.",
-		"requiresSuperAdminRole": "Kasutajate haldamiseks on vajalik superadministraatori roll."
+		"requiresSuperAdminRole": "Kasutajate haldamiseks on vajalik superadministraatori roll.",
+		"emailManagedByProvider": "Teie e-posti aadressi haldab teie identiteedipakkuja ja seda ei saa siin muuta.",
+		"emailReservedByIdp": "Seda e-posti domeeni haldab identiteedipakkuja. Paluge administraatoril aadress teie eest muuta.",
+		"emailAlreadyInUse": "Teine konto juba kasutab seda e-posti aadressi.",
+		"emailInvalid": "Sisestage kehtiv e-posti aadress."
 	},
 	"iam": {
 		"failedToGetRoles": "Rollide hankimine ebaõnnestus.",
@@ -73,5 +77,8 @@
 		"parse_error": "Üleslaaditud faili andmeid ei õnnestunud töödelda.",
 		"storage_error": "Üleslaaditud faili salvestamine ebaõnnestus. Palun proovige uuesti.",
 		"connection_error": "Ühendus katkes üleslaadimise ajal."
+	},
+	"sso": {
+		"requiresSuperAdminRole": "Ühekordse sisselogimise (SSO) haldamiseks on vajalik superadministraatori roll."
 	}
 }

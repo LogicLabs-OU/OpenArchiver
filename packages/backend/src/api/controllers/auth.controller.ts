@@ -46,6 +46,12 @@ export class AuthController {
 				true
 			);
 			const result = await this.#authService.login(email, password, req.ip || 'unknown');
+			// Unreachable in practice — enforcement requires a prior SSO login,
+			// which requires users, and setup requires none — but the union allows
+			// it, and returning a denial body with a 201 would be nonsense.
+			if (result && 'denied' in result) {
+				return res.status(403).json({ message: req.t(result.reason) });
+			}
 			return res.status(201).json(result);
 		} catch (error) {
 			console.error('Setup error:', error);
@@ -65,6 +71,13 @@ export class AuthController {
 
 			if (!result) {
 				return res.status(401).json({ message: req.t('auth.login.invalidCredentials') });
+			}
+
+			// The password was correct but the method is refused by policy —
+			// an enterprise deployment requiring single sign-on. 403 rather than
+			// 401: the credentials were not wrong, the door is.
+			if ('denied' in result) {
+				return res.status(403).json({ message: req.t(result.reason) });
 			}
 
 			// MFA pending — set the pending token as an httpOnly cookie and signal the client to redirect.

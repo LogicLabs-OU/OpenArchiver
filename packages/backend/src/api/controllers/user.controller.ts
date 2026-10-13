@@ -48,9 +48,28 @@ export const updateUser = async (req: Request, res: Response) => {
 	if (!actor) {
 		return res.status(401).json({ message: 'Unauthorized' });
 	}
+
+	const target = await userService.findById(req.params.id);
+	if (!target) {
+		return res.status(404).json({ message: req.t('user.notFound') });
+	}
+
+	// Not self-service: this route is Super Admin only, and preparing a local
+	// account on a federated domain ahead of someone's first sign-in is exactly
+	// how "Link to existing accounts" is meant to be used. A federated account's
+	// address stays off limits even here, since the provider re-asserts it.
+	const decision = await userService.assessEmailChange(target, email, false);
+	if (decision.outcome === 'denied') {
+		return res.status(decision.status).json({ message: req.t(decision.reason) });
+	}
+
 	const updatedUser = await userService.updateUser(
 		req.params.id,
-		{ email, first_name, last_name },
+		{
+			first_name,
+			last_name,
+			...(decision.outcome === 'allowed' ? { email: decision.email } : {}),
+		},
 		roleId,
 		actor,
 		req.ip || 'unknown'
@@ -104,9 +123,23 @@ export const updateProfile = async (req: Request, res: Response) => {
 	if (!actor) {
 		return res.status(401).json({ message: 'Unauthorized' });
 	}
+
+	// The address decides who a later SSO assertion links to and whether the
+	// "require single sign-on" policy covers this account, so it is not the
+	// account holder's to choose freely. A read-only field in the UI is only a
+	// display; the refusal has to happen here.
+	const decision = await userService.assessEmailChange(actor, email, true);
+	if (decision.outcome === 'denied') {
+		return res.status(decision.status).json({ message: req.t(decision.reason) });
+	}
+
 	const updatedUser = await userService.updateUser(
 		req.user.sub,
-		{ email, first_name, last_name },
+		{
+			first_name,
+			last_name,
+			...(decision.outcome === 'allowed' ? { email: decision.email } : {}),
+		},
 		undefined,
 		actor,
 		req.ip || 'unknown'

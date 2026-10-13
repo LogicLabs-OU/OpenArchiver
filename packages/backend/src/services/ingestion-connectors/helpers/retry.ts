@@ -142,3 +142,31 @@ export class MessageFailureTally {
 		return { count: this.#count, samples: [...this.#samples] };
 	}
 }
+
+/**
+ * Keeps a record of messages a provider refuses to hand over, deterministically, so the mailbox
+ * could finish without them.
+ *
+ * These are not failures: the same request gets the same refusal on every cycle, so counting them
+ * with `MessageFailureTally` would fail the mailbox every time and hold its sync marker in place
+ * forever over messages that will never arrive. They are not nothing either — each one is a gap in
+ * the archive — so the connector records them and the mailbox job reports the count and samples,
+ * which is the operator's register of what is missing.
+ */
+export class SkippedMessageRegister {
+	static readonly MAX_SAMPLES = 5;
+
+	#count = 0;
+	#samples: string[] = [];
+
+	public record(subject: string): void {
+		this.#count++;
+		if (this.#samples.length < SkippedMessageRegister.MAX_SAMPLES) {
+			this.#samples.push(subject);
+		}
+	}
+
+	public get result(): { count: number; samples: string[] } {
+		return { count: this.#count, samples: [...this.#samples] };
+	}
+}

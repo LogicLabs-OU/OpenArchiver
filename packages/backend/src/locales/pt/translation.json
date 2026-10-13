@@ -20,7 +20,11 @@
 	"user": {
 		"notFound": "Usuário não encontrado",
 		"cannotDeleteOnlyUser": "Você está tentando excluir o único usuário no banco de dados, isso não é permitido.",
-		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar usuários."
+		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar usuários.",
+		"emailManagedByProvider": "Seu endereço de e-mail é gerenciado pelo seu provedor de identidade e não pode ser alterado aqui.",
+		"emailReservedByIdp": "Este domínio de e-mail é gerenciado por um provedor de identidade. Peça a um administrador para alterar o endereço para você.",
+		"emailAlreadyInUse": "Outra conta já usa este endereço de e-mail.",
+		"emailInvalid": "Digite um endereço de e-mail válido."
 	},
 	"iam": {
 		"failedToGetRoles": "Falha ao obter as funções.",
@@ -73,5 +77,8 @@
 		"parse_error": "Não foi possível processar os dados do arquivo enviado.",
 		"storage_error": "Não foi possível salvar o arquivo enviado. Por favor, tente novamente.",
 		"connection_error": "A conexão foi perdida durante o envio."
+	},
+	"sso": {
+		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar o logon único."
 	}
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "sso_connection_id" uuid;

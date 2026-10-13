@@ -9,12 +9,23 @@
 		placeholder = '',
 		id = undefined,
 		loadSuggestions = undefined,
+		commitOnBlur = false,
 	}: {
 		values: string[];
 		placeholder?: string;
 		id?: string;
 		/** Optional async source of typeahead suggestions for the current draft. */
 		loadSuggestions?: (query: string) => Promise<string[]>;
+		/**
+		 * Commit whatever is typed when the field loses focus.
+		 *
+		 * Off by default, which suits search: a half-typed term should not silently
+		 * become a filter. On a settings form it is the opposite — the user types a
+		 * value, clicks Save, and reasonably expects the value they can see to count.
+		 * Without this they get a validation error naming a field that visibly holds
+		 * the very thing it says is missing.
+		 */
+		commitOnBlur?: boolean;
 	} = $props();
 
 	let draft = $state('');
@@ -134,8 +145,16 @@
 				}
 			}}
 			onblur={() => {
-				// Close the suggestion list on blur, but never auto-commit the typed value —
-				// values are only added on Enter/comma or by picking a suggestion.
+				// Commit synchronously rather than inside the timeout below: a click on
+				// Save blurs this field first, and the submit handler reads `values`
+				// before any deferred work would have run.
+				//
+				// Skipped while the suggestion list is open, because the blur may be a
+				// click on a suggestion — committing here as well would add two values.
+				if (commitOnBlur && !open) {
+					addDraft();
+				}
+				// Closing is deferred so a suggestion click lands before the list goes.
 				setTimeout(() => {
 					closeSuggestions();
 				}, 120);

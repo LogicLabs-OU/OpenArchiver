@@ -116,6 +116,11 @@
 						<Card.Header>
 							<Card.Title>{$t('app.dashboard_page.storage_by_source')}</Card.Title>
 						</Card.Header>
+						<!-- Stretched so the source list fills the card beside its taller
+						     neighbour and scrolls within it. Safe for #121: this height comes
+						     from the grid row rather than from the chart's own content, and the
+						     plot inside is a fixed height that cannot scroll, so nothing the
+						     legend does can feed back into what the chart measures. -->
 						<Card.Content class="h-full">
 							{#if data.ingestionSources && data.ingestionSources.length > 0}
 								<StorageBySourceChart data={data.ingestionSources} />

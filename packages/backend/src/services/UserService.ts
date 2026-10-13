@@ -4,6 +4,21 @@ import { eq, sql } from 'drizzle-orm';
 import { hash, compare } from 'bcryptjs';
 import type { CaslPolicy, User } from '@open-archiver/types';
 import { AuditService } from './AuditService';
+import { IdentityPolicyHook } from '../hooks/IdentityPolicyHook';
+import { normalizeEmailAddress } from '../helpers/emailAddress';
+
+/**
+ * The verdict on a submitted email address.
+ *
+ * `unchanged` is separate from `allowed` on purpose: the profile form posts every
+ * field on every save, so a federated account saving a new first name submits its
+ * own address untouched. Treating that as a change would refuse the save, and
+ * writing it back would rewrite the stored casing for nothing.
+ */
+export type EmailChangeDecision =
+	| { outcome: 'unchanged' }
+	| { outcome: 'allowed'; email: string }
+	| { outcome: 'denied'; reason: string; status: 403 | 409 };
 
 export class UserService {
 	private static auditService = new AuditService();
@@ -39,12 +54,16 @@ export class UserService {
 		last_name: true,
 		createdAt: true,
 		totpEnabled: true,
+		provider: true,
 	} as const;
 
 	public async findById(id: string): Promise<User | null> {
 		const user = await db.query.users.findFirst({
 			where: eq(schema.users.id, id),
-			columns: UserService.#publicColumns,
+			// `password` is selected only to be collapsed into a boolean below.
+			// It is destructured out explicitly — never spread — so the hash
+			// cannot reach a response shape the way the raw login row once did.
+			columns: { ...UserService.#publicColumns, password: true },
 			with: {
 				userRoles: {
 					with: {
@@ -55,15 +74,18 @@ export class UserService {
 		});
 		if (!user) return null;
 
+		const { password, userRoles, ...publicFields } = user;
 		return {
-			...user,
-			role: user.userRoles[0]?.role || null,
+			...publicFields,
+			hasPassword: Boolean(password),
+			role: userRoles[0]?.role || null,
 		};
 	}
 
 	public async findAll(): Promise<User[]> {
 		const users = await db.query.users.findMany({
-			columns: UserService.#publicColumns,
+			// Same arrangement as findById: the hash is read, collapsed, discarded.
+			columns: { ...UserService.#publicColumns, password: true },
 			with: {
 				userRoles: {
 					with: {
@@ -73,10 +95,14 @@ export class UserService {
 			},
 		});
 
-		return users.map((u) => ({
-			...u,
-			role: u.userRoles[0]?.role || null,
-		}));
+		return users.map((u) => {
+			const { password, userRoles, ...publicFields } = u;
+			return {
+				...publicFields,
+				hasPassword: Boolean(password),
+				role: userRoles[0]?.role || null,
+			};
+		});
 	}
 
 	public async createUser(
@@ -84,7 +110,7 @@ export class UserService {
 		roleId: string,
 		actor: User,
 		actorIp: string
-	): Promise<typeof schema.users.$inferSelect> {
+	): Promise<User | null> {
 		const { email, first_name, last_name, password } = userDetails;
 		const hashedPassword = password ? await hash(password, 10) : undefined;
 
@@ -114,7 +140,71 @@ export class UserService {
 			},
 		});
 
-		return newUser[0];
+		// The public projection, for the same reason as `updateUser`: the controller
+		// serializes this to the browser, and the inserted row carries the password
+		// hash that was just written.
+		return this.findById(newUser[0].id);
+	}
+
+	/**
+	 * Whether this account may take the submitted address.
+	 *
+	 * Both write paths ask before writing, because the address is what every other
+	 * identity decision keys on: SSO links an assertion to whichever local account
+	 * already holds the asserted address, and the "require single sign-on" policy
+	 * decides who it covers from the stored domain. An account free to rewrite its
+	 * own address is therefore free to claim someone else's identity and to leave
+	 * the enforcement policy's reach.
+	 *
+	 * @param selfService False when an administrator is acting on someone else, which
+	 * relaxes the reserved-domain rule — preparing accounts ahead of a first sign-in
+	 * is exactly how "Link to existing accounts" is meant to be used.
+	 */
+	public async assessEmailChange(
+		target: User,
+		newEmail: string | undefined | null,
+		selfService: boolean
+	): Promise<EmailChangeDecision> {
+		if (typeof newEmail !== 'string' || newEmail.trim() === '') {
+			return { outcome: 'unchanged' };
+		}
+
+		const next = normalizeEmailAddress(newEmail);
+		if (next === normalizeEmailAddress(target.email)) {
+			return { outcome: 'unchanged' };
+		}
+
+		if (!/^[^\s@]+@[^\s@]+$/.test(next)) {
+			return { outcome: 'denied', reason: 'user.emailInvalid', status: 403 };
+		}
+
+		// A federated account's address belongs to the identity provider. Rewriting
+		// it locally decides nothing — the next assertion carries the provider's
+		// address regardless — while breaking the two rules above in the meantime.
+		if (target.provider && target.provider !== 'local') {
+			return { outcome: 'denied', reason: 'user.emailManagedByProvider', status: 403 };
+		}
+
+		if (selfService) {
+			const reason = await IdentityPolicyHook.emailChangeDenialReason(
+				{ id: target.id, email: target.email, provider: target.provider },
+				next
+			);
+			if (reason) return { outcome: 'denied', reason, status: 403 };
+		}
+
+		// Checked here rather than left to the unique constraint: an unhandled
+		// constraint violation reaches the browser as a 500, which reads as a broken
+		// server instead of an address someone else already has.
+		const [taken] = await db
+			.select({ id: schema.users.id })
+			.from(schema.users)
+			.where(sql`lower(${schema.users.email}) = ${next}`);
+		if (taken && taken.id !== target.id) {
+			return { outcome: 'denied', reason: 'user.emailAlreadyInUse', status: 409 };
+		}
+
+		return { outcome: 'allowed', email: next };
 	}
 
 	public async updateUser(
@@ -123,13 +213,19 @@ export class UserService {
 		roleId: string | undefined,
 		actor: User,
 		actorIp: string
-	): Promise<typeof schema.users.$inferSelect | null> {
+	): Promise<User | null> {
 		const originalUser = await this.findById(id);
-		const updatedUser = await db
-			.update(schema.users)
-			.set(userDetails)
-			.where(eq(schema.users.id, id))
-			.returning();
+
+		// Only the fields the caller actually sent. `set()` refuses an object whose
+		// every value is undefined, which is what a request carrying nothing but a
+		// role change now looks like — the address is dropped before it gets here
+		// when the account may not change it.
+		const fields = Object.fromEntries(
+			Object.entries(userDetails).filter(([, value]) => value !== undefined)
+		);
+		if (Object.keys(fields).length > 0) {
+			await db.update(schema.users).set(fields).where(eq(schema.users.id, id));
+		}
 
 		if (roleId && originalUser?.role?.id !== roleId) {
 			await db.delete(schema.userRoles).where(eq(schema.userRoles.userId, id));
@@ -151,9 +247,30 @@ export class UserService {
 			});
 		}
 
-		// TODO: log other user detail changes
+		// One entry per changed field, in the same shape as the role entry above. An
+		// address change matters most: it is what the SSO linking step and the login
+		// policy read, so a change here has to leave a trail that names both values.
+		for (const field of ['email', 'first_name', 'last_name'] as const) {
+			const newValue = userDetails[field];
+			if (newValue === undefined) continue;
+			const oldValue = originalUser?.[field] ?? null;
+			if (newValue === oldValue) continue;
 
-		return updatedUser[0] || null;
+			await UserService.auditService.createAuditLog({
+				actorIdentifier: actor.id,
+				actionType: 'UPDATE',
+				targetType: 'User',
+				targetId: id,
+				actorIp,
+				details: { field, oldValue, newValue },
+			});
+		}
+
+		// Re-read through the public projection rather than returning what the write
+		// produced: `returning()` hands back the whole row, and both callers send this
+		// straight to the browser — which put the password hash, the TOTP secret and
+		// the backup codes on the wire.
+		return this.findById(id);
 	}
 
 	public async deleteUser(id: string, actor: User, actorIp: string): Promise<void> {

@@ -144,7 +144,8 @@
 			"delete_confirmation_description": "この操作は元に戻せません。これにより、ユーザーが完全に削除され、データがサーバーから削除されます。",
 			"deleting": "削除中",
 			"confirm": "確認",
-			"cancel": "キャンセル"
+			"cancel": "キャンセル",
+			"email_managed_by_idp": "ID プロバイダーによって管理されています"
 		},
 		"setup": {
 			"title": "セットアップ",

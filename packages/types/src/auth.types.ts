@@ -59,9 +59,22 @@ export interface MfaPendingResponse {
 }
 
 /**
+ * Returned by AuthService when the password was correct but password login is
+ * refused by policy — an enterprise deployment with "require single sign-on"
+ * enabled. Distinct from `null`, which means the credentials were wrong.
+ */
+export interface PasswordLoginDeniedResponse {
+	/** Always true — discriminates from the other login results. */
+	denied: true;
+	/** Backend translation key for the refusal, e.g. 'auth.login.ssoEnforced'. */
+	reason: string;
+}
+
+/**
  * The union return type for the login endpoint.
  * - `LoginResponse` — credentials valid, no MFA required.
  * - `MfaPendingResponse` — credentials valid, MFA challenge required.
+ * - `PasswordLoginDeniedResponse` — credentials valid, method refused by policy.
  * - `null` — credentials invalid.
  */
-export type LoginResult = LoginResponse | MfaPendingResponse | null;
+export type LoginResult = LoginResponse | MfaPendingResponse | PasswordLoginDeniedResponse | null;

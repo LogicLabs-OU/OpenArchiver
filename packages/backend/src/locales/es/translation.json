@@ -20,7 +20,11 @@
 	"user": {
 		"notFound": "Usuario no encontrado",
 		"cannotDeleteOnlyUser": "Estás intentando eliminar al único usuario de la base de datos, esto no está permitido.",
-		"requiresSuperAdminRole": "Se requiere el rol de Superadministrador para gestionar usuarios."
+		"requiresSuperAdminRole": "Se requiere el rol de Superadministrador para gestionar usuarios.",
+		"emailManagedByProvider": "Tu proveedor de identidad gestiona tu dirección de correo electrónico y no se puede cambiar aquí.",
+		"emailReservedByIdp": "Un proveedor de identidad gestiona este dominio de correo electrónico. Pide a un administrador que cambie la dirección por ti.",
+		"emailAlreadyInUse": "Otra cuenta ya usa esta dirección de correo electrónico.",
+		"emailInvalid": "Introduce una dirección de correo electrónico válida."
 	},
 	"iam": {
 		"failedToGetRoles": "Error al obtener los roles.",
@@ -73,5 +77,8 @@
 		"parse_error": "No se pudieron procesar los datos del archivo cargado.",
 		"storage_error": "No se pudo guardar el archivo cargado. Por favor, inténtalo de nuevo.",
 		"connection_error": "La conexión se perdió durante la carga."
+	},
+	"sso": {
+		"requiresSuperAdminRole": "Se requiere el rol de Superadministrador para gestionar el inicio de sesión único."
 	}
 }

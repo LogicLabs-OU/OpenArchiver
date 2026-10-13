@@ -91,3 +91,9 @@ Once the connection is saved, the system will begin the archiving process:
 1.  **User Discovery:** The service will connect to the Microsoft Graph API to get a list of all users in your organization.
 2.  **Initial Import:** The system will begin a background job to import the mailboxes of all discovered users, folder by folder. The status will show as **"Importing"**. This can take a significant amount of time.
 3.  **Continuous Sync:** After the initial import, the status will change to **"Active"**. The system will use Microsoft Graph's delta query feature to efficiently fetch only new or changed emails, ensuring the archive stays up-to-date.
+
+### Messages Graph cannot render
+
+With app-only access, Microsoft Graph refuses to produce the original MIME content for some items and answers `ErrorMimeContentConversionFailed` every time. This affects S/MIME-encrypted and opaque-signed messages (`IPM.Note.SMIME`) and non-delivery reports about signed mail (`REPORT.IPM.Note.SMIME.NDR`, `REPORT.IPM.Note.SMIME.MultipartSigned.NDR`). Clear-signed messages are not affected.
+
+These items are skipped so the rest of the mailbox can be archived and its sync position saved. They are **not** in the archive. The ingestion worker logs each one at `warn` level with its message ID, the Graph error code and the message class, and logs one summary line per mailbox run with the count and sample IDs. Keep those log lines if you need a record of what the archive is missing.

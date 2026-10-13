@@ -20,7 +20,11 @@
 	"user": {
 		"notFound": "Gebruiker niet gevonden",
 		"cannotDeleteOnlyUser": "U probeert de enige gebruiker in de database te verwijderen, dit is niet toegestaan.",
-		"requiresSuperAdminRole": "De rol van Super Admin is vereist om gebruikers te beheren."
+		"requiresSuperAdminRole": "De rol van Super Admin is vereist om gebruikers te beheren.",
+		"emailManagedByProvider": "Uw e-mailadres wordt beheerd door uw identiteitsprovider en kan hier niet worden gewijzigd.",
+		"emailReservedByIdp": "Dit e-maildomein wordt beheerd door een identiteitsprovider. Vraag een beheerder om het adres voor u te wijzigen.",
+		"emailAlreadyInUse": "Een ander account gebruikt dit e-mailadres al.",
+		"emailInvalid": "Voer een geldig e-mailadres in."
 	},
 	"iam": {
 		"failedToGetRoles": "Kan rollen niet ophalen.",
@@ -73,5 +77,8 @@
 		"parse_error": "De gegevens van het geüploade bestand konden niet worden verwerkt.",
 		"storage_error": "Het geüploade bestand kon niet worden opgeslagen. Probeer het opnieuw.",
 		"connection_error": "De verbinding is verbroken tijdens het uploaden."
+	},
+	"sso": {
+		"requiresSuperAdminRole": "De rol van Super Admin is vereist om eenmalige aanmelding te beheren."
 	}
 }

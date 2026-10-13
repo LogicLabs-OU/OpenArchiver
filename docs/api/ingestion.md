@@ -30,6 +30,24 @@ Manage ingestion sources — the configured connections to email providers (Goog
 
 <OAOperation operationId="triggerInitialImport" />
 
+## Start OAuth Mailbox Authorization
+
+Starts (or restarts) the OAuth authorization of an `oauth_mailbox` source. Serves first-time setup and re-authorization identically.
+
+<OAOperation operationId="startOAuthMailboxAuthorization" />
+
+## Poll a Device-Code Authorization
+
+One poll step of an in-progress device-code authorization. Call on the interval the authorize endpoint returned, until `pending` is false.
+
+<OAOperation operationId="pollOAuthMailboxAuthorization" />
+
+## OAuth Callback
+
+The browser return leg of the authorization code flow. Unauthenticated — the signed, single-use `state` parameter is the credential. Not intended to be called directly.
+
+<OAOperation operationId="oauthMailboxCallback" />
+
 ## Pause an Ingestion Source
 
 <OAOperation operationId="pauseIngestionSource" />

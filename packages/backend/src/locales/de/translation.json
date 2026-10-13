@@ -20,7 +20,11 @@
 	"user": {
 		"notFound": "Benutzer nicht gefunden",
 		"cannotDeleteOnlyUser": "Sie versuchen, den einzigen Benutzer in der Datenbank zu löschen, dies ist nicht gestattet.",
-		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Benutzer zu verwalten."
+		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Benutzer zu verwalten.",
+		"emailManagedByProvider": "Ihre E-Mail-Adresse wird von Ihrem Identitätsanbieter verwaltet und kann hier nicht geändert werden.",
+		"emailReservedByIdp": "Diese E-Mail-Domain wird von einem Identitätsanbieter verwaltet. Bitten Sie einen Administrator, die Adresse für Sie zu ändern.",
+		"emailAlreadyInUse": "Ein anderes Konto verwendet diese E-Mail-Adresse bereits.",
+		"emailInvalid": "Geben Sie eine gültige E-Mail-Adresse ein."
 	},
 	"iam": {
 		"failedToGetRoles": "Rollen konnten nicht abgerufen werden.",
@@ -73,5 +77,8 @@
 		"parse_error": "Die hochgeladenen Dateidaten konnten nicht verarbeitet werden.",
 		"storage_error": "Die hochgeladene Datei konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
 		"connection_error": "Die Verbindung wurde während des Uploads unterbrochen."
+	},
+	"sso": {
+		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Single Sign-on zu verwalten."
 	}
 }

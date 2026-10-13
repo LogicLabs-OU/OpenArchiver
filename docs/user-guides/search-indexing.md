@@ -20,6 +20,8 @@ Every ingestion source shows an **index-health** figure — "_X of Y emails inde
 
 A gap between the two numbers means some emails are missing from search and should be reindexed.
 
+The per-source figure counts emails the database has marked as indexed; it does not ask the search engine. To check the marks against the documents the search engine actually holds, use **Verify index coverage** on **Admin → Index** (see below).
+
 ## Automatic self-healing
 
 A background **reconcile** job runs on a schedule and re-queues any emails that are archived but not yet in the index, so transient failures heal on their own without any action. It is safe to leave on and is designed to stay cheap even with millions of emails.
@@ -59,7 +61,7 @@ On the **Ingestion Sources** page, open a source's actions menu and choose **Rei
 Use the **Reindex All** button at the top of the Ingestion Sources page and pick **Reindex missing** or **Full rebuild**. This covers every source. See [Reindex All Sources](/api/ingestion#reindex-all-sources).
 
 ::: tip Upgrading from an older version
-On upgrade, existing emails are marked as indexed to avoid re-indexing the whole archive automatically. If the index-health figure shows a genuine gap for older data, run a **Full rebuild** (or a per-source full reindex) once to bring the index up to date. A **Full rebuild** is also what backfills newer search fields for existing mail — for example the **with/without attachments** filter and **resolved sender names** in results, both added in v0.5.2.
+On the upgrade to v0.5.1, existing emails were marked as indexed without checking the search engine, to avoid re-indexing the whole archive automatically. Emails whose index writes never completed on an older version therefore stay missing from search, and the automatic reconcile does not find them. Run **Verify index coverage** on **Admin → Index** once: it checks each marked email against the search engine and queues only the missing ones for indexing. A **Full rebuild** is also what backfills newer search fields for existing mail — for example the **with/without attachments** filter and **resolved sender names** in results, both added in v0.5.2.
 :::
 
 ### Watching progress
@@ -80,7 +82,9 @@ For deeper troubleshooting, **Admin → Index** (Super Administrator only) mirro
 - **Index metadata** — document count, primary key, indexing state, and field distribution for the `emails` index.
 - **Documents by ingestion source** — per-source document counts taken straight from the search index (not the database), which is the quickest way to spot which source is under-indexed.
 - **Tasks** — the Meilisearch task list (additions, settings updates, etc.) with status, received/indexed document counts, duration, timestamps, and error details for failed tasks, plus status filtering and pagination.
+- **Manage index → Verify index coverage** — checks every email marked as indexed against the search engine and queues the ones whose document is missing for indexing. Nothing is deleted. Requires Meilisearch 1.14 or newer.
+- **Manage index → Clean up orphaned entries** — removes index entries for emails that no longer exist in the database.
 
-These screens are backed by the read-only [Index Admin API](/api/index-admin).
+These screens are backed by the [Index Admin API](/api/index-admin).
 
 ![Admin Index page with instance overview, index metadata, and per-source document counts](/screenshots/index-admin.png)

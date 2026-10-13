@@ -1,6 +1,20 @@
 // packages/types/src/storage.types.ts
 
 /**
+ * Options for {@link IStorageProvider.put}.
+ */
+export interface StoragePutOptions {
+	/**
+	 * Whether an object already stored at the path may be replaced. Defaults to true.
+	 *
+	 * False makes the write conditional: the provider refuses to touch an existing object and
+	 * rejects with a `StorageObjectExistsError` instead, so two writers racing for one path can
+	 * never leave a record pointing at bytes the other one wrote.
+	 */
+	overwrite?: boolean;
+}
+
+/**
  * Defines the contract that all storage providers must implement.
  * It uses streams to efficiently handle potentially large files without
  * loading them entirely into memory.
@@ -10,9 +24,14 @@ export interface IStorageProvider {
 	 * Stores a file at the specified path.
 	 * @param path - The unique identifier for the file (e.g., "user-123/emails/message-abc.eml").
 	 * @param content - The file content as a Buffer or a ReadableStream.
+	 * @param options - See {@link StoragePutOptions}. Omitted means the write may overwrite.
 	 * @returns A promise that resolves when the file is successfully stored.
 	 */
-	put(path: string, content: Buffer | NodeJS.ReadableStream): Promise<void>;
+	put(
+		path: string,
+		content: Buffer | NodeJS.ReadableStream,
+		options?: StoragePutOptions
+	): Promise<void>;
 
 	/**
 	 * Retrieves a file from the specified path as a readable stream.

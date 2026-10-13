@@ -13,6 +13,21 @@ export interface User {
 	createdAt: Date;
 	/** Whether TOTP two-factor authentication is currently enabled for this user. */
 	totpEnabled: boolean;
+	/**
+	 * How this account authenticates: 'local' (password), 'oidc' or 'saml'.
+	 * SSO-provisioned accounts have no password, and the UI hides password
+	 * management for them.
+	 */
+	provider: string | null;
+	/**
+	 * Whether a password is set. Optional because only the user projections in
+	 * UserService compute it; synthetic actors and older call sites omit it.
+	 * The distinction matters for linked accounts: `provider` says 'oidc' or
+	 * 'saml' after auto-link, but the original password remains a working
+	 * credential, and hiding password management for it would leave a live
+	 * credential nobody can rotate.
+	 */
+	hasPassword?: boolean;
 }
 
 /**

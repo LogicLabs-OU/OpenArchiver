@@ -85,4 +85,37 @@ export class IndexAdminController {
 			return res.status(500).json({ message: req.t('errors.internalServerError') });
 		}
 	};
+
+	/**
+	 * Queues a check of every email marked indexed against the search index, re-queueing those
+	 * whose document is missing. 202 for the same reason as the cleanup: the walk covers the whole
+	 * archive and belongs in a job.
+	 */
+	public verifyIndex = async (req: Request, res: Response): Promise<Response> => {
+		try {
+			const userId = req.user?.sub;
+			if (!userId) {
+				return res.status(401).json({ message: req.t('errors.unauthorized') });
+			}
+
+			const dispatch = await IndexMaintenanceService.triggerVerifyIndex();
+
+			await this.auditService.createAuditLog({
+				actorIdentifier: userId,
+				actionType: 'REINDEX',
+				targetType: 'SystemEvent',
+				targetId: null,
+				actorIp: req.ip || 'unknown',
+				details: { scope: 'index-verify', ...dispatch },
+			});
+
+			return res.status(202).json({
+				message: req.t('index.verifyTriggered'),
+				...dispatch,
+			});
+		} catch (error) {
+			logger.error({ err: error }, 'Trigger index verification error');
+			return res.status(500).json({ message: req.t('errors.internalServerError') });
+		}
+	};
 }

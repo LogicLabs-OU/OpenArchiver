@@ -48,6 +48,10 @@ export default defineConfig({
 								link: '/user-guides/email-providers/imap',
 							},
 							{
+								text: 'OAuth Mailbox (Outlook.com)',
+								link: '/user-guides/email-providers/oauth-mailbox',
+							},
+							{
 								text: 'Google Workspace',
 								link: '/user-guides/email-providers/google-workspace',
 							},
@@ -95,6 +99,89 @@ export default defineConfig({
 							{
 								text: 'Long Message-ID Headers',
 								link: '/user-guides/troubleshooting/long-message-id',
+							},
+						],
+					},
+				],
+			},
+			{
+				text: 'Enterprise Features',
+				items: [
+					{
+						text: 'Audit Log',
+						link: '/enterprise/audit-log/',
+						collapsed: true,
+						items: [
+							{ text: 'User Interface', link: '/enterprise/audit-log/guide' },
+							{ text: 'API Endpoints', link: '/enterprise/audit-log/api' },
+							{
+								text: 'Backend Implementation',
+								link: '/enterprise/audit-log/audit-service',
+							},
+						],
+					},
+					{
+						text: 'Legal Holds',
+						link: '/enterprise/legal-holds/',
+						collapsed: true,
+						items: [
+							{ text: 'User Interface', link: '/enterprise/legal-holds/guide' },
+							{ text: 'API Endpoints', link: '/enterprise/legal-holds/api' },
+						],
+					},
+					{
+						text: 'Retention Policy',
+						link: '/enterprise/retention-policy/',
+						collapsed: true,
+						items: [
+							{ text: 'User Interface', link: '/enterprise/retention-policy/guide' },
+							{ text: 'API Endpoints', link: '/enterprise/retention-policy/api' },
+							{
+								text: 'Lifecycle Worker',
+								link: '/enterprise/retention-policy/lifecycle-worker',
+							},
+							{
+								text: 'Backend Implementation',
+								link: '/enterprise/retention-policy/retention-service',
+							},
+						],
+					},
+					{
+						text: 'Retention Labels',
+						link: '/enterprise/retention-labels/',
+						collapsed: true,
+						items: [
+							{ text: 'User Interface', link: '/enterprise/retention-labels/guide' },
+							{
+								text: 'Automated Application',
+								link: '/enterprise/retention-labels/automated-tagging',
+							},
+							{ text: 'API Endpoints', link: '/enterprise/retention-labels/api' },
+						],
+					},
+					{ text: 'SMTP Journaling', link: '/enterprise/journaling/guide' },
+					{ text: 'Seat Counting', link: '/enterprise/seats/guide' },
+					{
+						text: 'Single Sign-On',
+						link: '/enterprise/sso/guide',
+						collapsed: true,
+						items: [
+							{ text: 'Examples', link: '/enterprise/sso/examples/' },
+							{
+								text: 'Google Workspace',
+								link: '/enterprise/sso/examples/google-workspace',
+							},
+							{
+								text: 'Google Workspace via Okta',
+								link: '/enterprise/sso/examples/google-workspace-okta',
+							},
+							{
+								text: 'Microsoft 365 (Entra ID)',
+								link: '/enterprise/sso/examples/microsoft-365',
+							},
+							{
+								text: 'Microsoft 365 via Okta',
+								link: '/enterprise/sso/examples/microsoft-365-okta',
 							},
 						],
 					},

@@ -170,6 +170,8 @@
 			"date_format_iso": "ISO 8601 (AAAA-MM-DD)",
 			"date_format_eu": "Europeo (DD/MM/AAAA)",
 			"date_format_us": "EE. UU. (MM/DD/AAAA)"
+			"email_managed_by_idp": "Gestionado por tu proveedor de identidad",
+			"password_managed_by_idp": "Gestionado por tu proveedor de identidad"
 		},
 		"system_settings": {
 			"title": "Configuración del sistema",
@@ -205,7 +207,8 @@
 			"delete_confirmation_description": "Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario y eliminará sus datos de nuestros servidores.",
 			"deleting": "Eliminando",
 			"confirm": "Confirmar",
-			"cancel": "Cancelar"
+			"cancel": "Cancelar",
+			"email_managed_by_idp": "Gestionado por el proveedor de identidad"
 		},
 		"components": {
 			"charts": {

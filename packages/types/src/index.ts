@@ -16,3 +16,4 @@ export * from './license.types';
 export * from './retention.types';
 export * from './journaling.types';
 export * from './security.types';
+export * from './sso.types';

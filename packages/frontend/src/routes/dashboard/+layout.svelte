@@ -83,6 +83,8 @@
 					label: $t('app.layout.roles'),
 				},
 				{ href: '/dashboard/admin/security', label: $t('app.layout.security_policy') },
+				{ href: '/dashboard/admin/sso', label: $t('app.layout.sso') },
+				{ href: '/dashboard/admin/seats', label: $t('app.layout.seats') },
 				{ href: '/dashboard/admin/license', label: $t('app.layout.license_status') },
 			],
 		},

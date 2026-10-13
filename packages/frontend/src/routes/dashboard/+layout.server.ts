@@ -9,23 +9,23 @@ export const load: LayoutServerLoad = async (event) => {
 		throw redirect(302, '/signin');
 	}
 
-	// In enterprise mode, fetch the 2FA grace deadline so the global warning banner
-	// can be shown on every dashboard page when enforcement is active.
+	// Fetch the 2FA grace deadline so the global warning banner can be shown on every
+	// dashboard page when enforcement is active. The endpoint exists in both editions;
+	// only an enterprise deployment with enforcement on ever returns a deadline, so the
+	// banner is silently inert in the open-source build.
 	let mfaGraceDeadline: string | null = null;
-	if (locals.enterpriseMode) {
-		try {
-			const res = await api('/enterprise/advanced-security/mfa/status', event);
-			if (res.ok) {
-				const status: MfaStatus = await res.json();
-				// Only expose the grace deadline — the full status is fetched per-page
-				// by the account page. Here we only need the deadline for the banner.
-				if (!status.totpEnabled && status.graceDeadline) {
-					mfaGraceDeadline = status.graceDeadline;
-				}
+	try {
+		const res = await api('/auth/mfa/status', event);
+		if (res.ok) {
+			const status: MfaStatus = await res.json();
+			// Only expose the grace deadline — the full status is fetched per-page
+			// by the account page. Here we only need the deadline for the banner.
+			if (!status.totpEnabled && status.graceDeadline) {
+				mfaGraceDeadline = status.graceDeadline;
 			}
-		} catch {
-			// Non-critical — silently ignore if the endpoint is unavailable
 		}
+	} catch {
+		// Non-critical — silently ignore if the endpoint is unavailable
 	}
 
 	return {

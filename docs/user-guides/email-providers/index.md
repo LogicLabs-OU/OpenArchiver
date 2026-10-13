@@ -7,6 +7,7 @@ Choose your provider from the list below to get started:
 - [Google Workspace](./google-workspace.md)
 - [Microsoft 365](./microsoft-365.md)
 - [Generic IMAP Server](./imap.md)
+- [OAuth Mailbox (Outlook.com and personal accounts)](./oauth-mailbox.md)
 - [EML Import](./eml.md)
 - [PST Import](./pst.md)
 - [Mbox Import](./mbox.md)

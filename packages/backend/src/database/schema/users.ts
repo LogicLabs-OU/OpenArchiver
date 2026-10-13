@@ -13,6 +13,20 @@ export const users = pgTable('users', {
 	password: text('password'),
 	provider: text('provider').default('local'),
 	providerId: text('provider_id'),
+	/**
+	 * The enterprise SSO connection this account is bound to, when `provider` is
+	 * 'oidc' or 'saml'. Subjects (OIDC `sub`, SAML NameID) are only unique per
+	 * identity provider, so a lookup by `providerId` alone would let two
+	 * connections of the same protocol collide on a subject; this scopes the
+	 * match to one connection.
+	 *
+	 * A plain uuid rather than a foreign key: `sso-connections.ts` already
+	 * imports `roles` from this file, and a reference back would make the two
+	 * schema modules circular. A deleted connection therefore leaves the value
+	 * dangling, which the SSO login path treats as "no binding" and repairs
+	 * through email linking on the next sign-in.
+	 */
+	ssoConnectionId: uuid('sso_connection_id'),
 	/** AES-256 encrypted TOTP secret. Null when 2FA is not enrolled. */
 	totpSecret: text('totp_secret'),
 	/** Whether TOTP 2FA is currently active for this user. */

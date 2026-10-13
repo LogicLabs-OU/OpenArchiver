@@ -20,7 +20,11 @@
 	"user": {
 		"notFound": "Utente non trovato",
 		"cannotDeleteOnlyUser": "Stai tentando di eliminare l'unico utente nel database, ciò non è consentito.",
-		"requiresSuperAdminRole": "È richiesto il ruolo di Super Admin per gestire gli utenti."
+		"requiresSuperAdminRole": "È richiesto il ruolo di Super Admin per gestire gli utenti.",
+		"emailManagedByProvider": "Il tuo indirizzo email è gestito dal tuo provider di identità e non può essere modificato qui.",
+		"emailReservedByIdp": "Questo dominio email è gestito da un provider di identità. Chiedi a un amministratore di modificare l'indirizzo per te.",
+		"emailAlreadyInUse": "Un altro account utilizza già questo indirizzo email.",
+		"emailInvalid": "Inserisci un indirizzo email valido."
 	},
 	"iam": {
 		"failedToGetRoles": "Impossibile ottenere i ruoli.",
@@ -73,5 +77,8 @@
 		"parse_error": "Impossibile elaborare i dati del file caricato.",
 		"storage_error": "Impossibile salvare il file caricato. Si prega di riprovare.",
 		"connection_error": "La connessione è stata persa durante il caricamento."
+	},
+	"sso": {
+		"requiresSuperAdminRole": "È richiesto il ruolo di Super Admin per gestire il Single Sign-On."
 	}
 }

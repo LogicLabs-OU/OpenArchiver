@@ -1,4 +1,4 @@
-import { IStorageProvider, StorageConfig } from '@open-archiver/types';
+import { IStorageProvider, StorageConfig, StoragePutOptions } from '@open-archiver/types';
 import { LocalFileSystemProvider } from './storage/LocalFileSystemProvider';
 import { S3StorageProvider } from './storage/S3StorageProvider';
 import { config } from '../config/index';
@@ -65,13 +65,17 @@ export class StorageService implements IStorageProvider {
 		}
 	}
 
-	async put(path: string, content: Buffer | NodeJS.ReadableStream): Promise<void> {
+	async put(
+		path: string,
+		content: Buffer | NodeJS.ReadableStream,
+		options?: StoragePutOptions
+	): Promise<void> {
 		const buffer =
 			content instanceof Buffer
 				? content
 				: await streamToBuffer(content as NodeJS.ReadableStream);
 		const encryptedContent = await this.encrypt(buffer);
-		return this.provider.put(path, encryptedContent);
+		return this.provider.put(path, encryptedContent, options);
 	}
 
 	async get(path: string): Promise<NodeJS.ReadableStream> {

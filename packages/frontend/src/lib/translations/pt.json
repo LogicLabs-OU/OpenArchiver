@@ -144,7 +144,8 @@
 			"delete_confirmation_description": "Esta ação não pode ser desfeita. Isso excluirá permanentemente o usuário e removerá seus dados de nossos servidores.",
 			"deleting": "Excluindo",
 			"confirm": "Confirmar",
-			"cancel": "Cancelar"
+			"cancel": "Cancelar",
+			"email_managed_by_idp": "Gerenciado pelo provedor de identidade"
 		},
 		"setup": {
 			"title": "Configuração",

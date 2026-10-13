@@ -1,12 +1,20 @@
 import { Job } from 'bullmq';
-import { IProcessMailboxJob, ProcessMailboxError, PendingEmail } from '@open-archiver/types';
+import {
+	IProcessMailboxJob,
+	ProcessMailboxError,
+	ProcessMailboxSkip,
+	PendingEmail,
+} from '@open-archiver/types';
 import { IngestionService } from '../../services/IngestionService';
+import { MailboxRegistryService } from '../../services/MailboxRegistryService';
 import { logger } from '../../config/logger';
+import { describeError } from '../../helpers/describeError';
 import { EmailProviderFactory, type IEmailConnector } from '../../services/EmailProviderFactory';
 import { StorageService } from '../../services/StorageService';
 import { config } from '../../config';
 import { indexingQueue, ingestionQueue } from '../queues';
 import { SyncSessionService } from '../../services/SyncSessionService';
+import { isMailboxUnavailableError } from '../../services/ingestion-connectors/MicrosoftConnector';
 import { unlink } from 'fs/promises';
 
 /**
@@ -56,6 +64,40 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		}
 	};
 
+	/**
+	 * Records this mailbox's outcome and, if it was the last one, dispatches the finalizer.
+	 *
+	 * Shared by the failure and the skip paths, which differ only in what they report and must
+	 * not differ in anything else: both count towards the session total, and both have to be
+	 * able to end the cycle. Its own failure is logged and swallowed for the reason the caller
+	 * never re-throws — a second attempt at this job would double-count against the session.
+	 */
+	const reportMailboxOutcome = async (
+		outcome: ProcessMailboxError | ProcessMailboxSkip,
+		kind: 'error' | 'skipped'
+	): Promise<void> => {
+		try {
+			const { isLast } = await SyncSessionService.recordMailboxResult(sessionId, outcome);
+
+			if (isLast) {
+				logger.info(
+					{ ingestionSourceId, sessionId, kind },
+					'Last mailbox job completed, dispatching sync-cycle-finished'
+				);
+				await ingestionQueue.add('sync-cycle-finished', {
+					ingestionSourceId,
+					sessionId,
+					isInitialImport: false,
+				});
+			}
+		} catch (sessionError) {
+			logger.error(
+				{ err: sessionError, sessionId, kind },
+				'Failed to record mailbox result in sync session'
+			);
+		}
+	};
+
 	try {
 		const source = await IngestionService.findById(ingestionSourceId);
 		if (!source) {
@@ -94,12 +136,13 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		// Scoped to this specific mailbox (userEmail) so that different recipients
 		// of the same email each get their own archived row — only skipping when
 		// THIS mailbox already has the email (re-sync idempotency).
-		const checkDuplicate = async (messageId: string) => {
+		const checkDuplicate = async (messageId: string, internetMessageId?: string) => {
 			return await IngestionService.doesEmailExist(
 				messageId,
 				ingestionSourceId,
 				userEmail,
-				groupIds
+				groupIds,
+				internetMessageId
 			);
 		};
 
@@ -110,6 +153,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		let messagesSeen = 0;
 		let messagesArchived = 0;
 		let messagesFailed = 0;
+		let messagesSkipped = 0;
 		const failureSamples: string[] = [];
 		const MAX_FAILURE_SAMPLES = 5;
 
@@ -218,9 +262,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 					// would reject the slot wait below and with it the rest of the mailbox.
 					messagesFailed++;
 					if (failureSamples.length < MAX_FAILURE_SAMPLES) {
-						failureSamples.push(
-							`Email ${email.id}: ${err instanceof Error ? err.message : 'unknown error'}`
-						);
+						failureSamples.push(`Email ${email.id}: ${describeError(err)}`);
 					}
 					logger.error(
 						{ err, ingestionSourceId, userEmail, emailId: email.id },
@@ -281,10 +323,38 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			}
 		}
 
+		// Messages the provider refused to hand over, identically on every attempt (#487). Not added
+		// to messagesFailed: that would discard this run's sync state on every cycle over messages
+		// that will never arrive. Logged instead, so operators have a record of what is missing.
+		const skippedMessages = connector.getSkippedMessages?.();
+		if (skippedMessages && skippedMessages.count > 0) {
+			messagesSkipped = skippedMessages.count;
+			logger.warn(
+				{ ingestionSourceId, userEmail, messagesSkipped, samples: skippedMessages.samples },
+				'Messages the provider could not render were skipped and are not in the archive'
+			);
+		}
+
 		const newSyncState = connector.getUpdatedSyncState(userEmail);
 		logger.info(
-			{ ingestionSourceId, userEmail, messagesSeen, messagesArchived, messagesFailed },
+			{
+				ingestionSourceId,
+				userEmail,
+				messagesSeen,
+				messagesArchived,
+				messagesFailed,
+				messagesSkipped,
+			},
 			`Finished processing mailbox for user`
+		);
+
+		// The connector reached this mailbox, so it exists. Recorded from the fetch outcome rather
+		// than from archived emails — see MailboxRegistryService.markHasMailbox. Never fails the job.
+		await MailboxRegistryService.markHasMailbox(userEmail).catch((registryError) =>
+			logger.warn(
+				{ err: registryError, userEmail },
+				'Could not record that this mailbox is reachable'
+			)
 		);
 
 		// Report the result to the session and check if this is the last job.
@@ -333,8 +403,37 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 			);
 		}
 
+		// A directory entry with no mailbox is not a failed mailbox. Reported as a skip, the
+		// cycle can still finish successfully; reported as an error it kept the source in
+		// 'error', which the scheduler retries every tick — forever, since no amount of
+		// retrying gives a guest a mailbox (#351). Checked before the error path below so the
+		// distinction is made once, on the way out.
+		if (isMailboxUnavailableError(error)) {
+			logger.info(
+				{ ingestionSourceId, userEmail },
+				'Skipping mailbox: this account has no mailbox to archive'
+			);
+			// Recorded so seat accounting can tell an unlicensed account that owns no mailbox from an
+			// unlicensed account that does — the latter is what an Exchange shared mailbox looks like
+			// to a tenant that withholds MailboxSettings.Read.
+			await MailboxRegistryService.markNoMailbox(userEmail).catch((registryError) =>
+				logger.warn(
+					{ err: registryError, userEmail },
+					'Could not record that this mailbox is unavailable'
+				)
+			);
+			await reportMailboxOutcome(
+				{
+					skipped: true,
+					message: `Skipped ${userEmail}: the account has no mailbox to archive (guest or unlicensed user).`,
+				},
+				'skipped'
+			);
+			return;
+		}
+
 		logger.error({ err: error, ingestionSourceId, userEmail }, 'Error processing mailbox');
-		const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+		const errorMessage = describeError(error);
 
 		// Messages the connector skipped before whatever ended the mailbox. The tally's own abort
 		// throw unwinds past the success path that normally reads this, so without it the count
@@ -351,29 +450,7 @@ export const processMailboxProcessor = async (job: Job<IProcessMailboxJob>) => {
 		};
 
 		// Report failure to the session — this still counts towards the total
-		try {
-			const { isLast } = await SyncSessionService.recordMailboxResult(
-				sessionId,
-				processMailboxError
-			);
-
-			if (isLast) {
-				logger.info(
-					{ ingestionSourceId, sessionId },
-					'Last mailbox job (with error) completed, dispatching sync-cycle-finished'
-				);
-				await ingestionQueue.add('sync-cycle-finished', {
-					ingestionSourceId,
-					sessionId,
-					isInitialImport: false,
-				});
-			}
-		} catch (sessionError) {
-			logger.error(
-				{ err: sessionError, sessionId },
-				'Failed to record mailbox error in sync session'
-			);
-		}
+		await reportMailboxOutcome(processMailboxError, 'error');
 
 		// Do not re-throw — a single failed mailbox should not mark the BullMQ job as failed
 		// and trigger retries that would double-count against the session counter.

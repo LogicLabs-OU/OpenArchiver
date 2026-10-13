@@ -336,7 +336,8 @@
               "generic_imap",
               "pst_import",
               "eml_import",
-              "mbox_import"
+              "mbox_import",
+              "oauth_mailbox"
             ],
             "example": "google_workspace"
           },
@@ -406,7 +407,8 @@
               "generic_imap",
               "pst_import",
               "eml_import",
-              "mbox_import"
+              "mbox_import",
+              "oauth_mailbox"
             ]
           },
           "providerConfig": {
@@ -418,6 +420,72 @@
             }
           }
         }
+      },
+      "OAuthAuthorizeResponse": {
+        "type": "object",
+        "description": "Result of starting an OAuth mailbox authorization. The auth_code variant carries the URL to send the browser to; the device_code variant carries the user-facing fields of the device flow. The device code itself never leaves the server.",
+        "properties": {
+          "flow": {
+            "type": "string",
+            "enum": [
+              "auth_code",
+              "device_code"
+            ]
+          },
+          "authorizationUrl": {
+            "type": "string",
+            "description": "Present for the auth_code flow."
+          },
+          "userCode": {
+            "type": "string",
+            "description": "Present for the device_code flow."
+          },
+          "verificationUri": {
+            "type": "string"
+          },
+          "verificationUriComplete": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "description": "Seconds until the device code expires."
+          },
+          "interval": {
+            "type": "integer",
+            "description": "Seconds between poll requests."
+          }
+        },
+        "required": [
+          "flow"
+        ]
+      },
+      "OAuthPollResponse": {
+        "type": "object",
+        "description": "One step of a device-code authorization poll.",
+        "properties": {
+          "pending": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "integer",
+            "description": "Present when the provider asked to slow down."
+          },
+          "error": {
+            "type": "string",
+            "description": "Terminal failure message."
+          },
+          "warning": {
+            "type": "string",
+            "description": "The authorization succeeded but the first connection to the mailbox was refused. Not a failure: the source is authorized and syncing retries on its own."
+          }
+        },
+        "required": [
+          "pending",
+          "status"
+        ]
       },
       "UpdateIngestionSourceDto": {
         "type": "object",
@@ -433,7 +501,8 @@
               "generic_imap",
               "pst_import",
               "eml_import",
-              "mbox_import"
+              "mbox_import",
+              "oauth_mailbox"
             ]
           },
           "status": {
@@ -2328,6 +2397,55 @@
         }
       }
     },
+    "/v1/index-admin/verify": {
+      "post": {
+        "summary": "Verify search index coverage",
+        "description": "Queues a background job that checks every email marked as indexed against the `emails` index and re-queues for indexing those whose document is missing. Such emails are otherwise never picked up again, because the self-healing reconcile only looks at emails marked as unindexed. Nothing is deleted. Requires Meilisearch 1.14 or newer and `manage:all` (Super Admin) permission.",
+        "operationId": "verifyIndexCoverage",
+        "tags": [
+          "Index Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Verification job accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "workerAlive": {
+                      "type": "boolean",
+                      "description": "Whether an indexing worker is available to run the job."
+                    },
+                    "alreadyRunning": {
+                      "type": "boolean",
+                      "description": "True when a verification was already queued or running, so this request joined it instead of starting a second one."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/v1/ingestion-sources": {
       "post": {
         "summary": "Create an ingestion source",
@@ -2668,6 +2786,124 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/ingestion-sources/{id}/oauth/authorize": {
+      "post": {
+        "summary": "Start OAuth mailbox authorization",
+        "description": "Starts (or restarts) the OAuth authorization of an `oauth_mailbox` ingestion source. For the authorization code flow the response carries the URL to send the administrator's browser to; for the device code flow it carries the user code and verification URL to display, with the device code itself kept server-side. The same endpoint serves first-time authorization and the Re-authorize action after tokens expire or consent is revoked. Requires `update:ingestion` permission.",
+        "operationId": "startOAuthMailboxAuthorization",
+        "tags": [
+          "Ingestion"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "flow": {
+                    "type": "string",
+                    "enum": [
+                      "auth_code",
+                      "device_code"
+                    ],
+                    "description": "Overrides the flow stored on the source for this attempt."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorization started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAuthorizeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The source is not an OAuth mailbox source."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/ingestion-sources/{id}/oauth/poll": {
+      "post": {
+        "summary": "Poll a device-code authorization",
+        "description": "Performs one poll step of an in-progress device-code authorization for an `oauth_mailbox` source. The browser calls this on the interval returned by the authorize endpoint until `pending` is false. On success the source moves to `auth_success` and its initial import starts. Requires `update:ingestion` permission.",
+        "operationId": "pollOAuthMailboxAuthorization",
+        "tags": [
+          "Ingestion"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current state of the authorization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthPollResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The source is not an OAuth mailbox source."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -3203,6 +3439,438 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/auth/mfa/verify": {
+      "post": {
+        "summary": "Complete the MFA login challenge",
+        "description": "Verifies a TOTP or backup code against the short-lived `mfaPending` cookie issued by the login endpoint, and returns a full-access token. Rate limited per IP, separately from the authenticated management endpoints.\n",
+        "operationId": "mfaVerify",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "A 6-digit TOTP code or a single-use backup code.",
+                    "example": "123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification successful.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pending token or code missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Pending token invalid or expired, or the code did not verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many verification attempts."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/auth/mfa/status": {
+      "get": {
+        "summary": "Get the caller's 2FA status",
+        "description": "Returns whether TOTP is enabled for the authenticated user, when they enrolled, and any enrollment deadline. `graceDeadline` is always null unless an enrollment policy is in force.\n",
+        "operationId": "getMfaStatus",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Status returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totpEnabled": {
+                      "type": "boolean"
+                    },
+                    "enrolledAt": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    },
+                    "graceDeadline": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/auth/mfa/setup": {
+      "post": {
+        "summary": "Begin 2FA enrollment",
+        "description": "Generates a TOTP secret and returns the QR code and otpauth URI. The secret itself is held server-side for 10 minutes and never sent to the client. Rate limited, because each call replaces the pending secret.\n",
+        "operationId": "setupMfa",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Setup data returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "otpAuthUrl": {
+                      "type": "string"
+                    },
+                    "qrCodeDataUrl": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Two-factor authentication has been disabled by policy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/auth/mfa/enroll": {
+      "post": {
+        "summary": "Confirm 2FA enrollment",
+        "description": "Verifies a code against the pending secret, activates TOTP for the user, and returns single-use backup codes. The backup codes are shown once and never retrievable again.\n",
+        "operationId": "enrollMfa",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "example": "123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Enrollment complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "backupCodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Code missing."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Code invalid, setup expired, or the feature is disabled by policy."
+          },
+          "429": {
+            "description": "Too many attempts."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/auth/mfa/disable": {
+      "post": {
+        "summary": "Disable 2FA for the caller",
+        "description": "Requires a currently valid TOTP or backup code. Clears the secret and all backup codes.",
+        "operationId": "disableMfa",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "example": "123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Two-factor authentication disabled."
+          },
+          "400": {
+            "description": "Code missing."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Invalid verification code."
+          },
+          "429": {
+            "description": "Too many attempts."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/auth/mfa/backup-codes": {
+      "post": {
+        "summary": "Regenerate backup codes",
+        "description": "Replaces the caller's backup codes with a fresh set, invalidating the old ones. Requires a currently valid TOTP or backup code.\n",
+        "operationId": "regenerateMfaBackupCodes",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "example": "123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New backup codes returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "backupCodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Code missing."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Invalid verification code."
+          },
+          "429": {
+            "description": "Too many attempts."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/auth/mfa/users/{userId}": {
+      "delete": {
+        "summary": "Reset a user's 2FA",
+        "description": "Disables TOTP for another user without a verification code. Requires `manage:all`. This is the recovery path for a user who has lost both their authenticator and their backup codes; the action is audited with `adminAction: true`.\n",
+        "operationId": "adminDisableUserMfa",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Two-factor authentication disabled for the user."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "User not found."
+          },
+          "422": {
+            "description": "The user does not have two-factor authentication enabled."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/oauth/callback": {
+      "get": {
+        "summary": "OAuth authorization callback",
+        "description": "The browser return leg of an OAuth Mailbox authorization (authorization code flow). The identity provider redirects the administrator's browser here with a code and the signed state issued when the authorization started. On success the granted tokens are stored, the source moves to auth_success and its initial import starts; the response is an HTML page that returns the browser to the ingestion sources list. This endpoint is unauthenticated — the signed, single-use state is the credential — and it never exposes tokens.",
+        "operationId": "oauthMailboxCallback",
+        "tags": [
+          "Ingestion"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "description": "Set by the provider when the user declined consent.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML page that redirects the browser back to the ingestion sources list, with the outcome in the query string.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The state was missing, forged, expired, or already used."
           }
         }
       }
@@ -3924,7 +4592,17 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Disabled in demo mode.",
+            "description": "Disabled in demo mode, or the email address may not be changed — the account authenticates through an identity provider, or the requested domain is served by one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another account already uses the requested email address.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4129,6 +4807,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Another account already uses the requested email address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
           }
         }
       },

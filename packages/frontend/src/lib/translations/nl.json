@@ -144,7 +144,8 @@
 			"delete_confirmation_description": "Deze actie kan niet ongedaan worden gemaakt. Dit zal de gebruiker permanent verwijderen en hun gegevens van onze servers verwijderen.",
 			"deleting": "Verwijderen",
 			"confirm": "Bevestigen",
-			"cancel": "Annuleren"
+			"cancel": "Annuleren",
+			"email_managed_by_idp": "Beheerd door de identiteitsprovider"
 		},
 		"setup": {
 			"title": "Installatie",

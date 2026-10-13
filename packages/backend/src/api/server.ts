@@ -3,14 +3,18 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { AuthController } from './controllers/auth.controller';
+import { MfaController } from './controllers/mfa.controller';
 import { IngestionController } from './controllers/ingestion.controller';
+import { OAuthController } from './controllers/oauth.controller';
 import { ArchivedEmailController } from './controllers/archived-email.controller';
 import { StorageController } from './controllers/storage.controller';
 import { SearchController } from './controllers/search.controller';
 import { IamController } from './controllers/iam.controller';
 import { createAuthRouter } from './routes/auth.routes';
+import { createMfaRouter } from './routes/mfa.routes';
 import { createIamRouter } from './routes/iam.routes';
 import { createIngestionRouter } from './routes/ingestion.routes';
+import { createOAuthRouter } from './routes/oauth.routes';
 import { createArchivedEmailRouter } from './routes/archived-email.routes';
 import { createStorageRouter } from './routes/storage.routes';
 import { createSearchRouter } from './routes/search.routes';
@@ -22,8 +26,10 @@ import { apiKeyRoutes } from './routes/api-key.routes';
 import { integrityRoutes } from './routes/integrity.routes';
 import { createJobsRouter } from './routes/jobs.routes';
 import { createIndexAdminRouter } from './routes/index-admin.routes';
+import { createSeatsRouter } from './routes/seats.routes';
 import { AuthService } from '../services/AuthService';
 import { AuditService } from '../services/AuditService';
+import { mfaService } from '../services/MfaService';
 import { UserService } from '../services/UserService';
 import { IamService } from '../services/IamService';
 import { StorageService } from '../services/StorageService';
@@ -62,8 +68,17 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	const auditService = new AuditService();
 	const userService = new UserService();
 	authService = new AuthService(userService, auditService, JWT_SECRET, JWT_EXPIRES_IN);
+
+	// Default 2FA rule: challenge a user who has enrolled, let everyone else through.
+	// Modules initialize further down, so the enterprise advanced-security module's own
+	// registerMfaCheck deliberately replaces this one to add the enforcement policy —
+	// the setter assigns rather than appends.
+	authService.registerMfaCheck((userId) => mfaService.isMfaRequired(userId));
+
 	const authController = new AuthController(authService, userService);
+	const mfaController = new MfaController(authService);
 	const ingestionController = new IngestionController();
+	const oauthController = new OAuthController();
 	const archivedEmailController = new ArchivedEmailController();
 	const storageService = new StorageService();
 	const storageController = new StorageController(storageService);
@@ -113,7 +128,9 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 
 	// --- Routes ---
 	const authRouter = createAuthRouter(authController);
+	const mfaRouter = createMfaRouter(mfaController, authService);
 	const ingestionRouter = createIngestionRouter(ingestionController, authService);
+	const oauthRouter = createOAuthRouter(oauthController);
 	const archivedEmailRouter = createArchivedEmailRouter(archivedEmailController, authService);
 	const storageRouter = createStorageRouter(storageController, authService);
 	const searchRouter = createSearchRouter(searchController, authService);
@@ -126,6 +143,7 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	const integrityRouter = integrityRoutes(authService);
 	const jobsRouter = createJobsRouter(authService);
 	const indexAdminRouter = createIndexAdminRouter(authService);
+	const seatsRouter = createSeatsRouter(authService);
 
 	// Middleware for all other routes
 	app.use((req, res, next) => {
@@ -145,10 +163,15 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	// i18n middleware
 	app.use(i18nextMiddleware.handle(i18next));
 
+	// Mounted before /auth so the more specific prefix wins outright rather than
+	// relying on authRouter falling through.
+	app.use(`/${config.api.version}/auth/mfa`, mfaRouter);
 	app.use(`/${config.api.version}/auth`, authRouter);
 	app.use(`/${config.api.version}/iam`, iamRouter);
 	app.use(`/${config.api.version}/upload`, uploadRouter);
 	app.use(`/${config.api.version}/ingestion-sources`, ingestionRouter);
+	// Public: the OAuth callback arrives from the identity provider with no JWT.
+	app.use(`/${config.api.version}/oauth`, oauthRouter);
 	app.use(`/${config.api.version}/archived-emails`, archivedEmailRouter);
 	app.use(`/${config.api.version}/storage`, storageRouter);
 	app.use(`/${config.api.version}/search`, searchRouter);
@@ -159,6 +182,7 @@ export async function createServer(modules: ArchiverModule[] = []): Promise<Expr
 	app.use(`/${config.api.version}/integrity`, integrityRouter);
 	app.use(`/${config.api.version}/jobs`, jobsRouter);
 	app.use(`/${config.api.version}/index-admin`, indexAdminRouter);
+	app.use(`/${config.api.version}/seats`, seatsRouter);
 
 	// Load all provided extension modules
 	for (const module of modules) {

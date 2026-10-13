@@ -91,7 +91,13 @@ export const createUserRouter = (authService: AuthService): Router => {
 	 *       '401':
 	 *         $ref: '#/components/responses/Unauthorized'
 	 *       '403':
-	 *         description: Disabled in demo mode.
+	 *         description: Disabled in demo mode, or the email address may not be changed — the account authenticates through an identity provider, or the requested domain is served by one.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ErrorMessage'
+	 *       '409':
+	 *         description: Another account already uses the requested email address.
 	 *         content:
 	 *           application/json:
 	 *             schema:
@@ -293,6 +299,12 @@ export const createUserRouter = (authService: AuthService): Router => {
 	 *         $ref: '#/components/responses/Forbidden'
 	 *       '404':
 	 *         $ref: '#/components/responses/NotFound'
+	 *       '409':
+	 *         description: Another account already uses the requested email address.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ErrorMessage'
 	 */
 	router.put(
 		'/:id',

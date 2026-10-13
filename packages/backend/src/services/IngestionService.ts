@@ -5,6 +5,7 @@ import type {
 	UpdateIngestionSourceDto,
 	IngestionSource,
 	IngestionCredentials,
+	OAuthMailboxCredentials,
 	IngestionProvider,
 	PendingEmail,
 	ProcessEmailError,
@@ -26,6 +27,8 @@ import {
 } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
+import { mergeOAuthCredentials, validateOAuthMailboxConfig } from './oauth/oauthHelpers';
+import { mergeProviderCredentials } from './credentialMerge';
 import { ingestionQueue, indexingQueue } from '../jobs/queues';
 import { continuousSyncJobId, initialImportJobId } from '../jobs/helpers/jobIds';
 import { claimJobId } from '../jobs/helpers/claimJobId';
@@ -37,8 +40,12 @@ import type {
 	ReindexMode,
 	IReindexDispatch,
 	IngestionStats,
+	MailboxUser,
 } from '@open-archiver/types';
 import { stripAttachmentsFromEml } from '../helpers/emlUtils';
+import { MailboxRegistryService } from './MailboxRegistryService';
+import { streamToBuffer } from '../helpers/streamToBuffer';
+import { isStorageObjectExistsError } from './storage/errors';
 import {
 	archivedEmails,
 	attachments as attachmentsSchema,
@@ -56,6 +63,8 @@ import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { truncateToBytes } from '../helpers/truncateToBytes';
+import { stripNullBytes } from '../helpers/stripNullBytes';
+import { describeError } from '../helpers/describeError';
 import { quoteMeiliString } from '../helpers/meiliFilter';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
 import { buildReindexWhere } from '../jobs/helpers/indexBacklog';
@@ -86,7 +95,11 @@ const normalizedMailbox = sql<string>`lower(btrim(${archivedEmails.userEmail}))`
  * changes the casing of a mailbox between syncs misses every dedup check and archives the whole
  * mailbox a second time.
  */
-const matchesMailbox = (normalizedAddress: string) => eq(normalizedMailbox, normalizedAddress);
+// Exported for the provider-id backfill job, which must scope rows to a mailbox with exactly
+// the same normalization the dedup checks here use — two spellings of this predicate would
+// only have to disagree once.
+export const matchesMailbox = (normalizedAddress: string) =>
+	eq(normalizedMailbox, normalizedAddress);
 
 export class IngestionService {
 	private static auditService = new AuditService();
@@ -179,6 +192,18 @@ export class IngestionService {
 		actorIp: string
 	): Promise<IngestionSource> {
 		const { providerConfig, mergedIntoId, ...rest } = dto;
+
+		if (dto.provider === 'oauth_mailbox') {
+			const validation = validateOAuthMailboxConfig(providerConfig);
+			if (!validation.ok) {
+				throw new Error(validation.message);
+			}
+			// Server-managed fields never arrive from a client. A crafted create carrying
+			// its own tokens would otherwise skip authorization entirely.
+			delete providerConfig.tokens;
+			delete providerConfig.pendingAuth;
+		}
+
 		const encryptedCredentials = CryptoService.encryptObject(providerConfig);
 
 		// Resolve merge target: if mergedIntoId points to a child, follow to the root.
@@ -217,6 +242,19 @@ export class IngestionService {
 				'Failed to process newly created ingestion source due to a decryption error.'
 			);
 		}
+		// An OAuth mailbox has no tokens until its authorization flow completes, so there
+		// is nothing to test yet — and the failure path below DELETES the source, which
+		// would destroy the row the OAuth callback needs. It stays pending_auth (inert to
+		// the scheduler) until the flow flips it to auth_success.
+		if (decryptedSource.provider === 'oauth_mailbox') {
+			return await this.update(
+				decryptedSource.id,
+				{ lastSyncStatusMessage: 'Waiting for mailbox authorization.' },
+				actor,
+				actorIp
+			);
+		}
+
 		const connector = EmailProviderFactory.createConnector(decryptedSource);
 
 		try {
@@ -377,8 +415,39 @@ export class IngestionService {
 		const originalSource = await this.findById(id);
 
 		if (providerConfig) {
-			// Encrypt the new credentials before updating
-			valuesToUpdate.credentials = CryptoService.encryptObject(providerConfig);
+			if (originalSource.provider === 'oauth_mailbox') {
+				// The edit form starts blank (SafeIngestionSource omits credentials), so a
+				// wholesale replace would wipe the tokens on every save. Merge instead:
+				// server-managed fields carry over, a blank clientSecret keeps the stored
+				// one, and only a change to WHO or WHERE to authenticate invalidates the
+				// tokens and sends the source back to pending_auth for re-authorization.
+				const { merged, connectionChanged } = mergeOAuthCredentials(
+					originalSource.credentials as OAuthMailboxCredentials,
+					providerConfig
+				);
+				if (connectionChanged) {
+					const validation = validateOAuthMailboxConfig(merged);
+					if (!validation.ok) {
+						throw new Error(validation.message);
+					}
+					valuesToUpdate.status = 'pending_auth';
+					valuesToUpdate.lastSyncStatusMessage =
+						'Connection settings changed - re-authorization required.';
+				}
+				valuesToUpdate.credentials = CryptoService.encryptObject(merged);
+			} else {
+				// The edit form starts blank for every provider (SafeIngestionSource omits
+				// credentials), so what arrives here is not the new truth — it is whatever
+				// the admin typed over a form that could not show the old values. Merging
+				// keeps stored fields wherever the incoming ones are blank; storing the
+				// incoming object wholesale is how a rename-only edit once wiped a working
+				// Microsoft 365 source down to two IMAP form defaults.
+				const result = mergeProviderCredentials(originalSource.credentials, providerConfig);
+				if (!result.ok) {
+					throw new Error(result.message);
+				}
+				valuesToUpdate.credentials = CryptoService.encryptObject(result.merged);
+			}
 		}
 
 		const [updatedSource] = await db
@@ -1026,17 +1095,33 @@ export class IngestionService {
 		try {
 			if (connector.listAllUsers) {
 				// For multi-mailbox providers, dispatch a job for each user
+				const listedUsers: MailboxUser[] = [];
 				for await (const user of connector.listAllUsers()) {
 					// Normalized here so the mailbox identity is canonical before it is queued.
 					const userEmail = user.primaryEmail
 						? normalizeEmailAddress(user.primaryEmail)
 						: '';
 					if (userEmail) {
+						listedUsers.push(user);
 						await ingestionQueue.add('process-mailbox', {
 							ingestionSourceId: source.id,
 							userEmail: userEmail,
 						});
 					}
+				}
+				// Same directory capture as the master processors, so a source imported through
+				// this path is not invisible to seat accounting. Never fails the import.
+				try {
+					await MailboxRegistryService.upsertFromDirectory(
+						source,
+						listedUsers,
+						connector
+					);
+				} catch (error) {
+					logger.error(
+						{ err: error, ingestionSourceId: source.id },
+						'Could not record directory mailboxes during bulk import'
+					);
 				}
 			} else {
 				// For single-mailbox providers, dispatch a single job
@@ -1055,8 +1140,7 @@ export class IngestionService {
 				{
 					status: 'error',
 					lastSyncFinishedAt: new Date(),
-					lastSyncStatusMessage:
-						error instanceof Error ? error.message : 'An unknown error occurred.',
+					lastSyncStatusMessage: describeError(error),
 				},
 				actor,
 				actorIp
@@ -1070,6 +1154,20 @@ export class IngestionService {
 	 * Checks both providerMessageId (for Google/Microsoft API IDs) and
 	 * messageIdHeader (for IMAP/PST/EML/Mbox RFC Message-IDs and pre-migration rows).
 	 *
+	 * `rawInternetMessageId` is the RFC 5322 Message-ID when the connector's listing already
+	 * carries it (Microsoft Graph's does). It is the key that stays valid when the provider's
+	 * own id has drifted: rows written before provider ids were stored hold NULL there, and
+	 * Graph re-keys messages on folder moves and re-keyed everything once on the switch to
+	 * immutable ids. Matching the header directly is what turns those from a full re-download
+	 * into a skip.
+	 *
+	 * SIDE EFFECT, deliberately here and not in processEmail: when the header matched but the
+	 * stored provider id is stale (NULL, or a different id for the same message), the row is
+	 * updated to the incoming id. Gate 1 in processEmail only runs when THIS check missed, so
+	 * a row this check keeps matching by header would otherwise never converge to the current
+	 * id format. One single-row indexed UPDATE, only on the paths that pass the header, so
+	 * IMAP/Google/file callers can never rewrite anything.
+	 *
 	 * The check is scoped to a specific mailbox (userEmail) within the merge group.
 	 * This allows different mailbox owners to each get their own archived_emails row
 	 * for the same physical email — only skipping the download when this particular
@@ -1079,12 +1177,16 @@ export class IngestionService {
 		rawMessageId: string,
 		ingestionSourceId: string,
 		rawUserEmail: string,
-		knownGroupIds?: string[]
+		knownGroupIds?: string[],
+		rawInternetMessageId?: string
 	): Promise<boolean> {
 		// Bounded on the way in so this pre-fetch check compares against the same key processEmail
 		// stored. Without it an over-long id would look absent here and be downloaded again on
 		// every sync.
 		const messageId = IngestionService.boundMessageKey(rawMessageId);
+		const headerCandidate = rawInternetMessageId
+			? IngestionService.boundMessageKey(rawInternetMessageId)
+			: undefined;
 		const userEmail = normalizeEmailAddress(rawUserEmail);
 		// The group is invariant for a whole mailbox job, so the caller resolves it once and passes
 		// it in. Without that this ran a SELECT for every message the connector offered — before the
@@ -1092,18 +1194,144 @@ export class IngestionService {
 		const groupIds = knownGroupIds ?? (await this.findGroupSourceIds(ingestionSourceId));
 		const sourceFilter = IngestionService.groupScopeFilter(groupIds);
 
+		const keyMatches = [
+			eq(archivedEmails.providerMessageId, messageId),
+			eq(archivedEmails.messageIdHeader, messageId),
+		];
+		if (headerCandidate) {
+			keyMatches.push(eq(archivedEmails.messageIdHeader, headerCandidate));
+		}
+
 		const existingEmail = await db.query.archivedEmails.findFirst({
-			where: and(
-				sourceFilter,
-				matchesMailbox(userEmail),
-				or(
-					eq(archivedEmails.providerMessageId, messageId),
-					eq(archivedEmails.messageIdHeader, messageId)
-				)
-			),
-			columns: { id: true },
+			where: and(sourceFilter, matchesMailbox(userEmail), or(...keyMatches)),
+			columns: { id: true, providerMessageId: true },
 		});
-		return !!existingEmail;
+		if (!existingEmail) {
+			return false;
+		}
+
+		// The refresh described in the docblock. Restricted to callers that passed the header:
+		// that is what proves the incoming id is a provider id for this very message rather
+		// than a Message-ID (IMAP) or an id the row was never keyed by.
+		if (headerCandidate && existingEmail.providerMessageId !== messageId) {
+			await db
+				.update(archivedEmails)
+				.set({ providerMessageId: messageId })
+				.where(eq(archivedEmails.id, existingEmail.id));
+			logger.debug(
+				{ archivedEmailId: existingEmail.id, ingestionSourceId },
+				'Refreshed stale provider message id on dedup match'
+			);
+		}
+		return true;
+	}
+
+	/** Reads the Message-ID out of an .eml's header block, or undefined when it carries none. */
+	private static messageIdOfRawEml(eml: Buffer): string | undefined {
+		// Headers end at the first blank line; 64 KiB is far past any real header block and keeps
+		// a malformed file from being scanned in full.
+		const head = eml.subarray(0, Math.min(eml.length, 64 * 1024)).toString('latin1');
+		const headerBlock = head.split(/\r?\n\r?\n/, 1)[0];
+		// Unfolded: a continuation line starts with whitespace.
+		const match = headerBlock.match(/^message-id:[ \t]*((?:.|\r?\n[ \t])*)$/im);
+		return match ? match[1].replace(/\r?\n[ \t]+/g, ' ').trim() : undefined;
+	}
+
+	/**
+	 * Writes an email's bytes without ever replacing what is already at the path, and reports
+	 * where they ended up together with the hash and size of that object.
+	 *
+	 * The path is derived from `email.id`, so two workers archiving the same message — a journal
+	 * report delivered twice, both copies racing the check-then-insert dedup — target one path.
+	 * An unconditional write let the second silently replace the first's bytes while both rows
+	 * kept the hash of what they had written; every row but the last writer's then failed its
+	 * integrity check against bytes that no longer existed.
+	 *
+	 * A path collision is not proof of the same message, though. `email.id` falls back to the
+	 * IMAP UID when a message has no Message-ID, and a UIDVALIDITY reset reassigns those, so a
+	 * different email can land on a taken path — as can a re-ingest after a purge that left the
+	 * file behind. Adopting blindly there would store one message under a row describing another,
+	 * and the integrity report would call it verified. So adoption requires the stored object to
+	 * carry the same Message-ID; anything else gets its own content-addressed path.
+	 */
+	private async storeEmailOrAdopt(
+		storage: StorageService,
+		emailPath: string,
+		content: Buffer,
+		context: {
+			messageId: string;
+			userEmail: string;
+			ingestionSourceId: string;
+			/** The incoming email's own Message-ID header, when it has one. */
+			messageIdHeader?: string;
+			/** sha256 of `content`, when the caller has already computed it. */
+			knownHash?: string;
+		}
+	): Promise<{ storagePath: string; hash: string; sizeBytes: number }> {
+		const hashOf = (buffer: Buffer): string =>
+			createHash('sha256').update(buffer).digest('hex');
+
+		try {
+			await storage.put(emailPath, content, { overwrite: false });
+			return {
+				storagePath: emailPath,
+				hash: context.knownHash ?? hashOf(content),
+				sizeBytes: content.length,
+			};
+		} catch (error) {
+			if (!isStorageObjectExistsError(error)) {
+				throw error;
+			}
+		}
+
+		// Read through StorageService, so these are the plaintext bytes — the same ones
+		// IntegrityService will hash when it verifies the row.
+		const stored = await streamToBuffer(await storage.get(emailPath));
+		const storedMessageId = IngestionService.messageIdOfRawEml(stored);
+		const incomingMessageId =
+			context.messageIdHeader ?? IngestionService.messageIdOfRawEml(content);
+
+		if (
+			storedMessageId &&
+			incomingMessageId &&
+			storedMessageId.trim() === incomingMessageId.trim()
+		) {
+			logger.warn(
+				{ ...context, storagePath: emailPath, knownHash: undefined },
+				'Archive file already existed at this path for the same message; adopting the stored bytes instead of overwriting them'
+			);
+			return {
+				storagePath: emailPath,
+				hash: hashOf(stored),
+				sizeBytes: stored.length,
+			};
+		}
+
+		// Different message, or one of the two has no Message-ID to compare. Give this content its
+		// own name. The suffix is the content hash, so a genuine retry of this same email lands on
+		// the same path and its EEXIST means byte-identical content — safe to adopt directly.
+		const contentHash = context.knownHash ?? hashOf(content);
+		const disambiguated = `${emailPath.replace(/\.eml$/, '')}-${contentHash.slice(0, 8)}.eml`;
+		logger.warn(
+			{
+				...context,
+				storagePath: emailPath,
+				storedMessageId,
+				incomingMessageId,
+				disambiguatedPath: disambiguated,
+			},
+			'Archive path already held a different message; storing this one under a content-addressed path'
+		);
+
+		try {
+			await storage.put(disambiguated, content, { overwrite: false });
+		} catch (error) {
+			if (!isStorageObjectExistsError(error)) {
+				throw error;
+			}
+			// Same content hash in the name, so the object there is these very bytes.
+		}
+		return { storagePath: disambiguated, hash: contentHash, sizeBytes: content.length };
 	}
 
 	/**
@@ -1157,7 +1385,12 @@ export class IngestionService {
 	 * be discarded as a duplicate — a silent loss, which is the one outcome an archive must not
 	 * have. The full header is untouched in the stored .eml either way.
 	 */
-	private static boundMessageKey(value: string): string {
+	public static boundMessageKey(rawValue: string): string {
+		// NUL first: Postgres rejects it in every text column, and this is the one path every
+		// message key takes — the header, the provider id, and the ids the pre-fetch duplicate
+		// check receives — so stripping here keeps the lookups keyed exactly like the stored rows
+		// (#479).
+		const value = stripNullBytes(rawValue);
 		if (Buffer.byteLength(value) <= IngestionService.MESSAGE_KEY_MAX_BYTES) {
 			return value;
 		}
@@ -1167,6 +1400,41 @@ export class IngestionService {
 			IngestionService.MESSAGE_KEY_MAX_BYTES - digest.length - 1
 		);
 		return `${truncated}-${digest}`;
+	}
+
+	/**
+	 * Strips NUL characters from every text field of an email before any of them is written.
+	 *
+	 * Postgres rejects a NUL in any text column, and some old automated messages carry one at the
+	 * end of the Subject or a display name (#479); one such email failed its insert, and the
+	 * report of that failure then failed on the same byte. In place rather than a copy: the
+	 * journaling fan-out calls processEmail several times with one EmailObject, and the mailbox
+	 * job logs email.id after the call, so every reader should see the same values. The Message-ID
+	 * header is left alone here — it reaches the database only through boundMessageKey, which
+	 * strips it too — and the stored .eml keeps the original bytes either way.
+	 */
+	private static stripNullBytesFromEmail(email: EmailObject): void {
+		email.id = stripNullBytes(email.id);
+		email.subject = stripNullBytes(email.subject);
+		if (email.threadId !== undefined) {
+			email.threadId = stripNullBytes(email.threadId);
+		}
+		if (email.path !== undefined) {
+			email.path = stripNullBytes(email.path);
+		}
+		if (email.tags) {
+			email.tags = email.tags.map(stripNullBytes);
+		}
+		for (const list of [email.from, email.to, email.cc, email.bcc]) {
+			for (const entry of list ?? []) {
+				entry.name = stripNullBytes(entry.name ?? '');
+				entry.address = stripNullBytes(entry.address ?? '');
+			}
+		}
+		for (const attachment of email.attachments) {
+			attachment.filename = stripNullBytes(attachment.filename ?? '');
+			attachment.contentType = stripNullBytes(attachment.contentType ?? '');
+		}
 	}
 
 	/**
@@ -1364,6 +1632,7 @@ export class IngestionService {
 		// Normalized once here so the dedup gates and all three inserts below agree on what
 		// counts as the same mailbox, whatever casing or padding the provider sent.
 		const userEmail = normalizeEmailAddress(rawUserEmail);
+		IngestionService.stripNullBytesFromEmail(email);
 		try {
 			// Read the raw bytes from the temp file written by the connector
 			const rawEmlBuffer = await readFile(email.tempFilePath);
@@ -1464,7 +1733,13 @@ export class IngestionService {
 						storageHashSha256: existingGroupEmail.storageHashSha256,
 						sizeBytes: existingGroupEmail.sizeBytes,
 						hasAttachments: existingGroupEmail.hasAttachments,
-						isJournaled: effectiveSource.provider === 'smtp_journaling',
+						// The delivering source, NOT effectiveSource. How a message was captured is
+						// a property of the source that brought it in; storage ownership is not.
+						// A journaling child merged into a mailbox root has an effectiveSource of
+						// microsoft_365 or the like, so reading the provider off the root recorded
+						// every journaled message as not journaled — and the integrity report,
+						// which exists to state the capture path, printed the opposite of the truth.
+						isJournaled: source.provider === 'smtp_journaling',
 						path: email.path,
 						tags: email.tags,
 					})
@@ -1556,13 +1831,28 @@ export class IngestionService {
 				});
 
 				let storagePath: string;
+				let storedHash = emailHash;
+				let storedSize = rawEmlBuffer.length;
 				if (hashExistingOther) {
 					// File already on disk — create a reference row
 					storagePath = hashExistingOther.storagePath;
 				} else {
-					// First occurrence — store the unmodified raw buffer
-					storagePath = emailPath;
-					await storage.put(emailPath, rawEmlBuffer);
+					// First occurrence — store the unmodified raw buffer. The hash-level checks
+					// above cannot see a same-Message-ID copy with different bytes (a second
+					// delivery with its own Received headers), so the write itself must refuse to
+					// replace whatever such a copy already put at this path, and reports back
+					// where the bytes actually landed.
+					({
+						storagePath,
+						hash: storedHash,
+						sizeBytes: storedSize,
+					} = await this.storeEmailOrAdopt(storage, emailPath, rawEmlBuffer, {
+						messageId,
+						userEmail,
+						ingestionSourceId: effectiveSource.id,
+						messageIdHeader: IngestionService.messageIdHeaderOf(email),
+						knownHash: emailHash,
+					}));
 				}
 
 				const [archivedEmail] = await db
@@ -1583,10 +1873,11 @@ export class IngestionService {
 							bcc: email.bcc ?? [],
 						},
 						storagePath,
-						storageHashSha256: emailHash,
-						sizeBytes: rawEmlBuffer.length,
+						storageHashSha256: storedHash,
+						sizeBytes: storedSize,
 						hasAttachments: email.attachments.length > 0,
-						isJournaled: effectiveSource.provider === 'smtp_journaling',
+						// Delivering source, not the merge root — see the reference-row insert above.
+						isJournaled: source.provider === 'smtp_journaling',
 						path: email.path,
 						tags: email.tags,
 					})
@@ -1600,8 +1891,16 @@ export class IngestionService {
 			// Default mode: strip non-inline attachments from the .eml to avoid double-storing
 			// attachment data (attachments are stored separately).
 			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer);
-			const emailHash = createHash('sha256').update(emlBuffer).digest('hex');
-			await storage.put(emailPath, emlBuffer);
+			const {
+				storagePath: emailStoragePath,
+				hash: emailHash,
+				sizeBytes: emailSize,
+			} = await this.storeEmailOrAdopt(storage, emailPath, emlBuffer, {
+				messageId,
+				userEmail,
+				ingestionSourceId: effectiveSource.id,
+				messageIdHeader: IngestionService.messageIdHeaderOf(email),
+			});
 
 			const [archivedEmail] = await db
 				.insert(archivedEmails)
@@ -1620,11 +1919,12 @@ export class IngestionService {
 						cc: email.cc,
 						bcc: email.bcc ?? [],
 					},
-					storagePath: emailPath,
+					storagePath: emailStoragePath,
 					storageHashSha256: emailHash,
-					sizeBytes: emlBuffer.length,
+					sizeBytes: emailSize,
 					hasAttachments: email.attachments.length > 0,
-					isJournaled: effectiveSource.provider === 'smtp_journaling',
+					// Delivering source, not the merge root — see the reference-row insert above.
+					isJournaled: source.provider === 'smtp_journaling',
 					path: email.path,
 					tags: email.tags,
 				})
@@ -1681,10 +1981,12 @@ export class IngestionService {
 				ingestionSourceId: source.id,
 			});
 			// Return a distinct error object rather than null so callers can count
-			// genuine failures separately from dedup skips (#403).
+			// genuine failures separately from dedup skips (#403). describeError keeps the
+			// database's own sentence and drops Drizzle's parameter dump, which would otherwise
+			// carry the email's subject — NUL and all — into the session row (#479).
 			return {
 				error: true,
-				message: `Email ${email.id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+				message: `Email ${email.id}: ${describeError(error)}`,
 			};
 		} finally {
 			// Clean up the temp file unless the caller opted out (e.g. journaling

@@ -1,6 +1,6 @@
 {
 	"name": "open-archiver",
-	"version": "0.5.3",
+	"version": "0.6.1",
 	"private": true,
 	"license": "SEE LICENSE IN LICENSE file",
 	"scripts": {
@@ -39,10 +39,10 @@
 		"vitepress": "^1.6.4",
 		"vitepress-openapi": "^0.1.18"
 	},
-	"packageManager": "pnpm@10.13.1",
+	"packageManager": "pnpm@10.34.7+sha512.ba98abc585539933375b5971f4bc6d6c73a1b4b7edc4a879e7d102fe5423d1e02309d67c60a11f04955093a96e521ad9c3b138cdd654ca5be563f378b3ae48bd",
 	"engines": {
 		"node": ">=22.0.0",
-		"pnpm": "10.13.1"
+		"pnpm": "10.34.7"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [

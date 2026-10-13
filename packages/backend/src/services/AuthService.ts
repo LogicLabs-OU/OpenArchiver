@@ -8,12 +8,13 @@ import type {
 	MfaCheckResult,
 } from '@open-archiver/types';
 import { UserService } from './UserService';
+import { LoginPolicyHook } from '../hooks/LoginPolicyHook';
 import { AuditService } from './AuditService';
 import { db } from '../database';
 import * as schema from '../database/schema';
 import { eq } from 'drizzle-orm';
 
-/** Callback type for checking if MFA is required for a user. Registered by enterprise module. */
+/** Callback type for checking if MFA is required for a user. */
 export type MfaCheckCallback = (userId: string) => Promise<MfaCheckResult>;
 
 export class AuthService {
@@ -36,8 +37,12 @@ export class AuthService {
 	}
 
 	/**
-	 * Registers the MFA check callback. Called by the enterprise advanced-security module
-	 * at startup to hook into the login flow.
+	 * Registers the MFA check callback.
+	 *
+	 * `createServer()` registers the open-source rule — challenge whoever has enrolled —
+	 * before any module loads. The enterprise advanced-security module then calls this
+	 * again to layer its enforcement policy on top. The second call replaces the first;
+	 * this is a single slot, not a list of checks.
 	 */
 	public registerMfaCheck(fn: MfaCheckCallback): void {
 		this.#mfaCheckCallback = fn;
@@ -92,6 +97,26 @@ export class AuthService {
 			return null; // Invalid password
 		}
 
+		// The password is right — but is a password an acceptable way in? The
+		// enterprise SSO module can refuse it when "require single sign-on" is
+		// active. Checked only after verification, so a wrong password still reads
+		// as invalidCredentials and the policy leaks nothing to a guesser.
+		const denialReason = await LoginPolicyHook.passwordLoginDenialReason({
+			id: user.id,
+			email: user.email,
+		});
+		if (denialReason) {
+			await this.#auditService.createAuditLog({
+				actorIdentifier: user.id,
+				actionType: 'LOGIN',
+				targetType: 'User',
+				targetId: user.id,
+				actorIp: ip,
+				details: { error: 'PasswordLoginRefusedByPolicy', reason: denialReason },
+			});
+			return { denied: true, reason: denialReason };
+		}
+
 		const userRoles = await db.query.userRoles.findMany({
 			where: eq(schema.userRoles.userId, user.id),
 			with: {
@@ -103,7 +128,7 @@ export class AuthService {
 
 		const { password: _, ...userWithoutPassword } = user;
 
-		// Check if MFA is required (enterprise hook)
+		// Check if MFA is required
 		if (this.#mfaCheckCallback) {
 			const mfaResult = await this.#mfaCheckCallback(user.id);
 

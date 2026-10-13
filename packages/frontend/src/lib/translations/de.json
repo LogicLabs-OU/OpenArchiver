@@ -170,6 +170,8 @@
 			"date_format_iso": "ISO 8601 (JJJJ-MM-TT)",
 			"date_format_eu": "Europäisch (TT.MM.JJJJ)",
 			"date_format_us": "USA (MM/TT/JJJJ)"
+			"email_managed_by_idp": "Wird von Ihrem Identitätsanbieter verwaltet",
+			"password_managed_by_idp": "Wird von Ihrem Identitätsanbieter verwaltet"
 		},
 		"system_settings": {
 			"title": "Systemeinstellungen",
@@ -205,7 +207,8 @@
 			"delete_confirmation_description": "Diese Aktion kann nicht rückgängig gemacht werden. Dadurch wird der Benutzer dauerhaft gelöscht und seine Daten von unseren Servern entfernt.",
 			"deleting": "Löschen",
 			"confirm": "Bestätigen",
-			"cancel": "Abbrechen"
+			"cancel": "Abbrechen",
+			"email_managed_by_idp": "Wird vom Identitätsanbieter verwaltet"
 		},
 		"components": {
 			"charts": {

@@ -91,4 +91,9 @@ export interface IJournalInboundJob {
 	remoteAddress: string;
 	/** Timestamp when the SMTP listener received the email */
 	receivedAt: string;
+	/**
+	 * How many times this job has been re-queued because another worker held the per-message
+	 * lock. Drives an exponential re-queue delay; absent on a job that has never contended.
+	 */
+	contentionRetries?: number;
 }
