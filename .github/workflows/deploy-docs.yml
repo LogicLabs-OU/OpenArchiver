@@ -17,9 +17,8 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Setup pnpm
-              uses: pnpm/action-setup@v2
-              with:
-                  version: 10.13.1
+              # No version here: the action reads packageManager from package.json.
+              uses: pnpm/action-setup@v4
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
