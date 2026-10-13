@@ -1,0 +1,39 @@
+{
+	"name": "OpenArchiver Dev",
+	// Reuse the project's backing services (postgres, valkey, meilisearch, tika)
+	// from the root compose file, and add a `dev` service on top for the editor
+	// to attach to. Both files are merged into one compose project so the dev
+	// container shares the open-archiver-net network with the services.
+	"dockerComposeFile": ["../docker-compose.yml", "docker-compose.yml"],
+	"service": "dev",
+	"workspaceFolder": "/workspaces/OpenArchiver",
+	// Start the dev container + backing services only. The prebuilt production
+	// `open-archiver` service from the root compose is intentionally NOT started
+	// here — we run the app from source inside `dev` (pnpm dev:oss).
+	"runServices": ["dev", "postgres", "valkey", "meilisearch", "tika"],
+	"remoteUser": "node",
+	// 3000/4000 run inside `dev`; the service:port entries forward ports that
+	// live in the sibling service containers.
+	"forwardPorts": [3000, 4000, "meilisearch:7700", "postgres:5432"],
+	"portsAttributes": {
+		"3000": { "label": "Frontend (SvelteKit)", "onAutoForward": "notify" },
+		"4000": { "label": "Backend API", "onAutoForward": "notify" }
+	},
+	"postCreateCommand": "bash .devcontainer/post-create.sh",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"svelte.svelte-vscode",
+				"esbenp.prettier-vscode",
+				"ms-azuretools.vscode-docker",
+				"vitest.explorer",
+				"yoavbls.pretty-ts-errors"
+			],
+			"settings": {
+				"editor.defaultFormatter": "esbenp.prettier-vscode",
+				"editor.formatOnSave": true,
+				"typescript.tsdk": "node_modules/typescript/lib"
+			}
+		}
+	}
+}

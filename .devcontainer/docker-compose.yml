@@ -1,0 +1,32 @@
+# Devcontainer overlay — merged on top of ../docker-compose.yml.
+#
+# Adds a `dev` service (Node 22 + pnpm) that mounts the source tree and joins
+# the same open-archiver-net network as the backing services (postgres, valkey,
+# meilisearch, tika) defined in the root compose file, so the app running from
+# source inside `dev` reaches them by their service names — exactly like the
+# production container does.
+services:
+    dev:
+        image: mcr.microsoft.com/devcontainers/typescript-node:22
+        # Keep the container alive; VS Code execs into it. (Compose-based
+        # devcontainers must supply their own long-running command.)
+        command: sleep infinity
+        volumes:
+            # Relative paths in compose files resolve against the compose
+            # *project directory*, which the devcontainer CLI sets to the repo
+            # root (the first -f file's dir) — NOT this .devcontainer folder. So
+            # `.` is the repo root here; `..` would (wrongly) mount its parent.
+            - .:/workspaces/OpenArchiver:cached
+            # Persist pnpm's content-addressable store across rebuilds so
+            # installs stay fast. node_modules itself lives in the bind mount.
+            - oa-pnpm-store:/home/node/.local/share/pnpm
+        depends_on:
+            - postgres
+            - valkey
+            - meilisearch
+            - tika
+        networks:
+            - open-archiver-net
+
+volumes:
+    oa-pnpm-store:
