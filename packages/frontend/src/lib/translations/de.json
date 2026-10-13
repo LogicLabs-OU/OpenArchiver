@@ -162,6 +162,14 @@
 			"confirm_new_password": "Neues Passwort bestätigen",
 			"operation_successful": "Vorgang erfolgreich",
 			"passwords_do_not_match": "Passwörter stimmen nicht überein",
+			"preferences": "Einstellungen",
+			"preferences_desc": "Passen Sie an, wie Informationen für Sie angezeigt werden.",
+			"date_format": "Datumsformat",
+			"date_format_desc": "Wählen Sie, wie Datum und Uhrzeit in der App angezeigt werden.",
+			"date_format_locale": "Browser-Sprache (Standard)",
+			"date_format_iso": "ISO 8601 (JJJJ-MM-TT)",
+			"date_format_eu": "Europäisch (TT.MM.JJJJ)",
+			"date_format_us": "USA (MM/TT/JJJJ)"
 			"email_managed_by_idp": "Wird von Ihrem Identitätsanbieter verwaltet",
 			"password_managed_by_idp": "Wird von Ihrem Identitätsanbieter verwaltet"
 		},

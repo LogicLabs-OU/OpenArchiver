@@ -23,6 +23,7 @@
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import { t } from '$lib/translations';
 	import { goto } from '$app/navigation';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 	import { page } from '$app/state';
 
 	let { data }: { data: PageData } = $props();
@@ -790,9 +791,7 @@
 									onCheckedChange={() => handleToggle(source)}
 								/>
 							</Table.Cell>
-							<Table.Cell
-								>{new Date(source.createdAt).toLocaleDateString()}</Table.Cell
-							>
+							<Table.Cell>{$formatDateStore(source.createdAt)}</Table.Cell>
 							<Table.Cell class="text-right">
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>
@@ -921,11 +920,7 @@
 											onCheckedChange={() => handleToggle(child)}
 										/>
 									</Table.Cell>
-									<Table.Cell
-										>{new Date(
-											child.createdAt
-										).toLocaleDateString()}</Table.Cell
-									>
+									<Table.Cell>{$formatDateStore(child.createdAt)}</Table.Cell>
 									<Table.Cell class="text-right">
 										<DropdownMenu.Root>
 											<DropdownMenu.Trigger>
