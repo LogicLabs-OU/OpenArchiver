@@ -1,0 +1,79 @@
+name: CI
+
+# Runs on pull requests, which currently have no build or test gate: the CLA bot
+# is the only check a PR gets today, so a change that fails to compile can be
+# merged without anything objecting.
+
+on:
+    pull_request:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+jobs:
+    check:
+        name: Types, format, tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10.13.1
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install
+              run: pnpm install --frozen-lockfile
+
+            - name: Build shared types
+              run: pnpm --filter @open-archiver/types build
+
+            - name: Typecheck backend
+              run: pnpm --filter @open-archiver/backend exec tsc --noEmit
+
+            - name: Typecheck frontend
+              run: pnpm --filter @open-archiver/frontend exec svelte-check --tsconfig ./tsconfig.json --threshold error
+
+            - name: Tests
+              run: pnpm test
+
+            - name: Formatting
+              # Scoped to the files the PR touches. A whole-tree `pnpm lint` fails on
+              # main today (drizzle snapshots and docs/api/openapi.json are generated
+              # and not prettier-formatted), so it cannot gate a PR until those are
+              # either formatted or ignored.
+              run: |
+                  git fetch origin "${{ github.base_ref || 'main' }}" --depth=1
+                  CHANGED=$(git diff --name-only --diff-filter=d \
+                    "origin/${{ github.base_ref || 'main' }}...HEAD" \
+                    | grep -E '\.(ts|js|svelte|json|md)$' \
+                    | grep -vE 'migrations/meta/|docs/api/openapi\.json' || true)
+                  if [ -z "$CHANGED" ]; then
+                    echo "No formattable files changed."
+                    exit 0
+                  fi
+                  echo "$CHANGED"
+                  echo "$CHANGED" | xargs ./node_modules/.bin/prettier --check
+
+    build:
+        name: Docker image
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: docker/setup-buildx-action@v3
+            - name: Build (no push)
+              # Same context and Dockerfile as the release workflow, amd64 only and
+              # never pushed — so a PR that breaks the image build says so before merge.
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./apps/open-archiver/Dockerfile
+                  platforms: linux/amd64
+                  push: false
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
