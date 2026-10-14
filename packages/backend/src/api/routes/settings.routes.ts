@@ -13,8 +13,8 @@ export const createSettingsRouter = (authService: AuthService): Router => {
 	 *   get:
 	 *     summary: Get system settings
 	 *     description: >
-	 *       Returns non-sensitive system settings such as language, timezone, and feature flags.
-	 *       This endpoint is public — no authentication required. Sensitive settings are never exposed.
+	 *       Returns the public system settings: language, theme, support email and date format.
+	 *       No authentication is required, and nothing else from the settings record is ever included.
 	 *     operationId: getSystemSettings
 	 *     tags:
 	 *       - Settings
@@ -29,7 +29,7 @@ export const createSettingsRouter = (authService: AuthService): Router => {
 	 *         $ref: '#/components/responses/InternalServerError'
 	 *   put:
 	 *     summary: Update system settings
-	 *     description: Updates system settings. Requires `manage:settings` permission.
+	 *     description: Updates the public system settings. Only `language`, `theme`, `supportEmail` and `dateFormat` are accepted; any other key is ignored. Requires `manage:settings` permission.
 	 *     operationId: updateSystemSettings
 	 *     tags:
 	 *       - Settings
@@ -53,6 +53,12 @@ export const createSettingsRouter = (authService: AuthService): Router => {
 	 *         $ref: '#/components/responses/Unauthorized'
 	 *       '403':
 	 *         $ref: '#/components/responses/Forbidden'
+	 *       '422':
+	 *         description: A field has an invalid value (unknown language, theme or date format, or a malformed support email). `errors` lists the fields.
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ErrorMessage'
 	 *       '500':
 	 *         $ref: '#/components/responses/InternalServerError'
 	 */

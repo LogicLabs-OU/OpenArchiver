@@ -23,6 +23,19 @@ Supported languages:
 - Greek
 - Japanese
 
+### Date Format
+
+This setting controls how dates and times are shown to every user across the application, including the archive, search results, email details and the audit log.
+
+| Option                                | Example                                                     |
+| ------------------------------------- | ----------------------------------------------------------- |
+| Follow the language setting (default) | The conventions of the language selected above              |
+| ISO 8601                              | `2026-10-14`, and `2026-10-14T10:00:00+02:00` with the time |
+| European                              | `14/10/2026 10:00:00`                                       |
+| US                                    | `10/14/2026 10:00:00`                                       |
+
+Times are shown in each viewer's own time zone. The ISO 8601 option also shows the UTC offset, so an audit entry or email timestamp can be compared exactly by reviewers in different time zones. A preview under the setting shows the current time in the selected format before you save.
+
 ### Default Theme
 
 This setting controls the default color theme for the application. Users can choose between light, dark, or system default. The system default theme will sync with the user's operating system theme.

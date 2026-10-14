@@ -1137,7 +1137,8 @@
       },
       "SystemSettings": {
         "type": "object",
-        "description": "Non-sensitive system configuration values.",
+        "description": "The public system settings. These four fields are all the API returns or accepts; the rest of the settings record stays internal.",
+        "additionalProperties": false,
         "properties": {
           "language": {
             "type": "string",
@@ -1151,7 +1152,8 @@
               "nl",
               "ja",
               "et",
-              "el"
+              "el",
+              "bg"
             ],
             "example": "en",
             "description": "Default UI language code."
@@ -1172,6 +1174,17 @@
             "nullable": true,
             "example": "support@example.com",
             "description": "Public-facing support email address."
+          },
+          "dateFormat": {
+            "type": "string",
+            "enum": [
+              "language",
+              "iso",
+              "eu",
+              "us"
+            ],
+            "example": "language",
+            "description": "How dates are shown to every user. `language` follows the UI language; `iso` is ISO 8601 with the UTC offset. Absent on instances that never saved it, which means `language`."
           }
         }
       }
@@ -4177,7 +4190,7 @@
     "/v1/settings/system": {
       "get": {
         "summary": "Get system settings",
-        "description": "Returns non-sensitive system settings such as language, timezone, and feature flags. This endpoint is public — no authentication required. Sensitive settings are never exposed.\n",
+        "description": "Returns the public system settings: language, theme, support email and date format. No authentication is required, and nothing else from the settings record is ever included.\n",
         "operationId": "getSystemSettings",
         "tags": [
           "Settings"
@@ -4200,7 +4213,7 @@
       },
       "put": {
         "summary": "Update system settings",
-        "description": "Updates system settings. Requires `manage:settings` permission.",
+        "description": "Updates the public system settings. Only `language`, `theme`, `supportEmail` and `dateFormat` are accepted; any other key is ignored. Requires `manage:settings` permission.",
         "operationId": "updateSystemSettings",
         "tags": [
           "Settings"
@@ -4239,6 +4252,16 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "description": "A field has an invalid value (unknown language, theme or date format, or a malformed support email). `errors` lists the fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"

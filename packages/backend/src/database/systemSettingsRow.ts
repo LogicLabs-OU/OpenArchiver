@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
 	language: 'en',
 	theme: 'system',
 	supportEmail: null,
+	dateFormat: 'language',
 };
 
 /**

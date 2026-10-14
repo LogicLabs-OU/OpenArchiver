@@ -134,14 +134,6 @@
 			"confirm_new_password": "Conferma nuova password",
 			"operation_successful": "Operazione riuscita",
 			"passwords_do_not_match": "Le password non corrispondono",
-			"preferences": "Preferenze",
-			"preferences_desc": "Personalizza come vengono mostrate le informazioni.",
-			"date_format": "Formato data",
-			"date_format_desc": "Scegli come vengono mostrate date e ore nell'app.",
-			"date_format_locale": "Lingua del browser (predefinito)",
-			"date_format_iso": "ISO 8601 (AAAA-MM-GG)",
-			"date_format_eu": "Europeo (GG/MM/AAAA)",
-			"date_format_us": "USA (MM/GG/AAAA)"
 			"email_managed_by_idp": "Gestito dal tuo provider di identità",
 			"password_managed_by_idp": "Gestito dal tuo provider di identità"
 		},

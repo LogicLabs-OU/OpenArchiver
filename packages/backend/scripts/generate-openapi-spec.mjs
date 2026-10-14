@@ -743,11 +743,25 @@ const options = {
 				// --- Settings ---
 				SystemSettings: {
 					type: 'object',
-					description: 'Non-sensitive system configuration values.',
+					description:
+						'The public system settings. These four fields are all the API returns or accepts; the rest of the settings record stays internal.',
+					additionalProperties: false,
 					properties: {
 						language: {
 							type: 'string',
-							enum: ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ja', 'et', 'el'],
+							enum: [
+								'en',
+								'es',
+								'fr',
+								'de',
+								'it',
+								'pt',
+								'nl',
+								'ja',
+								'et',
+								'el',
+								'bg',
+							],
 							example: 'en',
 							description: 'Default UI language code.',
 						},
@@ -763,6 +777,13 @@ const options = {
 							nullable: true,
 							example: 'support@example.com',
 							description: 'Public-facing support email address.',
+						},
+						dateFormat: {
+							type: 'string',
+							enum: ['language', 'iso', 'eu', 'us'],
+							example: 'language',
+							description:
+								'How dates are shown to every user. `language` follows the UI language; `iso` is ISO 8601 with the UTC offset. Absent on instances that never saved it, which means `language`.',
 						},
 					},
 				},

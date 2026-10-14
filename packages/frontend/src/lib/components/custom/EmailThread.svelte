@@ -39,7 +39,7 @@
 							class:font-bold={item.id === currentEmailId}
 							class="text-md mb-2 {item.id !== currentEmailId
 								? 'text-blue-500 hover:underline'
-								: 'text-gray-900'}"
+								: ''}"
 						>
 							{#if item.id !== currentEmailId}
 								<a

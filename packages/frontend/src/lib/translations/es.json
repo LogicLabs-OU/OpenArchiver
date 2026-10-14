@@ -162,14 +162,6 @@
 			"confirm_new_password": "Confirmar nueva contraseña",
 			"operation_successful": "Operación exitosa",
 			"passwords_do_not_match": "Las contraseñas no coinciden",
-			"preferences": "Preferencias",
-			"preferences_desc": "Personaliza cómo se muestra la información.",
-			"date_format": "Formato de fecha",
-			"date_format_desc": "Elige cómo se muestran las fechas y horas en la aplicación.",
-			"date_format_locale": "Idioma del navegador (predeterminado)",
-			"date_format_iso": "ISO 8601 (AAAA-MM-DD)",
-			"date_format_eu": "Europeo (DD/MM/AAAA)",
-			"date_format_us": "EE. UU. (MM/DD/AAAA)"
 			"email_managed_by_idp": "Gestionado por tu proveedor de identidad",
 			"password_managed_by_idp": "Gestionado por tu proveedor de identidad"
 		},

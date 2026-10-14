@@ -1,17 +1,34 @@
-export type SupportedLanguage =
-	| 'en' // English
-	| 'es' // Spanish
-	| 'fr' // French
-	| 'de' // German
-	| 'it' // Italian
-	| 'pt' // Portuguese
-	| 'nl' // Dutch
-	| 'ja' // Japanese
-	| 'et' // Estonian
-	| 'el' // Greek
-	| 'bg'; // Bulgarian
+/**
+ * Every UI language the app ships. One list, so the type, the settings validation and the
+ * OpenAPI schema cannot drift apart.
+ */
+export const SUPPORTED_LANGUAGES = [
+	'en', // English
+	'es', // Spanish
+	'fr', // French
+	'de', // German
+	'it', // Italian
+	'pt', // Portuguese
+	'nl', // Dutch
+	'ja', // Japanese
+	'et', // Estonian
+	'el', // Greek
+	'bg', // Bulgarian
+] as const;
+
+export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 export type Theme = 'light' | 'dark' | 'system';
+
+/**
+ * How dates and times are shown across the app, chosen by an administrator for everyone.
+ * - `language`: the conventions of the app's language setting (the default).
+ * - `iso`: ISO 8601 — `2026-10-14`, and `2026-10-14T10:00:00+02:00` for date and time, in the
+ *   viewer's local time with its UTC offset, so the same instant reads the same for everyone.
+ * - `eu`: `DD/MM/YYYY`.
+ * - `us`: `MM/DD/YYYY`.
+ */
+export type DateFormat = 'language' | 'iso' | 'eu' | 'us';
 
 import type { AdvancedSecurityPolicy } from './security.types';
 import type { SeatPolicy, SeatReport, StoredLicenseStatus } from './license.types';
@@ -27,6 +44,7 @@ export interface PublicSystemSettings {
 	language: SupportedLanguage;
 	theme: Theme;
 	supportEmail: string | null;
+	dateFormat?: DateFormat;
 }
 
 export interface SystemSettings {
@@ -38,6 +56,9 @@ export interface SystemSettings {
 
 	/** A public-facing email address for user support inquiries. */
 	supportEmail: string | null;
+
+	/** How dates are shown to every user. Absent on rows saved before it existed: `language`. */
+	dateFormat?: DateFormat;
 
 	/**
 	 * Enterprise advanced security policy (TOTP enforcement, grace period, etc.).
