@@ -294,6 +294,7 @@
 					loadSuggestions={loadMailboxSuggestions}
 				/>
 			</div>
+			<p class="text-muted-foreground text-xs">{$t('app.search.wildcard_hint')}</p>
 
 			<div class="space-y-1.5">
 				<Label>{$t('app.search.search_in')}</Label>

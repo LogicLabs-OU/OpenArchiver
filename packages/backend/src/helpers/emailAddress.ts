@@ -13,6 +13,20 @@
 export const normalizeEmailAddress = (value: string): string => value.trim().toLowerCase();
 
 /**
+ * The two halves of an address, lower-cased, cut at the last `@`. Undefined when either half is
+ * empty. Used both when a document is indexed and when a `*@domain` or `name@*` search filter is
+ * read, so the two sides of the comparison are always cut the same way.
+ */
+export const splitEmailAddress = (
+	value: string
+): { localPart: string; domain: string } | undefined => {
+	const address = normalizeEmailAddress(value);
+	const at = address.lastIndexOf('@');
+	if (at <= 0 || at === address.length - 1) return undefined;
+	return { localPart: address.slice(0, at), domain: address.slice(at + 1) };
+};
+
+/**
  * Reads a record keyed by mailbox address, tolerating keys written before addresses were
  * normalized — sync state stores a provider's delta/history token under the address the provider
  * reported, and Microsoft returns a user principal name in whatever casing it was created with.

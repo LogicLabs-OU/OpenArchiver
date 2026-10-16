@@ -256,6 +256,7 @@
 			"sort_relevance": "Relevance",
 			"clear_filters": "Clear all filters",
 			"add_value_hint": "Type and press Enter to add",
+			"wildcard_hint": "Use *@example.com for every address at a domain, or name@* for that name at any domain.",
 			"remove_value": "Remove {{value}}"
 		},
 		"roles": {

@@ -38,6 +38,8 @@ Limit the search to specific ingestion sources, or exclude specific sources. Sel
 
 Type an address and press Enter (or comma) to add it as a chip; add as many as needed.
 
+**Wildcards.** Every address filter above also accepts two patterns: `*@example.com` matches every address at that domain, and `name@*` matches that name at any domain. They work in the exclude filters too, so `*@newsletter.example.com` under **Exclude sender** hides everything that domain sends. A `*` anywhere else (such as `*invoice*`) is not supported. The patterns apply to mail indexed from v0.6.1 on; a **Full rebuild** on **Admin → Index** applies them to older mail.
+
 ### Date range
 
 Pick a start and end date to restrict results to emails sent within that range. Both bounds are inclusive and interpreted in UTC.

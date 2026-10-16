@@ -61,7 +61,7 @@ On the **Ingestion Sources** page, open a source's actions menu and choose **Rei
 Use the **Reindex All** button at the top of the Ingestion Sources page and pick **Reindex missing** or **Full rebuild**. This covers every source. See [Reindex All Sources](/api/ingestion#reindex-all-sources).
 
 ::: tip Upgrading from an older version
-On the upgrade to v0.5.1, existing emails were marked as indexed without checking the search engine, to avoid re-indexing the whole archive automatically. Emails whose index writes never completed on an older version therefore stay missing from search, and the automatic reconcile does not find them. Run **Verify index coverage** on **Admin → Index** once: it checks each marked email against the search engine and queues only the missing ones for indexing. A **Full rebuild** is also what backfills newer search fields for existing mail — for example the **with/without attachments** filter and **resolved sender names** in results, both added in v0.5.2.
+On the upgrade to v0.5.1, existing emails were marked as indexed without checking the search engine, to avoid re-indexing the whole archive automatically. Emails whose index writes never completed on an older version therefore stay missing from search, and the automatic reconcile does not find them. Run **Verify index coverage** on **Admin → Index** once: it checks each marked email against the search engine and queues only the missing ones for indexing. A **Full rebuild** is also what backfills newer search fields for existing mail — for example the **with/without attachments** filter and **resolved sender names** in results, both added in v0.5.2, and the `*@domain` / `name@*` address patterns added in v0.6.1.
 :::
 
 ### Watching progress

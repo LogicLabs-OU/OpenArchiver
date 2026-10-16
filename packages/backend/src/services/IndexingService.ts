@@ -13,6 +13,7 @@ import { archivedEmails, attachments, emailAttachments } from '../database/schem
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
 import { truncateToBytes } from '../helpers/truncateToBytes';
+import { splitEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
 import { logger } from '../config/logger';
@@ -671,14 +672,33 @@ export class IndexingService {
 				? value.filter((a): a is string => typeof a === 'string').map(sanitizeText)
 				: [];
 
+		const userEmail = sanitizeText(doc.userEmail || '') || 'unknown';
+		const from = sanitizeText(doc.from || '');
+		const to = addresses(doc.to);
+		const cc = addresses(doc.cc);
+		const bcc = addresses(doc.bcc);
+
+		// The halves of each address back the `*@domain` and `name@*` search filters (#438).
+		const sender = splitEmailAddress(from);
+		const owner = splitEmailAddress(userEmail);
+		const recipients = [...to, ...cc, ...bcc]
+			.map(splitEmailAddress)
+			.filter((parts) => parts !== undefined);
+
 		return {
 			id: doc.id || 'missing-id',
-			userEmail: sanitizeText(doc.userEmail || '') || 'unknown',
-			from: sanitizeText(doc.from || ''),
+			userEmail,
+			from,
 			fromName: sanitizeText(doc.fromName || ''),
-			to: addresses(doc.to),
-			cc: addresses(doc.cc),
-			bcc: addresses(doc.bcc),
+			to,
+			cc,
+			bcc,
+			fromDomain: sender?.domain,
+			fromLocalPart: sender?.localPart,
+			recipientDomains: [...new Set(recipients.map((parts) => parts.domain))],
+			recipientLocalParts: [...new Set(recipients.map((parts) => parts.localPart))],
+			userEmailDomain: owner?.domain,
+			userEmailLocalPart: owner?.localPart,
 			subject: sanitizeText(doc.subject || ''),
 			body: truncateToBytes(sanitizeText(doc.body || ''), maxTextBytes),
 			attachments: Array.isArray(doc.attachments)

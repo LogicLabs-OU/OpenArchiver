@@ -70,7 +70,8 @@
 		"invalidSourceId": "One or more ingestion source IDs are not valid",
 		"invalidDate": "Dates must use the yyyy-mm-dd format",
 		"invalidDateRange": "The start date must not be after the end date",
-		"invalidParam": "One or more search parameters have an invalid value"
+		"invalidParam": "One or more search parameters have an invalid value",
+		"invalidWildcard": "Wildcards are only supported as *@domain or name@*"
 	},
 	"index": {
 		"cleanupTriggered": "Index cleanup has been queued.",
