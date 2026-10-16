@@ -9,6 +9,9 @@
  *
  * Cutting on bytes and backing off over UTF-8 continuation bytes (`10xxxxxx`) lands on a character
  * boundary and keeps the whole budget, rather than reserving four bytes for every character.
+ *
+ * This only avoids creating a lone surrogate. One already in `text` is returned as is; the indexer's
+ * `sanitizeText` is what removes those.
  */
 export function truncateToBytes(text: string, maxBytes: number): string {
 	if (maxBytes <= 0) {
