@@ -235,6 +235,43 @@ function extractTextFromPdf(buffer: Buffer): Promise<string> {
 	);
 }
 
+/**
+ * Largest image, in pixels, a PDF may contain for pdf2json to parse it.
+ *
+ * pdf2json grows its decode buffer with `size <<= 1`, which wraps to 0 once a stream decodes to more
+ * than 1GiB, and then loops forever (#497). The loop is synchronous, so neither the parse timeout
+ * nor the heap guard above can run, and the indexing worker sits at 100% CPU until killed. 2^28
+ * pixels at 4 bytes each (CMYK, the most an 8-bit colour space takes) is exactly 1GiB.
+ */
+const MAX_PDF_IMAGE_PIXELS = 2 ** 28;
+
+/**
+ * Pixel count of the largest image XObject in a PDF, read straight from the raw bytes.
+ *
+ * Image dictionaries are always readable without parsing: an image is a stream, and a stream cannot
+ * be stored inside a compressed object stream. Only direct integers are read; a `/Width 12 0 R`
+ * reference is not resolved, and an inline image inside a compressed content stream is not seen.
+ */
+function largestPdfImagePixels(buffer: Buffer): number {
+	let largest = 0;
+	for (let at = buffer.indexOf('/Image'); at !== -1; at = buffer.indexOf('/Image', at + 6)) {
+		// The image's dictionary: from the start of its object to the start of its stream.
+		const start = Math.max(0, buffer.lastIndexOf('obj', at));
+		const end = buffer.indexOf('stream', at);
+		if (end === -1 || end - start > 4096) {
+			continue;
+		}
+		const dict = buffer.toString('latin1', start, end);
+		if (!/\/Subtype\s*\/Image\b/.test(dict)) {
+			continue;
+		}
+		const width = Number(dict.match(/\/Width\s+(\d+)(?!\s+\d+\s+R)/)?.[1] ?? 0);
+		const height = Number(dict.match(/\/Height\s+(\d+)(?!\s+\d+\s+R)/)?.[1] ?? 0);
+		largest = Math.max(largest, width * height);
+	}
+	return largest;
+}
+
 // Legacy text extraction for various formats
 async function extractTextLegacy(buffer: Buffer, mimeType: string): Promise<string> {
 	try {
@@ -243,6 +280,14 @@ async function extractTextLegacy(buffer: Buffer, mimeType: string): Promise<stri
 			if (buffer.length > 50 * 1024 * 1024) {
 				// 50MB Limit
 				logger.warn('PDF too large for legacy extraction, skipping');
+				return '';
+			}
+			const pixels = largestPdfImagePixels(buffer);
+			if (pixels > MAX_PDF_IMAGE_PIXELS) {
+				logger.warn(
+					{ pixels, pdfBytes: buffer.length },
+					'PDF contains an image too large for the built-in parser, skipping'
+				);
 				return '';
 			}
 			return await extractTextFromPdf(buffer);
