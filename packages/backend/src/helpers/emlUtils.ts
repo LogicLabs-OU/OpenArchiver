@@ -135,9 +135,12 @@ function addressToString(
  * and a warning is logged — email ingestion is never blocked by this function.
  *
  * @param emlBuffer The raw .eml file as a Buffer.
+ * @param sentAt The date the connector resolved for this email. The rebuilt file is what the archive
+ *   keeps, so its Date header has to be that value: mailparser's own `date` is the current time
+ *   whenever it could not read the original header (#372).
  * @returns A new Buffer with non-inline attachments removed, or the original if nothing was stripped.
  */
-export async function stripAttachmentsFromEml(emlBuffer: Buffer): Promise<Buffer> {
+export async function stripAttachmentsFromEml(emlBuffer: Buffer, sentAt?: Date): Promise<Buffer> {
 	try {
 		const parsed = await simpleParser(emlBuffer);
 
@@ -185,7 +188,7 @@ export async function stripAttachmentsFromEml(emlBuffer: Buffer): Promise<Buffer
 			replyTo: addressToString(parsed.replyTo),
 			subject: parsed.subject,
 			messageId: parsed.messageId,
-			date: parsed.date,
+			date: sentAt ?? parsed.date,
 			inReplyTo: parsed.inReplyTo,
 			references: Array.isArray(parsed.references)
 				? parsed.references.join(' ')

@@ -12,6 +12,7 @@ import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'ma
 import { config } from '../../config';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
 
 /**
@@ -424,6 +425,7 @@ export class ImapConnector implements IEmailConnector {
 													bodyStructure: true,
 													uid: true,
 													flags: true,
+													internalDate: true,
 												},
 												{ uid: true }
 											)
@@ -503,7 +505,7 @@ export class ImapConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt: sentDateOf(parsedEmail, msg.internalDate),
 			tempFilePath,
 			path: mailboxPath,
 			isDraft: msg.flags?.has('\\Draft') || undefined,

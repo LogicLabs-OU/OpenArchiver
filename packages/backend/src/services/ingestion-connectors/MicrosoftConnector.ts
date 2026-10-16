@@ -26,6 +26,7 @@ import {
 } from './helpers/retry';
 import { attachGraphErrorBody } from './helpers/graphErrorBody';
 import { TimeboundMsalNetworkClient } from './helpers/msalNetworkClient';
+import { sentDateOf } from './helpers/sentDate';
 
 /** The HTTP status behind a Graph failure. `GraphError` carries it on `statusCode`. */
 const statusOf = (error: any): number | undefined =>
@@ -849,7 +850,7 @@ export class MicrosoftConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt: sentDateOf(parsedEmail),
 			path,
 		};
 	}
