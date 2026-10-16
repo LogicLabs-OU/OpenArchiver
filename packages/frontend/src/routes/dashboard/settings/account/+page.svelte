@@ -13,7 +13,6 @@
 	import { ShieldCheck, ShieldOff, Copy, RefreshCw } from 'lucide-svelte';
 	import { format } from 'date-fns';
 	import type { MfaSetupResponse, MfaEnrollResponse } from '@open-archiver/types';
-
 	let { data, form } = $props();
 	let user = $derived(data.user);
 	/**

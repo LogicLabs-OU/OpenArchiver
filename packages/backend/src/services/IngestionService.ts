@@ -1890,7 +1890,7 @@ export class IngestionService {
 
 			// Default mode: strip non-inline attachments from the .eml to avoid double-storing
 			// attachment data (attachments are stored separately).
-			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer);
+			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer, email.receivedAt);
 			const {
 				storagePath: emailStoragePath,
 				hash: emailHash,

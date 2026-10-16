@@ -20,12 +20,14 @@
 		Database,
 	} from 'lucide-svelte';
 	import { t } from '$lib/translations';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 	let stats = $derived(data.stats);
 
-	const fmtDate = (d: string | null) =>
-		d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+	// Routed through the store so this page honours the account date-format
+	// preference like the rest of the dashboard.
+	const fmtDate = (d: string | null) => (d ? $formatDateStore(d) : '—');
 
 	// Index coverage percentage, clamped to 100 (Meilisearch count can momentarily
 	// exceed the DB count).

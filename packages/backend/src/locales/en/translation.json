@@ -42,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Failed to retrieve settings",
 		"failedToUpdate": "Failed to update settings",
-		"noPermissionToUpdate": "You do not have permission to update system settings."
+		"noPermissionToUpdate": "You do not have permission to update system settings.",
+		"invalidSettings": "Invalid settings."
 	},
 	"dashboard": {
 		"permissionRequired": "You need the dashboard read permission to view dashboard data."

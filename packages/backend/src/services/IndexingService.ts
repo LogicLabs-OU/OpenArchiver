@@ -32,13 +32,19 @@ type AttachmentsType = {
 }[];
 
 /**
- * Sanitizes text content by removing invalid characters that could cause JSON serialization issues
+ * Sanitizes text content by removing invalid characters that could cause JSON serialization issues.
+ *
+ * Lone UTF-16 surrogates matter most here. Extracted text can carry one (a PDF whose ToUnicode
+ * table maps a glyph to half a pair), `JSON.stringify` writes it as `\ud83d`, and Meilisearch's
+ * parser fails the whole task with "unexpected end of hex escape". `toWellFormed()` turns each
+ * into U+FFFD, which the next line removes.
  */
 function sanitizeText(text: string): string {
 	if (!text) return '';
 
-	// Remove control characters and invalid UTF-8 sequences
+	// Remove lone surrogates, control characters and invalid UTF-8 sequences
 	return text
+		.toWellFormed() // Lone UTF-16 surrogates become U+FFFD, removed below
 		.replace(/\uFFFD/g, '') // Replacement character for invalid UTF-8 sequences
 		.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control characters
 		.trim();

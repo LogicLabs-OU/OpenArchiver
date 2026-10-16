@@ -14,6 +14,7 @@
 	import { MoreHorizontal, Plus } from 'lucide-svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import type { RetentionLabel } from '@open-archiver/types';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -109,7 +110,7 @@
 							{/if}
 						</Table.Cell>
 						<Table.Cell>
-							{new Date(label.createdAt).toLocaleDateString()}
+							{$formatDateStore(label.createdAt)}
 						</Table.Cell>
 						<Table.Cell class="text-right">
 							<DropdownMenu.Root>

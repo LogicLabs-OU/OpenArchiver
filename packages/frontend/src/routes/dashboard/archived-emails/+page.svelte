@@ -13,6 +13,7 @@
 	import { api } from '$lib/api.client';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import type { PaginatedArchivedEmails } from '@open-archiver/types';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 
@@ -163,7 +164,7 @@
 								}}
 							/>
 						</Table.Cell>
-						<Table.Cell>{new Date(email.sentAt).toLocaleString()}</Table.Cell>
+						<Table.Cell>{$formatDateTimeStore(email.sentAt)}</Table.Cell>
 
 						<Table.Cell>
 							<div class="max-w-100 truncate">

@@ -10,6 +10,7 @@ import { PSTFile, PSTFolder, PSTMessage } from 'pst-extractor';
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { createHash } from 'crypto';
@@ -480,7 +481,7 @@ export class PSTConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt: sentDateOf(parsedEmail, msg.clientSubmitTime ?? msg.messageDeliveryTime),
 			tempFilePath,
 			path,
 		};
@@ -543,8 +544,10 @@ export class PSTConnector implements IEmailConnector {
 		if (msg.subject) {
 			headerLines.push(`Subject: ${this.encodeHeaderText(msg.subject)}`);
 		}
-		if (msg.clientSubmitTime) {
-			headerLines.push(`Date: ${new Date(msg.clientSubmitTime).toUTCString()}`);
+		// Received items in some exports carry only the delivery time, not the submit time.
+		const sentTime = msg.clientSubmitTime ?? msg.messageDeliveryTime;
+		if (sentTime) {
+			headerLines.push(`Date: ${new Date(sentTime).toUTCString()}`);
 		}
 		if (msg.internetMessageId) {
 			headerLines.push(`Message-ID: <${this.stripAngleBrackets(msg.internetMessageId)}>`);

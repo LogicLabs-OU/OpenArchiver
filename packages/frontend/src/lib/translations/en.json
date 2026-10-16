@@ -313,6 +313,12 @@
 			"dark": "Dark",
 			"system": "System",
 			"support_email": "Support Email",
+			"date_format": "Date format",
+			"date_format_language": "Follow the language setting (default)",
+			"date_format_iso": "ISO 8601 (2026-10-14T10:00:00+02:00)",
+			"date_format_eu": "European (DD/MM/YYYY)",
+			"date_format_us": "US (MM/DD/YYYY)",
+			"date_format_preview": "Preview",
 			"saving": "Saving",
 			"save_changes": "Save Changes"
 		},

@@ -10,6 +10,7 @@
 	import { api } from '$lib/api.client';
 	import type { Role } from '@open-archiver/types';
 	import { t } from '$lib/translations';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 	let roles = $state(data.roles);
@@ -132,7 +133,7 @@
 					{#each roles as role (role.id)}
 						<Table.Row>
 							<Table.Cell>{role.name}</Table.Cell>
-							<Table.Cell>{new Date(role.createdAt).toLocaleDateString()}</Table.Cell>
+							<Table.Cell>{$formatDateStore(role.createdAt)}</Table.Cell>
 							<Table.Cell class="text-right">
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>

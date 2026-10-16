@@ -12,6 +12,7 @@ import { findByEmailKey } from '../../helpers/emailAddress';
 import { logger } from '../../config/logger';
 import { simpleParser, ParsedMail, Attachment, AddressObject, Headers } from 'mailparser';
 import { getThreadId } from './helpers/utils';
+import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import {
 	isRetryableStatus,
@@ -393,7 +394,10 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			userEmail,
 			labels.path,
 			labels.tags,
-			isDraft
+			isDraft,
+			// When Gmail received the message, in epoch milliseconds. Only used if the message's
+			// own headers carry no readable date.
+			msgResponse.data.internalDate ? Number(msgResponse.data.internalDate) : undefined
 		);
 	}
 
@@ -516,7 +520,8 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 		userEmail: string,
 		path: string,
 		tags: string[],
-		isDraft = false
+		isDraft = false,
+		providerDate?: number
 	): Promise<EmailObject> {
 		const parsedEmail: ParsedMail = await simpleParser(rawEmail);
 
@@ -567,7 +572,7 @@ export class GoogleWorkspaceConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt: sentDateOf(parsedEmail, providerDate),
 			path,
 			isDraft: isDraft || undefined,
 			tags,
