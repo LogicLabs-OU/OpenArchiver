@@ -1,0 +1,77 @@
+name: tika-integration
+
+on:
+    pull_request:
+        paths:
+            - 'packages/backend/**'
+            - 'packages/types/**'
+            - 'docker-compose.yml'
+            - 'pnpm-lock.yaml'
+            - '.github/workflows/tika-integration.yml'
+    push:
+        branches:
+            - main
+        paths:
+            - 'packages/backend/**'
+            - 'packages/types/**'
+            - 'docker-compose.yml'
+            - 'pnpm-lock.yaml'
+            - '.github/workflows/tika-integration.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    text-extraction:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        env:
+            TIKA_URL: http://localhost:9998
+            LOG_LEVEL: warn
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            # Use the exact Tika image that docker-compose.yml deploys, so a version bump there
+            # is tested here without editing this workflow.
+            - name: Start Tika (image from docker-compose.yml)
+              run: |
+                  set -euo pipefail
+                  TIKA_IMAGE=$(yq '.services.tika.image' docker-compose.yml)
+                  echo "Using ${TIKA_IMAGE}"
+                  docker run -d --name tika -p 9998:9998 "${TIKA_IMAGE}"
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v2
+              with:
+                  version: 10.13.1
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build backend
+              run: pnpm --filter "@open-archiver/backend..." build
+
+            - name: Wait for Tika
+              run: |
+                  for i in $(seq 1 60); do
+                      if curl -sf "${TIKA_URL}/version"; then echo; exit 0; fi
+                      sleep 2
+                  done
+                  echo "Tika did not become ready" >&2
+                  docker logs tika
+                  exit 1
+
+            - name: Run Tika text extraction tests
+              run: pnpm --filter @open-archiver/backend test:integration:tika
+
+            - name: Tika logs
+              if: failure()
+              run: docker logs tika
