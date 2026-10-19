@@ -377,6 +377,12 @@
 			"ingestion_source_form": {
 				"provider_generic_imap": "Generic IMAP",
 				"provider_oauth_mailbox": "OAuth Mailbox (single mailbox)",
+				"provider_jmap": "JMAP",
+				"jmap_server_url": "Server URL",
+				"jmap_auth_method": "Authentication",
+				"jmap_auth_token": "API token",
+				"jmap_auth_password": "Password or app password",
+				"jmap_token": "API token",
 				"provider_google_workspace": "Google Workspace",
 				"provider_microsoft_365": "Microsoft 365",
 				"provider_pst_import": "PST Import",

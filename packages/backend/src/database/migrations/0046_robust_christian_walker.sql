@@ -1,0 +1,1 @@
+ALTER TYPE "public"."ingestion_provider" ADD VALUE 'jmap';

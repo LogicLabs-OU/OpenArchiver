@@ -7,6 +7,7 @@ Choose your provider from the list below to get started:
 - [Google Workspace](./google-workspace.md)
 - [Microsoft 365](./microsoft-365.md)
 - [Generic IMAP Server](./imap.md)
+- [JMAP](./jmap.md)
 - [OAuth Mailbox (Outlook.com and personal accounts)](./oauth-mailbox.md)
 - [EML Import](./eml.md)
 - [PST Import](./pst.md)
@@ -17,7 +18,7 @@ Choose your provider from the list below to get started:
 
 ### Drafts
 
-Unsent drafts from live mailboxes — Google Workspace, Microsoft 365 and IMAP — are **not archived by default**. A draft is not a record of anything: it was never sent, and it changes every time its author touches it. Archiving one goes wrong in both directions, depending on the provider.
+Unsent drafts from live mailboxes — Google Workspace, Microsoft 365, IMAP and JMAP — are **not archived by default**. A draft is not a record of anything: it was never sent, and it changes every time its author touches it. Archiving one goes wrong in both directions, depending on the provider.
 
 Google replaces the underlying message on every save, so each auto-save arrives as a new message with new identifiers. Archived, they accumulate: one email that is still being written can leave a dozen copies behind, plus one more when it is finally sent.
 
@@ -29,4 +30,4 @@ Set `ARCHIVE_DRAFTS=true` if you need drafts kept. Note that both behaviours abo
 
 ### Junk and Trash
 
-Junk and Trash folders are excluded by default on IMAP. Set `ALL_INCLUSIVE_ARCHIVE=true` to include them. This setting is separate from `ARCHIVE_DRAFTS` — asking for spam to be archived is not the same as asking for half-written messages.
+Junk and Trash folders are excluded by default on IMAP and JMAP. Set `ALL_INCLUSIVE_ARCHIVE=true` to include them. This setting is separate from `ARCHIVE_DRAFTS` — asking for spam to be archived is not the same as asking for half-written messages.

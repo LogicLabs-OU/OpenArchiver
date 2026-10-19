@@ -48,6 +48,10 @@ export default defineConfig({
 								link: '/user-guides/email-providers/imap',
 							},
 							{
+								text: 'JMAP',
+								link: '/user-guides/email-providers/jmap',
+							},
+							{
 								text: 'OAuth Mailbox (Outlook.com)',
 								link: '/user-guides/email-providers/oauth-mailbox',
 							},

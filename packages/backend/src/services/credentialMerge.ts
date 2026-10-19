@@ -29,6 +29,7 @@ const PROVIDER_FIELDS: Partial<Record<IngestionProvider, readonly string[]>> = {
 	pst_import: ['uploadedFileName', 'uploadedFilePath', 'localFilePath'],
 	eml_import: ['uploadedFileName', 'uploadedFilePath', 'localFilePath'],
 	mbox_import: ['uploadedFileName', 'uploadedFilePath', 'localFilePath'],
+	jmap: ['serverUrl', 'username', 'authMethod', 'token', 'password'],
 };
 
 /** The fields that must be non-empty after the merge for the source to be able to connect. */
@@ -36,6 +37,7 @@ const REQUIRED_FIELDS: Partial<Record<IngestionProvider, readonly string[]>> = {
 	generic_imap: ['host', 'username', 'password'],
 	microsoft_365: ['clientId', 'clientSecret', 'tenantId'],
 	google_workspace: ['serviceAccountKeyJson', 'impersonatedAdminEmail'],
+	jmap: ['serverUrl', 'username', 'authMethod'],
 };
 
 const isBlank = (value: unknown): boolean => value === undefined || value === '';

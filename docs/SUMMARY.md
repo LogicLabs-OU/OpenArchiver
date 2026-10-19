@@ -7,6 +7,7 @@
 - [email-providers](user-guides/email-providers/index.md)
     - [Connecting to Google Workspace](user-guides/email-providers/google-workspace.md)
     - [Connecting to a Generic IMAP Server](user-guides/email-providers/imap.md)
+    - [Connecting a JMAP Mailbox](user-guides/email-providers/jmap.md)
     - [Connecting to Microsoft 365](user-guides/email-providers/microsoft-365.md)
 
 ---

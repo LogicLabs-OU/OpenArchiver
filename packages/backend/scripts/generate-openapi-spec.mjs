@@ -255,6 +255,7 @@ const options = {
 								'eml_import',
 								'mbox_import',
 								'oauth_mailbox',
+								'jmap',
 							],
 							example: 'google_workspace',
 						},
@@ -298,6 +299,7 @@ const options = {
 								'eml_import',
 								'mbox_import',
 								'oauth_mailbox',
+								'jmap',
 							],
 						},
 						providerConfig: {
@@ -371,6 +373,7 @@ const options = {
 								'eml_import',
 								'mbox_import',
 								'oauth_mailbox',
+								'jmap',
 							],
 						},
 						status: {

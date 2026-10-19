@@ -337,7 +337,8 @@
               "pst_import",
               "eml_import",
               "mbox_import",
-              "oauth_mailbox"
+              "oauth_mailbox",
+              "jmap"
             ],
             "example": "google_workspace"
           },
@@ -408,7 +409,8 @@
               "pst_import",
               "eml_import",
               "mbox_import",
-              "oauth_mailbox"
+              "oauth_mailbox",
+              "jmap"
             ]
           },
           "providerConfig": {
@@ -502,7 +504,8 @@
               "pst_import",
               "eml_import",
               "mbox_import",
-              "oauth_mailbox"
+              "oauth_mailbox",
+              "jmap"
             ]
           },
           "status": {

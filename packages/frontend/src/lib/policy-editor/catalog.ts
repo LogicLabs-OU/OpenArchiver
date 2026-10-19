@@ -67,6 +67,7 @@ export const INGESTION_PROVIDERS = [
 	'eml_import',
 	'mbox_import',
 	'smtp_journaling',
+	'jmap',
 ] as const;
 
 export const INGESTION_STATUSES = [
