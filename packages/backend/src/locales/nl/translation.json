@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "E-mail en wachtwoord zijn verplicht",
-			"invalidCredentials": "Ongeldige inloggegevens"
+			"invalidCredentials": "Ongeldige inloggegevens",
+			"ssoEnforced": "Aanmelden met een wachtwoord is uitgeschakeld voor dit account. Gebruik eenmalige aanmelding."
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Kan instellingen niet ophalen",
 		"failedToUpdate": "Kan instellingen niet bijwerken",
-		"noPermissionToUpdate": "U heeft geen toestemming om de systeeminstellingen bij te werken."
+		"noPermissionToUpdate": "U heeft geen toestemming om de systeeminstellingen bij te werken.",
+		"invalidSettings": "Ongeldige instellingen."
 	},
 	"dashboard": {
 		"permissionRequired": "U heeft de leesrechten voor het dashboard nodig om dashboardgegevens te bekijken."
@@ -50,13 +52,30 @@
 		"failedToCreate": "Kan de opnamebron niet aanmaken vanwege een verbindingsfout.",
 		"notFound": "Opnamebron niet gevonden",
 		"initialImportTriggered": "Initiële import succesvol geactiveerd.",
-		"forceSyncTriggered": "Geforceerde synchronisatie succesvol geactiveerd."
+		"forceSyncTriggered": "Geforceerde synchronisatie succesvol geactiveerd.",
+		"reindexTriggered": "Opnieuw indexeren succesvol gestart.",
+		"duplicateCleanupTriggered": "Opschonen van duplicaten gestart. Dit wordt op de achtergrond uitgevoerd.",
+		"duplicateCleanupUnavailable": "Het opschonen van dubbele e-mails is niet beschikbaar in deze versie.",
+		"deletionDisabled": "Verwijderen is uitgeschakeld voor deze instantie. Stel ENABLE_DELETION=true in om dubbele e-mails te verwijderen.",
+		"journalingSourceManagedByJournaling": "SMTP-journalingbronnen worden beheerd via de pagina Journaling en kunnen niet worden gewijzigd via de API voor innamebronnen.",
+		"oauthNotOAuthSource": "Deze innamebron gebruikt geen OAuth-autorisatie.",
+		"oauthAuthorizeFailed": "De autorisatie van de mailbox kon niet worden gestart.",
+		"oauthPollFailed": "De autorisatiestatus kon niet worden gecontroleerd."
 	},
 	"archivedEmail": {
 		"notFound": "Gearchiveerde e-mail niet gevonden"
 	},
 	"search": {
-		"keywordsRequired": "Trefwoorden zijn verplicht"
+		"keywordsRequired": "Trefwoorden zijn verplicht",
+		"invalidSourceId": "Een of meer ID's van innamebronnen zijn ongeldig",
+		"invalidDate": "Datums moeten de notatie jjjj-mm-dd hebben",
+		"invalidDateRange": "De begindatum mag niet na de einddatum liggen",
+		"invalidParam": "Een of meer zoekparameters hebben een ongeldige waarde",
+		"invalidWildcard": "Jokertekens worden alleen ondersteund als *@domein of naam@*"
+	},
+	"index": {
+		"cleanupTriggered": "Het opschonen van de index is in de wachtrij geplaatst.",
+		"verifyTriggered": "De verificatie van de index is in de wachtrij geplaatst."
 	},
 	"storage": {
 		"filePathRequired": "Bestandspad is verplicht",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "De rol van Super Admin is vereist om eenmalige aanmelding te beheren."
+	},
+	"seats": {
+		"mailboxNotFound": "Mailbox niet gevonden.",
+		"targetNotFound": "De mailbox waaraan gekoppeld moet worden, is niet gevonden.",
+		"sentinelNotAMailbox": "Dit is een plaatshouder die het archief heeft aangemaakt toen er geen eigenaar kon worden bepaald, geen mailbox. Deze telt nooit als licentieplaats.",
+		"sentinelCannotLink": "Een plaatshouderadres kan niet aan een persoon worden gekoppeld.",
+		"sentinelCannotBeTarget": "Er kan niet aan een plaatshouderadres worden gekoppeld.",
+		"providerClassified": "De directory meldt deze mailbox als \"{{kind}}\". Een mailbox die door de provider is geclassificeerd, kan hier niet als gedeeld worden aangemerkt; wijzig dit in plaats daarvan in de directory.",
+		"licensedUser": "De directory meldt deze mailbox als gelicentieerde gebruiker, dus deze telt als licentieplaats. Deze kan hier niet als gedeeld worden aangemerkt; wijzig in plaats daarvan de licentie in de directory.",
+		"selfLink": "Een mailbox kan niet aan zichzelf worden gekoppeld.",
+		"targetAlreadyLinked": "Die mailbox is zelf aan een andere gekoppeld. Koppel in plaats daarvan aan de mailbox aan het einde van de keten.",
+		"sameDirectory": "Dit zijn twee afzonderlijke accounts in dezelfde directory, dus het gaat om twee personen. Alleen mailboxen uit verschillende bronnen, of adressen die de directory zelf als aliassen vermeldt, kunnen één licentieplaats zijn.",
+		"invalidClassification": "Ongeldige classificatie.",
+		"invalidLink": "Ongeldige koppeling.",
+		"invalidPolicy": "Ongeldig beleid voor licentieplaatsen.",
+		"aliasesRequired": "Elke domeingroep van de organisatie heeft ten minste één aliasdomein nodig."
 	}
 }
