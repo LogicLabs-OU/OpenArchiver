@@ -48,32 +48,32 @@ export const createSearchRouter = (
 	 *       - name: from
 	 *         in: query
 	 *         required: false
-	 *         description: Comma-separated sender addresses to include.
+	 *         description: Comma-separated sender addresses to include. Each value may also be `*@domain` (every address at that domain) or `name@*` (that name at any domain).
 	 *         schema:
 	 *           type: string
 	 *           example: "alice@example.com,bob@example.com"
 	 *       - name: notFrom
 	 *         in: query
 	 *         required: false
-	 *         description: Comma-separated sender addresses to exclude.
+	 *         description: Comma-separated sender addresses to exclude. Accepts the same `*@domain` and `name@*` patterns.
 	 *         schema:
 	 *           type: string
 	 *       - name: to
 	 *         in: query
 	 *         required: false
-	 *         description: Comma-separated recipient addresses to include. Matches the To, Cc, or Bcc field.
+	 *         description: Comma-separated recipient addresses to include. Matches the To, Cc, or Bcc field. Accepts `*@domain` and `name@*` patterns.
 	 *         schema:
 	 *           type: string
 	 *       - name: notTo
 	 *         in: query
 	 *         required: false
-	 *         description: Comma-separated recipient addresses to exclude from To, Cc, and Bcc.
+	 *         description: Comma-separated recipient addresses to exclude from To, Cc, and Bcc. Accepts `*@domain` and `name@*` patterns.
 	 *         schema:
 	 *           type: string
 	 *       - name: mailboxes
 	 *         in: query
 	 *         required: false
-	 *         description: Comma-separated mailbox owner addresses (the account an email was archived from).
+	 *         description: Comma-separated mailbox owner addresses (the account an email was archived from). Accepts `*@domain` and `name@*` patterns.
 	 *         schema:
 	 *           type: string
 	 *       - name: dateFrom

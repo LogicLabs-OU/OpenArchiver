@@ -7,6 +7,7 @@ import type {
 	EMLImportCredentials,
 	MboxImportCredentials,
 	OAuthMailboxCredentials,
+	JmapCredentials,
 	EmailObject,
 	SyncState,
 	MailboxUser,
@@ -18,6 +19,7 @@ import { PSTConnector } from './ingestion-connectors/PSTConnector';
 import { EMLConnector } from './ingestion-connectors/EMLConnector';
 import { MboxConnector } from './ingestion-connectors/MboxConnector';
 import { GraphMailboxConnector } from './ingestion-connectors/GraphMailboxConnector';
+import { JmapConnector } from './ingestion-connectors/JmapConnector';
 import { OAuthTokenService } from './oauth/OAuthTokenService';
 
 /**
@@ -88,6 +90,8 @@ export class EmailProviderFactory {
 				return new EMLConnector(credentials as EMLImportCredentials, options);
 			case 'mbox_import':
 				return new MboxConnector(credentials as MboxImportCredentials, options);
+			case 'jmap':
+				return new JmapConnector(credentials as JmapCredentials, options);
 			case 'oauth_mailbox': {
 				const oauthCredentials = credentials as OAuthMailboxCredentials;
 

@@ -41,6 +41,16 @@ export const journalingSources = pgTable('journaling_sources', {
 	totalReceived: integer('total_received').notNull().default(0),
 	/** Timestamp of the last email received */
 	lastReceivedAt: timestamp('last_received_at', { withTimezone: true }),
+	/** Running count of emails that exhausted every retry and were quarantined.
+	 *  Only terminal failures count — intermediate retry attempts do not. */
+	totalFailed: integer('total_failed').notNull().default(0),
+	/** Timestamp of the most recent terminal processing failure */
+	lastFailedAt: timestamp('last_failed_at', { withTimezone: true }),
+	/** Message of the most recent terminal failure (truncated to 1000 chars) */
+	lastErrorMessage: text('last_error_message'),
+	/** Storage path of the most recently quarantined raw .eml, null when the
+	 *  quarantine write itself failed or there were no bytes left to save */
+	lastQuarantinePath: text('last_quarantine_path'),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

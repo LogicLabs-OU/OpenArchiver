@@ -38,6 +38,11 @@
 			disabled: false,
 		},
 		{
+			value: 'jmap',
+			label: $t('app.components.ingestion_source_form.provider_jmap'),
+			disabled: false,
+		},
+		{
 			value: 'oauth_mailbox',
 			label: $t('app.components.ingestion_source_form.provider_oauth_mailbox'),
 			disabled: false,
@@ -169,6 +174,9 @@
 		if (value === 'oauth_mailbox') {
 			seedOauthDefaults();
 		}
+		if (value === 'jmap' && !formData.providerConfig.authMethod) {
+			formData.providerConfig.authMethod = 'token';
+		}
 	};
 
 	/**
@@ -187,6 +195,7 @@
 		'microsoft_365',
 		'generic_imap',
 		'oauth_mailbox',
+		'jmap',
 	];
 	const showConnectionFields = $derived(
 		!source || !CREDENTIALED_PROVIDERS.includes(formData.provider) || editConnection
@@ -623,6 +632,81 @@
 				bind:checked={formData.providerConfig.allowInsecureCert}
 			/>
 		</div>
+	{:else if formData.provider === 'jmap' && showConnectionFields}
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="jmapServerUrl" class="text-left"
+				>{$t('app.components.ingestion_source_form.jmap_server_url')}</Label
+			>
+			<Input
+				id="jmapServerUrl"
+				type="url"
+				bind:value={formData.providerConfig.serverUrl}
+				class="col-span-3"
+			/>
+		</div>
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label for="jmapUsername" class="text-left"
+				>{$t('app.components.ingestion_source_form.username')}</Label
+			>
+			<Input
+				id="jmapUsername"
+				bind:value={formData.providerConfig.username}
+				class="col-span-3"
+			/>
+		</div>
+		<div class="grid grid-cols-4 items-center gap-4">
+			<Label class="text-left"
+				>{$t('app.components.ingestion_source_form.jmap_auth_method')}</Label
+			>
+			<div class="col-span-3">
+				<Select.Root
+					type="single"
+					value={formData.providerConfig.authMethod ?? 'token'}
+					onValueChange={(value) => value && (formData.providerConfig.authMethod = value)}
+				>
+					<Select.Trigger class="w-full">
+						{formData.providerConfig.authMethod === 'password'
+							? $t('app.components.ingestion_source_form.jmap_auth_password')
+							: $t('app.components.ingestion_source_form.jmap_auth_token')}
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Item value="token"
+							>{$t(
+								'app.components.ingestion_source_form.jmap_auth_token'
+							)}</Select.Item
+						>
+						<Select.Item value="password"
+							>{$t(
+								'app.components.ingestion_source_form.jmap_auth_password'
+							)}</Select.Item
+						>
+					</Select.Content>
+				</Select.Root>
+			</div>
+		</div>
+		{#if formData.providerConfig.authMethod === 'password'}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="jmapPassword" class="text-left">{$t('app.auth.password')}</Label>
+				<Input
+					id="jmapPassword"
+					type="password"
+					bind:value={formData.providerConfig.password}
+					class="col-span-3"
+				/>
+			</div>
+		{:else}
+			<div class="grid grid-cols-4 items-center gap-4">
+				<Label for="jmapToken" class="text-left"
+					>{$t('app.components.ingestion_source_form.jmap_token')}</Label
+				>
+				<Input
+					id="jmapToken"
+					type="password"
+					bind:value={formData.providerConfig.token}
+					class="col-span-3"
+				/>
+			</div>
+		{/if}
 	{:else if formData.provider === 'oauth_mailbox' && showConnectionFields}
 		<div class="grid grid-cols-4 items-center gap-4">
 			<Label class="text-left"

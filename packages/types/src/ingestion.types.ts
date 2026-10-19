@@ -14,6 +14,12 @@ export type SyncState = {
 			maxUid: number;
 		};
 	};
+	/** One JMAP state string per mailbox: Email/changes picks up from it on the next cycle. */
+	jmap?: {
+		[userEmail: string]: {
+			state: string;
+		};
+	};
 	lastSyncTimestamp?: string;
 	statusMessage?: string;
 	/**
@@ -38,7 +44,8 @@ export type IngestionProvider =
 	| 'eml_import'
 	| 'mbox_import'
 	| 'smtp_journaling'
-	| 'oauth_mailbox';
+	| 'oauth_mailbox'
+	| 'jmap';
 
 export type IngestionStatus =
 	| 'active'
@@ -53,6 +60,21 @@ export type IngestionStatus =
 
 export interface BaseIngestionCredentials {
 	type: IngestionProvider;
+}
+
+/** A single mailbox on a JMAP server (RFC 8620 / RFC 8621), e.g. Fastmail or Stalwart. */
+export interface JmapCredentials extends BaseIngestionCredentials {
+	type: 'jmap';
+	/** Origin of the JMAP server, e.g. https://api.fastmail.com. The session is read from
+	 * /.well-known/jmap under it. */
+	serverUrl: string;
+	/** The mailbox address; also the user name for password authentication. */
+	username: string;
+	/** 'token' sends `Authorization: Bearer <token>` (Fastmail API tokens); 'password' sends
+	 * HTTP Basic with the username (Stalwart app passwords). */
+	authMethod: 'token' | 'password';
+	token?: string;
+	password?: string;
 }
 
 export interface GenericImapCredentials extends BaseIngestionCredentials {
@@ -201,7 +223,8 @@ export type IngestionCredentials =
 	| EMLImportCredentials
 	| MboxImportCredentials
 	| SmtpJournalingCredentials
-	| OAuthMailboxCredentials;
+	| OAuthMailboxCredentials
+	| JmapCredentials;
 
 export interface IngestionSource {
 	id: string;

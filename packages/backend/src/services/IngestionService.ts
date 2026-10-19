@@ -28,6 +28,7 @@ import {
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
 import { mergeOAuthCredentials, validateOAuthMailboxConfig } from './oauth/oauthHelpers';
+import { validateJmapConfig } from './ingestion-connectors/JmapConnector';
 import { mergeProviderCredentials } from './credentialMerge';
 import { ingestionQueue, indexingQueue } from '../jobs/queues';
 import { continuousSyncJobId, initialImportJobId } from '../jobs/helpers/jobIds';
@@ -202,6 +203,12 @@ export class IngestionService {
 			// its own tokens would otherwise skip authorization entirely.
 			delete providerConfig.tokens;
 			delete providerConfig.pendingAuth;
+		}
+		if (dto.provider === 'jmap') {
+			const validation = validateJmapConfig(providerConfig);
+			if (!validation.ok) {
+				throw new Error(validation.message);
+			}
 		}
 
 		const encryptedCredentials = CryptoService.encryptObject(providerConfig);
@@ -445,6 +452,14 @@ export class IngestionService {
 				const result = mergeProviderCredentials(originalSource.credentials, providerConfig);
 				if (!result.ok) {
 					throw new Error(result.message);
+				}
+				// The merge only checks that the required fields are present. The rules create
+				// enforces (https, a secret matching the method) have to hold after an edit too.
+				if (result.merged.type === 'jmap') {
+					const validation = validateJmapConfig(result.merged);
+					if (!validation.ok) {
+						throw new Error(validation.message);
+					}
 				}
 				valuesToUpdate.credentials = CryptoService.encryptObject(result.merged);
 			}
@@ -1890,7 +1905,7 @@ export class IngestionService {
 
 			// Default mode: strip non-inline attachments from the .eml to avoid double-storing
 			// attachment data (attachments are stored separately).
-			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer);
+			const emlBuffer = await stripAttachmentsFromEml(rawEmlBuffer, email.receivedAt);
 			const {
 				storagePath: emailStoragePath,
 				hash: emailHash,

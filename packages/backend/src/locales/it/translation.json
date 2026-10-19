@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "Email e password sono obbligatorie",
-			"invalidCredentials": "Credenziali non valide"
+			"invalidCredentials": "Credenziali non valide",
+			"ssoEnforced": "L'accesso con password è disabilitato per questo account. Usa il Single Sign-On."
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Impossibile recuperare le impostazioni",
 		"failedToUpdate": "Impossibile aggiornare le impostazioni",
-		"noPermissionToUpdate": "Non hai il permesso di aggiornare le impostazioni di sistema."
+		"noPermissionToUpdate": "Non hai il permesso di aggiornare le impostazioni di sistema.",
+		"invalidSettings": "Impostazioni non valide."
 	},
 	"dashboard": {
 		"permissionRequired": "È necessaria l'autorizzazione di lettura della dashboard per visualizzare i dati della dashboard."
@@ -50,13 +52,30 @@
 		"failedToCreate": "Impossibile creare l'origine di inserimento a causa di un errore di connessione.",
 		"notFound": "Origine di inserimento non trovata",
 		"initialImportTriggered": "Importazione iniziale attivata con successo.",
-		"forceSyncTriggered": "Sincronizzazione forzata attivata con successo."
+		"forceSyncTriggered": "Sincronizzazione forzata attivata con successo.",
+		"reindexTriggered": "Reindicizzazione avviata correttamente.",
+		"duplicateCleanupTriggered": "Pulizia dei duplicati avviata. Viene eseguita in background.",
+		"duplicateCleanupUnavailable": "La pulizia delle email duplicate non è disponibile in questa versione.",
+		"deletionDisabled": "L'eliminazione è disabilitata per questa istanza. Imposta ENABLE_DELETION=true per rimuovere le email duplicate.",
+		"journalingSourceManagedByJournaling": "Le fonti di journaling SMTP sono gestite tramite la pagina Journaling e non possono essere modificate tramite l'API delle fonti di acquisizione.",
+		"oauthNotOAuthSource": "Questa fonte di acquisizione non usa l'autorizzazione OAuth.",
+		"oauthAuthorizeFailed": "Impossibile avviare l'autorizzazione della casella di posta.",
+		"oauthPollFailed": "Impossibile verificare lo stato dell'autorizzazione."
 	},
 	"archivedEmail": {
 		"notFound": "Email archiviata non trovata"
 	},
 	"search": {
-		"keywordsRequired": "Le parole chiave sono obbligatorie"
+		"keywordsRequired": "Le parole chiave sono obbligatorie",
+		"invalidSourceId": "Uno o più ID delle fonti di acquisizione non sono validi",
+		"invalidDate": "Le date devono essere nel formato aaaa-mm-gg",
+		"invalidDateRange": "La data di inizio non può essere successiva alla data di fine",
+		"invalidParam": "Uno o più parametri di ricerca hanno un valore non valido",
+		"invalidWildcard": "I caratteri jolly sono supportati solo nella forma *@dominio o nome@*"
+	},
+	"index": {
+		"cleanupTriggered": "La pulizia dell'indice è stata messa in coda.",
+		"verifyTriggered": "La verifica dell'indice è stata messa in coda."
 	},
 	"storage": {
 		"filePathRequired": "Il percorso del file è obbligatorio",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "È richiesto il ruolo di Super Admin per gestire il Single Sign-On."
+	},
+	"seats": {
+		"mailboxNotFound": "Casella di posta non trovata.",
+		"targetNotFound": "La casella di posta da collegare non è stata trovata.",
+		"sentinelNotAMailbox": "Questo è un segnaposto creato dall'archivio quando non è stato possibile determinare un proprietario, non una casella di posta. Non viene mai conteggiato come posto.",
+		"sentinelCannotLink": "Un indirizzo segnaposto non può essere collegato a una persona.",
+		"sentinelCannotBeTarget": "Non è possibile collegarsi a un indirizzo segnaposto.",
+		"providerClassified": "La directory indica questa casella di posta come \"{{kind}}\". Una casella di posta classificata dal provider non può essere dichiarata condivisa qui; modificala invece nella directory.",
+		"licensedUser": "La directory indica questa casella di posta come utente con licenza, quindi viene conteggiata come posto. Non può essere dichiarata condivisa qui; modificane invece la licenza nella directory.",
+		"selfLink": "Una casella di posta non può essere collegata a se stessa.",
+		"targetAlreadyLinked": "Quella casella di posta è a sua volta collegata a un'altra. Collega invece la casella di posta che si trova alla fine della catena.",
+		"sameDirectory": "Si tratta di due account distinti nella stessa directory, quindi di due persone. Solo caselle di posta di fonti diverse, o indirizzi che la directory stessa indica come alias, possono costituire un unico posto.",
+		"invalidClassification": "Classificazione non valida.",
+		"invalidLink": "Collegamento non valido.",
+		"invalidPolicy": "Criterio dei posti non valido.",
+		"aliasesRequired": "Ogni gruppo di domini dell'organizzazione richiede almeno un dominio alias."
 	}
 }

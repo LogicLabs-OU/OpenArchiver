@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "E-mail e senha são obrigatórios",
-			"invalidCredentials": "Credenciais inválidas"
+			"invalidCredentials": "Credenciais inválidas",
+			"ssoEnforced": "O login com senha está desativado para esta conta. Use o logon único."
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Falha ao recuperar as configurações",
 		"failedToUpdate": "Falha ao atualizar as configurações",
-		"noPermissionToUpdate": "Você não tem permissão para atualizar as configurações do sistema."
+		"noPermissionToUpdate": "Você não tem permissão para atualizar as configurações do sistema.",
+		"invalidSettings": "Configurações inválidas."
 	},
 	"dashboard": {
 		"permissionRequired": "Você precisa da permissão de leitura do painel para visualizar os dados do painel."
@@ -50,13 +52,30 @@
 		"failedToCreate": "Falha ao criar a fonte de ingestão devido a um erro de conexão.",
 		"notFound": "Fonte de ingestão não encontrada",
 		"initialImportTriggered": "Importação inicial acionada com sucesso.",
-		"forceSyncTriggered": "Sincronização forçada acionada com sucesso."
+		"forceSyncTriggered": "Sincronização forçada acionada com sucesso.",
+		"reindexTriggered": "Reindexação acionada com sucesso.",
+		"duplicateCleanupTriggered": "A limpeza de duplicados foi iniciada. Ela é executada em segundo plano.",
+		"duplicateCleanupUnavailable": "A limpeza de e-mails duplicados não está disponível nesta versão.",
+		"deletionDisabled": "A exclusão está desabilitada para esta instância. Defina ENABLE_DELETION=true para remover e-mails duplicados.",
+		"journalingSourceManagedByJournaling": "As fontes de journaling SMTP são gerenciadas pela página Journaling e não podem ser modificadas pela API de fontes de ingestão.",
+		"oauthNotOAuthSource": "Esta fonte de ingestão não usa autorização OAuth.",
+		"oauthAuthorizeFailed": "Não foi possível iniciar a autorização da caixa de correio.",
+		"oauthPollFailed": "Não foi possível verificar o status da autorização."
 	},
 	"archivedEmail": {
 		"notFound": "E-mail arquivado não encontrado"
 	},
 	"search": {
-		"keywordsRequired": "Palavras-chave são obrigatórias"
+		"keywordsRequired": "Palavras-chave são obrigatórias",
+		"invalidSourceId": "Um ou mais IDs de fonte de ingestão não são válidos",
+		"invalidDate": "As datas devem usar o formato aaaa-mm-dd",
+		"invalidDateRange": "A data inicial não pode ser posterior à data final",
+		"invalidParam": "Um ou mais parâmetros de pesquisa têm um valor inválido",
+		"invalidWildcard": "Curingas só são aceitos no formato *@domínio ou nome@*"
+	},
+	"index": {
+		"cleanupTriggered": "A limpeza do índice foi colocada na fila.",
+		"verifyTriggered": "A verificação do índice foi colocada na fila."
 	},
 	"storage": {
 		"filePathRequired": "O caminho do arquivo é obrigatório",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "A função de Super Admin é necessária para gerenciar o logon único."
+	},
+	"seats": {
+		"mailboxNotFound": "Caixa de correio não encontrada.",
+		"targetNotFound": "A caixa de correio a ser vinculada não foi encontrada.",
+		"sentinelNotAMailbox": "Este é um marcador criado pelo arquivo quando não foi possível determinar um proprietário, e não uma caixa de correio. Ele nunca conta como assento.",
+		"sentinelCannotLink": "Um endereço marcador não pode ser vinculado a uma pessoa.",
+		"sentinelCannotBeTarget": "Não é possível vincular a um endereço marcador.",
+		"providerClassified": "O diretório informa esta caixa de correio como \"{{kind}}\". Uma caixa de correio classificada pelo provedor não pode ser declarada como compartilhada aqui; altere isso no diretório.",
+		"licensedUser": "O diretório informa esta caixa de correio como um usuário licenciado, portanto ela conta como assento. Ela não pode ser declarada como compartilhada aqui; altere a licença dela no diretório.",
+		"selfLink": "Uma caixa de correio não pode ser vinculada a ela mesma.",
+		"targetAlreadyLinked": "Essa caixa de correio já está vinculada a outra. Vincule à caixa de correio no fim da cadeia.",
+		"sameDirectory": "Estas são duas contas separadas no mesmo diretório, portanto são duas pessoas. Somente caixas de correio de fontes diferentes, ou endereços que o próprio diretório lista como aliases, podem ser um único assento.",
+		"invalidClassification": "Classificação inválida.",
+		"invalidLink": "Vínculo inválido.",
+		"invalidPolicy": "Política de assentos inválida.",
+		"aliasesRequired": "Cada grupo de domínios da organização precisa de pelo menos um domínio alias."
 	}
 }

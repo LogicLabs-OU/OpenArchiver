@@ -9,6 +9,7 @@ import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory'
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { Readable } from 'stream';
@@ -327,7 +328,7 @@ export class EMLConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt: sentDateOf(parsedEmail),
 			tempFilePath,
 			path,
 		};

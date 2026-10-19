@@ -16,6 +16,7 @@
 	import * as Pagination from '$lib/components/ui/pagination/index.js';
 	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 
@@ -127,7 +128,7 @@
 			{#if logs && logs.length > 0}
 				{#each logs as log (log.id)}
 					<Table.Row class="cursor-pointer" onclick={() => viewLogDetails(log)}>
-						<Table.Cell>{new Date(log.timestamp).toLocaleString()}</Table.Cell>
+						<Table.Cell>{$formatDateTimeStore(log.timestamp)}</Table.Cell>
 						<Table.Cell>
 							<span class="font-mono text-xs">{log.actorIdentifier}</span>
 						</Table.Cell>
@@ -248,7 +249,7 @@
 				<div class="grid grid-cols-4 items-center gap-4">
 					<Label class="text-right">{$t('app.audit_log.timestamp')}</Label>
 					<span class="col-span-3 font-mono text-sm"
-						>{new Date(selectedLog.timestamp).toLocaleString()}</span
+						>{$formatDateTimeStore(selectedLog.timestamp)}</span
 					>
 				</div>
 				<div class="grid grid-cols-4 items-center gap-4">

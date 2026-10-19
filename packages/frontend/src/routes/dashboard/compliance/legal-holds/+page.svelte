@@ -13,6 +13,7 @@
 	import { MoreHorizontal, Plus, ShieldCheck } from 'lucide-svelte';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
 	import type { LegalHold } from '@open-archiver/types';
+	import { formatDateStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData; form: ActionData } = $props();
 
@@ -149,7 +150,7 @@
 							{/if}
 						</Table.Cell>
 						<Table.Cell>
-							{new Date(hold.createdAt).toLocaleDateString()}
+							{$formatDateStore(hold.createdAt)}
 						</Table.Cell>
 						<Table.Cell class="text-right">
 							<DropdownMenu.Root>

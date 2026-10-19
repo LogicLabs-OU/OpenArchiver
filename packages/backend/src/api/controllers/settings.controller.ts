@@ -1,9 +1,24 @@
 import type { Request, Response } from 'express';
+import { z } from 'zod';
+import { SUPPORTED_LANGUAGES } from '@open-archiver/types';
 import { SettingsService } from '../../services/SettingsService';
 import { UserService } from '../../services/UserService';
 
 const settingsService = new SettingsService();
 const userService = new UserService();
+
+/**
+ * What a settings update may carry. Unknown keys are stripped, so nothing from the request body
+ * reaches the shared settings record except these four; the service allowlists them again.
+ */
+const UpdateSettingsSchema = z
+	.object({
+		language: z.enum(SUPPORTED_LANGUAGES),
+		theme: z.enum(['light', 'dark', 'system']),
+		supportEmail: z.string().trim().email().nullable(),
+		dateFormat: z.enum(['language', 'iso', 'eu', 'us']),
+	})
+	.partial();
 
 export const getSystemSettings = async (req: Request, res: Response) => {
 	try {
@@ -17,7 +32,6 @@ export const getSystemSettings = async (req: Request, res: Response) => {
 
 export const updateSystemSettings = async (req: Request, res: Response) => {
 	try {
-		// Basic validation can be performed here if necessary
 		if (!req.user || !req.user.sub) {
 			return res.status(401).json({ message: 'Unauthorized' });
 		}
@@ -25,8 +39,17 @@ export const updateSystemSettings = async (req: Request, res: Response) => {
 		if (!actor) {
 			return res.status(401).json({ message: 'Unauthorized' });
 		}
+
+		const parsed = UpdateSettingsSchema.safeParse(req.body);
+		if (!parsed.success) {
+			return res.status(422).json({
+				message: req.t('settings.invalidSettings'),
+				errors: parsed.error.flatten(),
+			});
+		}
+
 		const updatedSettings = await settingsService.updateSystemSettings(
-			req.body,
+			parsed.data,
 			actor,
 			req.ip || 'unknown'
 		);

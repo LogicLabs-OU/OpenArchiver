@@ -25,6 +25,7 @@
 	import EmptyStateIcon from '$lib/components/custom/EmptyStateIcon.svelte';
 	import Search from 'lucide-svelte/icons/search';
 	import SearchX from 'lucide-svelte/icons/search-x';
+	import { formatDateTimeStore } from '$lib/stores/dateFormat.store';
 
 	let { data }: { data: PageData } = $props();
 	let searchResult = $derived(data.searchResult);

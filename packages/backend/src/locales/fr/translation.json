@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "L'e-mail et le mot de passe sont requis",
-			"invalidCredentials": "Identifiants invalides"
+			"invalidCredentials": "Identifiants invalides",
+			"ssoEnforced": "La connexion par mot de passe est désactivée pour ce compte. Veuillez utiliser l'authentification unique."
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Échec de la récupération des paramètres",
 		"failedToUpdate": "Échec de la mise à jour des paramètres",
-		"noPermissionToUpdate": "Vous n'avez pas la permission de mettre à jour les paramètres système."
+		"noPermissionToUpdate": "Vous n'avez pas la permission de mettre à jour les paramètres système.",
+		"invalidSettings": "Paramètres invalides."
 	},
 	"dashboard": {
 		"permissionRequired": "Vous avez besoin de la permission de lecture du tableau de bord pour afficher les données du tableau de bord."
@@ -50,13 +52,30 @@
 		"failedToCreate": "Échec de la création de la source d'ingestion en raison d'une erreur de connexion.",
 		"notFound": "Source d'ingestion non trouvée",
 		"initialImportTriggered": "Importation initiale déclenchée avec succès.",
-		"forceSyncTriggered": "Synchronisation forcée déclenchée avec succès."
+		"forceSyncTriggered": "Synchronisation forcée déclenchée avec succès.",
+		"reindexTriggered": "Réindexation déclenchée avec succès.",
+		"duplicateCleanupTriggered": "La suppression des doublons a démarré. Elle s'exécute en arrière-plan.",
+		"duplicateCleanupUnavailable": "La suppression des e-mails en double n'est pas disponible dans cette version.",
+		"deletionDisabled": "La suppression est désactivée pour cette instance. Définissez ENABLE_DELETION=true pour supprimer les e-mails en double.",
+		"journalingSourceManagedByJournaling": "Les sources de journalisation SMTP sont gérées depuis la page Journalisation et ne peuvent pas être modifiées via l'API des sources d'ingestion.",
+		"oauthNotOAuthSource": "Cette source d'ingestion n'utilise pas l'autorisation OAuth.",
+		"oauthAuthorizeFailed": "Impossible de lancer l'autorisation de la boîte aux lettres.",
+		"oauthPollFailed": "Impossible de vérifier le statut de l'autorisation."
 	},
 	"archivedEmail": {
 		"notFound": "E-mail archivé non trouvé"
 	},
 	"search": {
-		"keywordsRequired": "Des mots-clés sont requis"
+		"keywordsRequired": "Des mots-clés sont requis",
+		"invalidSourceId": "Un ou plusieurs ID de source d'ingestion ne sont pas valides",
+		"invalidDate": "Les dates doivent respecter le format aaaa-mm-jj",
+		"invalidDateRange": "La date de début ne doit pas être postérieure à la date de fin",
+		"invalidParam": "Un ou plusieurs paramètres de recherche ont une valeur invalide",
+		"invalidWildcard": "Les caractères génériques ne sont pris en charge que sous la forme *@domaine ou nom@*"
+	},
+	"index": {
+		"cleanupTriggered": "Le nettoyage de l'index a été mis en file d'attente.",
+		"verifyTriggered": "La vérification de l'index a été mise en file d'attente."
 	},
 	"storage": {
 		"filePathRequired": "Le chemin du fichier est requis",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "Le rôle de Super Admin est requis pour gérer l'authentification unique."
+	},
+	"seats": {
+		"mailboxNotFound": "Boîte aux lettres introuvable.",
+		"targetNotFound": "La boîte aux lettres à associer est introuvable.",
+		"sentinelNotAMailbox": "Il s'agit d'une adresse de substitution créée par l'archive lorsqu'aucun propriétaire n'a pu être déterminé, et non d'une boîte aux lettres. Elle n'est jamais comptée comme un siège.",
+		"sentinelCannotLink": "Une adresse de substitution ne peut pas être associée à une personne.",
+		"sentinelCannotBeTarget": "Aucune association n'est possible vers une adresse de substitution.",
+		"providerClassified": "L'annuaire indique que cette boîte aux lettres est de type « {{kind}} ». Une boîte aux lettres classée par le fournisseur ne peut pas être déclarée partagée ici ; modifiez-la plutôt dans l'annuaire.",
+		"licensedUser": "L'annuaire indique que cette boîte aux lettres appartient à un utilisateur disposant d'une licence : elle compte donc comme un siège. Elle ne peut pas être déclarée partagée ici ; modifiez plutôt sa licence dans l'annuaire.",
+		"selfLink": "Une boîte aux lettres ne peut pas être associée à elle-même.",
+		"targetAlreadyLinked": "Cette boîte aux lettres est elle-même associée à une autre. Associez plutôt la boîte aux lettres à celle située en fin de chaîne.",
+		"sameDirectory": "Il s'agit de deux comptes distincts dans le même annuaire, donc de deux personnes. Seules des boîtes aux lettres provenant de sources différentes, ou des adresses que l'annuaire lui-même répertorie comme alias, peuvent constituer un seul siège.",
+		"invalidClassification": "Classification invalide.",
+		"invalidLink": "Association invalide.",
+		"invalidPolicy": "Politique de sièges invalide.",
+		"aliasesRequired": "Chaque groupe de domaines de l'organisation nécessite au moins un domaine alias."
 	}
 }

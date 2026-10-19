@@ -550,6 +550,14 @@ export class SearchService {
 				'ingestionSourceId',
 				'userEmail',
 				'hasAttachments',
+				// The halves of each address, so the `*@domain` and `name@*` filters are exact
+				// facet matches rather than a scan of every value (#438).
+				'fromDomain',
+				'fromLocalPart',
+				'recipientDomains',
+				'recipientLocalParts',
+				'userEmailDomain',
+				'userEmailLocalPart',
 			],
 			sortableAttributes: ['timestamp'],
 		});

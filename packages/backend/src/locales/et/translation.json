@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "E-post ja parool on kohustuslikud",
-			"invalidCredentials": "Valed sisselogimisandmed"
+			"invalidCredentials": "Valed sisselogimisandmed",
+			"ssoEnforced": "Selle konto puhul on parooliga sisselogimine keelatud. Kasutage ühekordset sisselogimist."
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Seadete toomine ebaõnnestus",
 		"failedToUpdate": "Seadete värskendamine ebaõnnestus",
-		"noPermissionToUpdate": "Teil pole süsteemi seadete värskendamiseks luba."
+		"noPermissionToUpdate": "Teil pole süsteemi seadete värskendamiseks luba.",
+		"invalidSettings": "Kehtetud seaded."
 	},
 	"dashboard": {
 		"permissionRequired": "Armatuurlaua andmete vaatamiseks on teil vaja armatuurlaua lugemisluba."
@@ -50,13 +52,30 @@
 		"failedToCreate": "Söötmeallika loomine ebaõnnestus ühenduse vea tõttu.",
 		"notFound": "Söötmeallikat ei leitud",
 		"initialImportTriggered": "Esialgne import käivitati edukalt.",
-		"forceSyncTriggered": "Sundsünkroonimine käivitati edukalt."
+		"forceSyncTriggered": "Sundsünkroonimine käivitati edukalt.",
+		"reindexTriggered": "Taasindekseerimine käivitati edukalt.",
+		"duplicateCleanupTriggered": "Duplikaatide puhastus algas. See toimub taustal.",
+		"duplicateCleanupUnavailable": "Dubleeritud e-kirjade puhastus pole selles versioonis saadaval.",
+		"deletionDisabled": "Kustutamine on selle eksemplari jaoks keelatud. Dubleeritud e-kirjade eemaldamiseks määrake ENABLE_DELETION=true.",
+		"journalingSourceManagedByJournaling": "SMTP-žurnaalimise allikaid hallatakse žurnaalimise lehel ja neid ei saa sissevõtuallikate API kaudu muuta.",
+		"oauthNotOAuthSource": "See sissevõtuallikas ei kasuta OAuth-volitamist.",
+		"oauthAuthorizeFailed": "Postkasti volitamist ei õnnestunud alustada.",
+		"oauthPollFailed": "Volitamise olekut ei õnnestunud kontrollida."
 	},
 	"archivedEmail": {
 		"notFound": "Arhiveeritud e-kirja ei leitud"
 	},
 	"search": {
-		"keywordsRequired": "Märksõnad on kohustuslikud"
+		"keywordsRequired": "Märksõnad on kohustuslikud",
+		"invalidSourceId": "Üks või mitu sissevõtuallika ID-d on kehtetud",
+		"invalidDate": "Kuupäevad peavad olema vormingus yyyy-mm-dd",
+		"invalidDateRange": "Alguskuupäev ei tohi olla hilisem kui lõppkuupäev",
+		"invalidParam": "Ühel või mitmel otsinguparameetril on kehtetu väärtus",
+		"invalidWildcard": "Metamärke toetatakse ainult kujul *@domeen või nimi@*"
+	},
+	"index": {
+		"cleanupTriggered": "Indeksi puhastus on lisatud järjekorda.",
+		"verifyTriggered": "Indeksi kontroll on lisatud järjekorda."
 	},
 	"storage": {
 		"filePathRequired": "Faili tee on kohustuslik",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "Ühekordse sisselogimise (SSO) haldamiseks on vajalik superadministraatori roll."
+	},
+	"seats": {
+		"mailboxNotFound": "Postkasti ei leitud.",
+		"targetNotFound": "Postkasti, millega siduda, ei leitud.",
+		"sentinelNotAMailbox": "See on kohatäide, mille arhiiv lõi, kui omanikku ei õnnestunud tuvastada, mitte postkast. Seda ei loeta kunagi kasutajakohaks.",
+		"sentinelCannotLink": "Kohatäiteaadressi ei saa inimesega siduda.",
+		"sentinelCannotBeTarget": "Kohatäiteaadressiga ei saa siduda.",
+		"providerClassified": "Kataloogi andmetel on see postkast tüüpi \"{{kind}}\". Teenusepakkuja poolt klassifitseeritud postkasti ei saa siin jagatuks määrata; muutke seda hoopis kataloogis.",
+		"licensedUser": "Kataloogi andmetel on see postkast litsentsitud kasutaja, seega loetakse see kasutajakohaks. Seda ei saa siin jagatuks määrata; muutke selle litsentsi hoopis kataloogis.",
+		"selfLink": "Postkasti ei saa siduda iseendaga.",
+		"targetAlreadyLinked": "See postkast on ise seotud teise postkastiga. Siduge hoopis ahela lõpus oleva postkastiga.",
+		"sameDirectory": "Need on kaks eraldi kontot samas kataloogis, seega on tegemist kahe inimesega. Üheks kasutajakohaks saavad olla ainult eri allikate postkastid või aadressid, mille kataloog ise aliastena loetleb.",
+		"invalidClassification": "Kehtetu klassifikatsioon.",
+		"invalidLink": "Kehtetu seos.",
+		"invalidPolicy": "Kehtetu kasutajakohtade poliitika.",
+		"aliasesRequired": "Igal organisatsiooni domeenirühmal peab olema vähemalt üks aliasdomeen."
 	}
 }

@@ -13,6 +13,7 @@ import { archivedEmails, attachments, emailAttachments } from '../database/schem
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { streamToBuffer } from '../helpers/streamToBuffer';
 import { truncateToBytes } from '../helpers/truncateToBytes';
+import { splitEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
 import { logger } from '../config/logger';
@@ -32,13 +33,19 @@ type AttachmentsType = {
 }[];
 
 /**
- * Sanitizes text content by removing invalid characters that could cause JSON serialization issues
+ * Sanitizes text content by removing invalid characters that could cause JSON serialization issues.
+ *
+ * Lone UTF-16 surrogates matter most here. Extracted text can carry one (a PDF whose ToUnicode
+ * table maps a glyph to half a pair), `JSON.stringify` writes it as `\ud83d`, and Meilisearch's
+ * parser fails the whole task with "unexpected end of hex escape". `toWellFormed()` turns each
+ * into U+FFFD, which the next line removes.
  */
 function sanitizeText(text: string): string {
 	if (!text) return '';
 
-	// Remove control characters and invalid UTF-8 sequences
+	// Remove lone surrogates, control characters and invalid UTF-8 sequences
 	return text
+		.toWellFormed() // Lone UTF-16 surrogates become U+FFFD, removed below
 		.replace(/\uFFFD/g, '') // Replacement character for invalid UTF-8 sequences
 		.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control characters
 		.trim();
@@ -665,14 +672,33 @@ export class IndexingService {
 				? value.filter((a): a is string => typeof a === 'string').map(sanitizeText)
 				: [];
 
+		const userEmail = sanitizeText(doc.userEmail || '') || 'unknown';
+		const from = sanitizeText(doc.from || '');
+		const to = addresses(doc.to);
+		const cc = addresses(doc.cc);
+		const bcc = addresses(doc.bcc);
+
+		// The halves of each address back the `*@domain` and `name@*` search filters (#438).
+		const sender = splitEmailAddress(from);
+		const owner = splitEmailAddress(userEmail);
+		const recipients = [...to, ...cc, ...bcc]
+			.map(splitEmailAddress)
+			.filter((parts) => parts !== undefined);
+
 		return {
 			id: doc.id || 'missing-id',
-			userEmail: sanitizeText(doc.userEmail || '') || 'unknown',
-			from: sanitizeText(doc.from || ''),
+			userEmail,
+			from,
 			fromName: sanitizeText(doc.fromName || ''),
-			to: addresses(doc.to),
-			cc: addresses(doc.cc),
-			bcc: addresses(doc.bcc),
+			to,
+			cc,
+			bcc,
+			fromDomain: sender?.domain,
+			fromLocalPart: sender?.localPart,
+			recipientDomains: [...new Set(recipients.map((parts) => parts.domain))],
+			recipientLocalParts: [...new Set(recipients.map((parts) => parts.localPart))],
+			userEmailDomain: owner?.domain,
+			userEmailLocalPart: owner?.localPart,
 			subject: sanitizeText(doc.subject || ''),
 			body: truncateToBytes(sanitizeText(doc.body || ''), maxTextBytes),
 			attachments: Array.isArray(doc.attachments)

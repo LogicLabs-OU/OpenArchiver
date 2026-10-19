@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "E-Mail und Passwort sind erforderlich",
-			"invalidCredentials": "Ungültige Anmeldeinformationen"
+			"invalidCredentials": "Ungültige Anmeldeinformationen",
+			"ssoEnforced": "Die Passwortanmeldung ist für dieses Konto deaktiviert. Bitte verwenden Sie Single Sign-on."
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Einstellungen konnten nicht abgerufen werden",
 		"failedToUpdate": "Einstellungen konnten nicht aktualisiert werden",
-		"noPermissionToUpdate": "Sie haben keine Berechtigung, die Systemeinstellungen zu aktualisieren."
+		"noPermissionToUpdate": "Sie haben keine Berechtigung, die Systemeinstellungen zu aktualisieren.",
+		"invalidSettings": "Ungültige Einstellungen."
 	},
 	"dashboard": {
 		"permissionRequired": "Sie benötigen die Leseberechtigung für das Dashboard, um Dashboard-Daten anzuzeigen."
@@ -50,13 +52,30 @@
 		"failedToCreate": "Die Erfassungsquelle konnte aufgrund eines Verbindungsfehlers nicht erstellt werden.",
 		"notFound": "Erfassungsquelle nicht gefunden",
 		"initialImportTriggered": "Erstimport erfolgreich ausgelöst.",
-		"forceSyncTriggered": "Erzwungene Synchronisierung erfolgreich ausgelöst."
+		"forceSyncTriggered": "Erzwungene Synchronisierung erfolgreich ausgelöst.",
+		"reindexTriggered": "Neuindizierung erfolgreich ausgelöst.",
+		"duplicateCleanupTriggered": "Duplikatbereinigung gestartet. Sie läuft im Hintergrund.",
+		"duplicateCleanupUnavailable": "Die Bereinigung doppelter E-Mails ist in dieser Version nicht verfügbar.",
+		"deletionDisabled": "Das Löschen ist für diese Instanz deaktiviert. Setzen Sie ENABLE_DELETION=true, um doppelte E-Mails zu entfernen.",
+		"journalingSourceManagedByJournaling": "SMTP-Journaling-Quellen werden über die Journaling-Seite verwaltet und können nicht über die API für Erfassungsquellen geändert werden.",
+		"oauthNotOAuthSource": "Diese Erfassungsquelle verwendet keine OAuth-Autorisierung.",
+		"oauthAuthorizeFailed": "Die Autorisierung des Postfachs konnte nicht gestartet werden.",
+		"oauthPollFailed": "Der Autorisierungsstatus konnte nicht abgefragt werden."
 	},
 	"archivedEmail": {
 		"notFound": "Archivierte E-Mail nicht gefunden"
 	},
 	"search": {
-		"keywordsRequired": "Schlüsselwörter sind erforderlich"
+		"keywordsRequired": "Schlüsselwörter sind erforderlich",
+		"invalidSourceId": "Eine oder mehrere IDs von Erfassungsquellen sind ungültig",
+		"invalidDate": "Datumsangaben müssen das Format yyyy-mm-dd haben",
+		"invalidDateRange": "Das Startdatum darf nicht nach dem Enddatum liegen",
+		"invalidParam": "Ein oder mehrere Suchparameter haben einen ungültigen Wert",
+		"invalidWildcard": "Platzhalter werden nur als *@domain oder name@* unterstützt"
+	},
+	"index": {
+		"cleanupTriggered": "Die Indexbereinigung wurde in die Warteschlange gestellt.",
+		"verifyTriggered": "Die Indexüberprüfung wurde in die Warteschlange gestellt."
 	},
 	"storage": {
 		"filePathRequired": "Dateipfad ist erforderlich",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "Die Rolle des Super-Admins ist erforderlich, um Single Sign-on zu verwalten."
+	},
+	"seats": {
+		"mailboxNotFound": "Postfach nicht gefunden.",
+		"targetNotFound": "Das zu verknüpfende Postfach wurde nicht gefunden.",
+		"sentinelNotAMailbox": "Dies ist kein Postfach, sondern ein Platzhalter, den das Archiv angelegt hat, weil kein Eigentümer ermittelt werden konnte. Er zählt nie als Sitzplatz.",
+		"sentinelCannotLink": "Eine Platzhalteradresse kann nicht mit einer Person verknüpft werden.",
+		"sentinelCannotBeTarget": "Mit einer Platzhalteradresse kann nicht verknüpft werden.",
+		"providerClassified": "Das Verzeichnis führt dieses Postfach als „{{kind}}“. Ein vom Anbieter klassifiziertes Postfach kann hier nicht als freigegeben festgelegt werden; ändern Sie dies stattdessen im Verzeichnis.",
+		"licensedUser": "Das Verzeichnis führt dieses Postfach als lizenzierten Benutzer, daher zählt es als Sitzplatz. Es kann hier nicht als freigegeben festgelegt werden; ändern Sie stattdessen seine Lizenz im Verzeichnis.",
+		"selfLink": "Ein Postfach kann nicht mit sich selbst verknüpft werden.",
+		"targetAlreadyLinked": "Dieses Postfach ist selbst mit einem anderen verknüpft. Verknüpfen Sie stattdessen mit dem Postfach am Ende der Kette.",
+		"sameDirectory": "Dies sind zwei separate Konten im selben Verzeichnis, also zwei Personen. Nur Postfächer aus verschiedenen Quellen oder Adressen, die das Verzeichnis selbst als Aliase führt, können ein Sitzplatz sein.",
+		"invalidClassification": "Ungültige Klassifizierung.",
+		"invalidLink": "Ungültige Verknüpfung.",
+		"invalidPolicy": "Ungültige Sitzplatzrichtlinie.",
+		"aliasesRequired": "Jede Domaingruppe der Organisation benötigt mindestens eine Alias-Domain."
 	}
 }

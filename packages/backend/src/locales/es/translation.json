@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "Se requieren correo electrónico y contraseña",
-			"invalidCredentials": "Credenciales no válidas"
+			"invalidCredentials": "Credenciales no válidas",
+			"ssoEnforced": "El inicio de sesión con contraseña está deshabilitado para esta cuenta. Utilice el inicio de sesión único."
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Error al recuperar la configuración",
 		"failedToUpdate": "Error al actualizar la configuración",
-		"noPermissionToUpdate": "No tienes permiso para actualizar la configuración del sistema."
+		"noPermissionToUpdate": "No tienes permiso para actualizar la configuración del sistema.",
+		"invalidSettings": "Configuración no válida."
 	},
 	"dashboard": {
 		"permissionRequired": "Necesitas el permiso de lectura del panel de control para ver los datos del panel."
@@ -50,13 +52,30 @@
 		"failedToCreate": "Error al crear la fuente de ingesta debido a un error de conexión.",
 		"notFound": "Fuente de ingesta no encontrada",
 		"initialImportTriggered": "Importación inicial activada correctamente.",
-		"forceSyncTriggered": "Sincronización forzada activada correctamente."
+		"forceSyncTriggered": "Sincronización forzada activada correctamente.",
+		"reindexTriggered": "Reindexación activada correctamente.",
+		"duplicateCleanupTriggered": "Se ha iniciado la limpieza de duplicados. Se ejecuta en segundo plano.",
+		"duplicateCleanupUnavailable": "La limpieza de correos duplicados no está disponible en esta versión.",
+		"deletionDisabled": "La eliminación está deshabilitada para esta instancia. Establezca ENABLE_DELETION=true para eliminar correos duplicados.",
+		"journalingSourceManagedByJournaling": "Las fuentes de registro SMTP se gestionan desde la página Registro SMTP y no se pueden modificar mediante la API de fuentes de ingesta.",
+		"oauthNotOAuthSource": "Esta fuente de ingesta no usa autorización OAuth.",
+		"oauthAuthorizeFailed": "No se pudo iniciar la autorización del buzón.",
+		"oauthPollFailed": "No se pudo comprobar el estado de la autorización."
 	},
 	"archivedEmail": {
 		"notFound": "Correo electrónico archivado no encontrado"
 	},
 	"search": {
-		"keywordsRequired": "Se requieren palabras clave"
+		"keywordsRequired": "Se requieren palabras clave",
+		"invalidSourceId": "Uno o varios ID de fuentes de ingesta no son válidos",
+		"invalidDate": "Las fechas deben tener el formato aaaa-mm-dd",
+		"invalidDateRange": "La fecha de inicio no puede ser posterior a la fecha de fin",
+		"invalidParam": "Uno o varios parámetros de búsqueda tienen un valor no válido",
+		"invalidWildcard": "Los comodines solo se admiten como *@dominio o nombre@*"
+	},
+	"index": {
+		"cleanupTriggered": "La limpieza del índice se ha puesto en cola.",
+		"verifyTriggered": "La verificación del índice se ha puesto en cola."
 	},
 	"storage": {
 		"filePathRequired": "Se requiere la ruta del archivo",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "Se requiere el rol de Superadministrador para gestionar el inicio de sesión único."
+	},
+	"seats": {
+		"mailboxNotFound": "Buzón no encontrado.",
+		"targetNotFound": "No se encontró el buzón al que se quiere vincular.",
+		"sentinelNotAMailbox": "Esto es un marcador de posición que el archivo creó al no poder determinar un propietario, no un buzón. Nunca cuenta como plaza.",
+		"sentinelCannotLink": "Una dirección de marcador de posición no se puede vincular a una persona.",
+		"sentinelCannotBeTarget": "No se puede vincular a una dirección de marcador de posición.",
+		"providerClassified": "El directorio indica que este buzón es \"{{kind}}\". Un buzón que el proveedor ha clasificado no se puede declarar como compartido aquí; cámbielo en el directorio.",
+		"licensedUser": "El directorio indica que este buzón es un usuario con licencia, por lo que cuenta como plaza. No se puede declarar como compartido aquí; cambie su licencia en el directorio.",
+		"selfLink": "Un buzón no se puede vincular a sí mismo.",
+		"targetAlreadyLinked": "Ese buzón ya está vinculado a otro. Vincule al buzón que está al final de la cadena.",
+		"sameDirectory": "Son dos cuentas distintas del mismo directorio, por lo que corresponden a dos personas. Solo los buzones de fuentes diferentes, o las direcciones que el propio directorio registra como alias, pueden ser una sola plaza.",
+		"invalidClassification": "Clasificación no válida.",
+		"invalidLink": "Vínculo no válido.",
+		"invalidPolicy": "Política de plazas no válida.",
+		"aliasesRequired": "Cada grupo de dominios de la organización necesita al menos un dominio alias."
 	}
 }

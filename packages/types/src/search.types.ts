@@ -17,6 +17,9 @@ export type SearchSortOption = 'relevance' | 'date_desc' | 'date_asc';
 /**
  * Structured advanced-search filters. List fields are OR within the field
  * (any listed value matches) and AND across fields.
+ *
+ * Every address field also accepts `*@domain` (every address at that domain)
+ * and `name@*` (that local part at any domain). Any other use of `*` is rejected.
  */
 export interface SearchFilters {
 	/** Ingestion source IDs to include (each expanded to its merge group). */

@@ -3,6 +3,7 @@ import { SearchService } from '../../services/SearchService';
 import { MatchingStrategies } from 'meilisearch';
 import type { SearchFilters, SearchScope, SearchSortOption } from '@open-archiver/types';
 import { normalizeEmailAddress } from '../../helpers/emailAddress';
+import { parseAddressPattern } from '../../helpers/meiliFilter';
 
 const SEARCH_SCOPES: SearchScope[] = [
 	'subject',
@@ -76,6 +77,12 @@ export class SearchController {
 			const to = addressCsv(req.query.to);
 			const notTo = addressCsv(req.query.notTo);
 			const mailboxes = addressCsv(req.query.mailboxes);
+			for (const values of [from, notFrom, to, notTo, mailboxes]) {
+				if (values?.some((value) => !parseAddressPattern(value))) {
+					res.status(400).json({ message: req.t('search.invalidWildcard') });
+					return;
+				}
+			}
 			if (from) filters.from = from;
 			if (notFrom) filters.notFrom = notFrom;
 			if (to) filters.to = to;

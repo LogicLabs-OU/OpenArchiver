@@ -1,51 +1,70 @@
-import { db } from '../database';
-import { systemSettings } from '../database/schema/system-settings';
-import type { SystemSettings, User } from '@open-archiver/types';
+import { ensureSystemSettingsRow, mergeSystemSettingsConfig } from '../database/systemSettingsRow';
+import type { PublicSystemSettings, SystemSettings, User } from '@open-archiver/types';
 import { AuditService } from './AuditService';
 
-const DEFAULT_SETTINGS: SystemSettings = {
-	language: 'en',
-	theme: 'system',
-	supportEmail: null,
-};
+/**
+ * The only keys this API may write or return.
+ *
+ * The `system_settings.config` blob is shared with state that is not the caller's to set or
+ * see: the seat policy and seat report, and on enterprise the deployment's `instanceId`, the
+ * license verdict and the advanced security policy. Without this allowlist a settings PUT could
+ * overwrite any of them, and the unauthenticated GET that every page load makes would disclose
+ * them all.
+ */
+const EDITABLE_SETTING_KEYS = ['language', 'theme', 'supportEmail', 'dateFormat'] as const;
 
 export class SettingsService {
 	private auditService = new AuditService();
-	/**
-	 * Retrieves the current system settings.
-	 * If no settings exist, it initializes and returns the default settings.
-	 * @returns The system settings.
-	 */
-	public async getSystemSettings(): Promise<SystemSettings> {
-		const settings = await db.select().from(systemSettings).limit(1);
 
-		if (settings.length === 0) {
-			return this.createDefaultSystemSettings();
-		}
-
-		return settings[0].config;
+	/** Narrows the stored config down to the publicly visible settings. */
+	private toPublicSettings(config: SystemSettings): PublicSystemSettings {
+		return {
+			language: config.language,
+			theme: config.theme,
+			supportEmail: config.supportEmail ?? null,
+			dateFormat: config.dateFormat ?? 'language',
+		};
 	}
 
 	/**
-	 * Updates the system settings by merging the new configuration with the existing one.
-	 * @param newConfig - A partial object of the new settings configuration.
-	 * @returns The updated system settings.
+	 * The publicly visible system settings. The singleton row is created with defaults when the
+	 * table is empty, race-safely, so every caller sees the same row.
+	 */
+	public async getSystemSettings(): Promise<PublicSystemSettings> {
+		const row = await ensureSystemSettingsRow();
+		return this.toPublicSettings(row.config);
+	}
+
+	/**
+	 * Updates the public settings and returns them.
+	 *
+	 * Only the keys in EDITABLE_SETTING_KEYS are written; anything else is dropped. The write is a
+	 * single JSONB merge rather than a read-modify-write, so a seat report or policy saved by
+	 * another process between the read and the write is not lost.
 	 */
 	public async updateSystemSettings(
-		newConfig: Partial<SystemSettings>,
+		newConfig: Partial<PublicSystemSettings>,
 		actor: User,
 		actorIp: string
-	): Promise<SystemSettings> {
-		const currentConfig = await this.getSystemSettings();
-		const mergedConfig = { ...currentConfig, ...newConfig };
+	): Promise<PublicSystemSettings> {
+		const existing = await ensureSystemSettingsRow();
+		const currentConfig = existing.config;
 
-		// Since getSettings ensures a record always exists, we can directly update.
-		const [result] = await db.update(systemSettings).set({ config: mergedConfig }).returning();
+		const allowedUpdate: Record<string, unknown> = {};
+		for (const key of EDITABLE_SETTING_KEYS) {
+			if (Object.prototype.hasOwnProperty.call(newConfig, key)) {
+				allowedUpdate[key] = newConfig[key];
+			}
+		}
 
-		const changedFields = Object.keys(newConfig).filter(
-			(key) =>
-				currentConfig[key as keyof SystemSettings] !==
-				newConfig[key as keyof SystemSettings]
+		if (Object.keys(allowedUpdate).length === 0) {
+			return this.toPublicSettings(currentConfig);
+		}
+
+		const updatedConfig = await mergeSystemSettingsConfig(allowedUpdate);
+
+		const changedFields = Object.keys(allowedUpdate).filter(
+			(key) => currentConfig[key as keyof SystemSettings] !== allowedUpdate[key]
 		);
 
 		if (changedFields.length > 0) {
@@ -61,19 +80,6 @@ export class SettingsService {
 			});
 		}
 
-		return result.config;
-	}
-
-	/**
-	 * Creates and saves the default system settings.
-	 * This is called internally when no settings are found.
-	 * @returns The newly created default settings.
-	 */
-	private async createDefaultSystemSettings(): Promise<SystemSettings> {
-		const [result] = await db
-			.insert(systemSettings)
-			.values({ config: DEFAULT_SETTINGS })
-			.returning();
-		return result.config;
+		return this.toPublicSettings(updatedConfig);
 	}
 }

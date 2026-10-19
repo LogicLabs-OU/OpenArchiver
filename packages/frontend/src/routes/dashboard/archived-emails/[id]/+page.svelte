@@ -28,6 +28,7 @@
 	} from 'lucide-svelte';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import { formatDateStore, formatDateTimeStore } from '$lib/stores/dateFormat.store';
 	import type { LegalHold, EmailLegalHoldInfo } from '@open-archiver/types';
 	import PostalMime, { type Attachment as PostalAttachment } from 'postal-mime';
 	import { Paperclip } from 'lucide-svelte';
@@ -291,9 +292,9 @@
 					<Card.Description>
 						{$t('app.archive.from')}: {email.senderName && email.senderEmail
 							? `${email.senderName} <${email.senderEmail}>`
-							: email.senderName || email.senderEmail} | {$t('app.archive.sent')}: {new Date(
+							: email.senderName || email.senderEmail} | {$t('app.archive.sent')}: {$formatDateTimeStore(
 							email.sentAt
-						).toLocaleString()}
+						)}
 					</Card.Description>
 				</Card.Header>
 				<Card.Content>
@@ -619,7 +620,7 @@
 											</div>
 											<p class="text-muted-foreground mt-0.5 text-xs">
 												{$t('app.archive_legal_holds.applied_at')}:
-												{new Date(holdInfo.appliedAt).toLocaleDateString()}
+												{$formatDateStore(holdInfo.appliedAt)}
 											</p>
 										</div>
 										<form
@@ -781,7 +782,7 @@
 												? 'destructive'
 												: 'secondary'}
 										>
-											{scheduledDeletionDate.toLocaleDateString()}
+											{$formatDateStore(scheduledDeletionDate)}
 										</Badge>
 									</div>
 								{/if}
@@ -926,7 +927,7 @@
 													? 'destructive'
 													: 'secondary'}
 											>
-												{scheduledDeletionDateByLabel.toLocaleDateString()}
+												{$formatDateStore(scheduledDeletionDateByLabel)}
 											</Badge>
 										</div>
 									{/if}

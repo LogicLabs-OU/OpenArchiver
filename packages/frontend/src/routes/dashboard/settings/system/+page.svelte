@@ -7,12 +7,32 @@
 	import * as RadioGroup from '$lib/components/ui/radio-group';
 	import * as Select from '$lib/components/ui/select';
 	import { setAlert } from '$lib/components/custom/alert/alert-state.svelte';
-	import type { SupportedLanguage } from '@open-archiver/types';
+	import type { DateFormat, SupportedLanguage } from '@open-archiver/types';
 	import { t } from '$lib/translations';
+	import { formatDateTime } from '$lib/stores/dateFormat.store';
 
 	let { data, form }: { data: PageData; form: any } = $props();
-	let settings = $state(data.systemSettings);
+	let settings = $state({
+		...data.systemSettings,
+		dateFormat: data.systemSettings.dateFormat ?? 'language',
+	});
 	let isSaving = $state(false);
+
+	const dateFormatOptions: { value: DateFormat; key: string }[] = [
+		{ value: 'language', key: 'app.system_settings.date_format_language' },
+		{ value: 'iso', key: 'app.system_settings.date_format_iso' },
+		{ value: 'eu', key: 'app.system_settings.date_format_eu' },
+		{ value: 'us', key: 'app.system_settings.date_format_us' },
+	];
+	const dateFormatLabel = $derived(
+		dateFormatOptions.find((o) => o.value === settings.dateFormat)?.key ??
+			'app.system_settings.date_format_language'
+	);
+	// Previewed with the language currently selected on this form, so changing either shows the
+	// result before saving.
+	const dateFormatPreview = $derived(
+		formatDateTime(new Date(), settings.dateFormat, settings.language)
+	);
 
 	const languageOptions: { value: SupportedLanguage; label: string }[] = [
 		{ value: 'en', label: '🇬🇧 English' },
@@ -83,6 +103,26 @@
 							{/each}
 						</Select.Content>
 					</Select.Root>
+				</div>
+
+				<div class="grid gap-2">
+					<Label.Root class="mb-1" for="dateFormat"
+						>{$t('app.system_settings.date_format')}</Label.Root
+					>
+					<Select.Root name="dateFormat" bind:value={settings.dateFormat} type="single">
+						<Select.Trigger id="dateFormat" class="w-[280px]">
+							{$t(dateFormatLabel)}
+						</Select.Trigger>
+						<Select.Content>
+							{#each dateFormatOptions as option (option.value)}
+								<Select.Item value={option.value}>{$t(option.key)}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					<p class="text-muted-foreground text-sm">
+						{$t('app.system_settings.date_format_preview')}:
+						<span class="font-mono">{dateFormatPreview}</span>
+					</p>
 				</div>
 
 				<div class="grid gap-2">

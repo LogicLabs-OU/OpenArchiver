@@ -9,7 +9,7 @@ import { isJobLive } from '../jobs/helpers/claimJobId';
 import { continuousSyncJobId, initialImportJobId } from '../jobs/helpers/jobIds';
 
 /** Top-level SyncState keys whose value is a per-mailbox map and so must merge, not replace. */
-const NESTED_STATE_KEYS = new Set(['google', 'microsoft', 'imap']);
+const NESTED_STATE_KEYS = new Set(['google', 'microsoft', 'imap', 'jmap']);
 
 /**
  * The expression that folds one mailbox's sync state into the source's stored state.

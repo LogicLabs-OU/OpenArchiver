@@ -9,6 +9,7 @@ import type { IEmailConnector, ConnectorOptions } from '../EmailProviderFactory'
 import { simpleParser, ParsedMail, Attachment, AddressObject } from 'mailparser';
 import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
+import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
 import { StorageService } from '../StorageService';
 import { Readable, Transform } from 'stream';
@@ -215,7 +216,26 @@ export class MboxConnector implements IEmailConnector {
 		return buffer;
 	}
 
+	/**
+	 * The delivery date from the mbox "From sender date" envelope line, e.g. "Sun May 10 14:30:00
+	 * 2026". Only used if the message's own headers carry no readable date.
+	 */
+	private envelopeDate(buffer: Buffer): string | undefined {
+		if (!buffer.subarray(0, 5).equals(Buffer.from('From '))) {
+			return undefined;
+		}
+		const newlineIndex = buffer.indexOf(0x0a);
+		const line = buffer
+			.subarray(0, newlineIndex === -1 ? buffer.length : newlineIndex)
+			.toString('latin1')
+			.trim();
+		// "From " then the sender, then the date: everything after the second space.
+		const dateStart = line.indexOf(' ', 5);
+		return dateStart === -1 ? undefined : line.slice(dateStart + 1).trim() || undefined;
+	}
+
 	private async parseMessage(rawMboxBuffer: Buffer, path: string): Promise<EmailObject> {
+		const envelopeDate = this.envelopeDate(rawMboxBuffer);
 		// Strip the mbox "From " envelope line before writing to temp file.
 		// This line is an mbox transport artifact, not part of the RFC 5322 message.
 		const emlBuffer = this.stripMboxEnvelope(rawMboxBuffer);
@@ -285,7 +305,7 @@ export class MboxConnector implements IEmailConnector {
 			html: parsedEmail.html || '',
 			headers: parsedEmail.headers,
 			attachments,
-			receivedAt: parsedEmail.date || new Date(),
+			receivedAt: sentDateOf(parsedEmail, envelopeDate),
 			tempFilePath,
 			path: finalPath,
 		};

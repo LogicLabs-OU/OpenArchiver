@@ -6,7 +6,8 @@
 		},
 		"login": {
 			"emailAndPasswordRequired": "メールアドレスとパスワードは必須です",
-			"invalidCredentials": "無効な認証情報"
+			"invalidCredentials": "無効な認証情報",
+			"ssoEnforced": "このアカウントではパスワードによるサインインが無効になっています。シングルサインオンを使用してください。"
 		}
 	},
 	"errors": {
@@ -41,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "設定の取得に失敗しました",
 		"failedToUpdate": "設定の更新に失敗しました",
-		"noPermissionToUpdate": "システム設定を更新する権限がありません。"
+		"noPermissionToUpdate": "システム設定を更新する権限がありません。",
+		"invalidSettings": "設定が無効です。"
 	},
 	"dashboard": {
 		"permissionRequired": "ダッシュボードのデータを表示するには、ダッシュボードの読み取り権限が必要です。"
@@ -50,13 +52,30 @@
 		"failedToCreate": "接続エラーのため、取り込みソースの作成に失敗しました。",
 		"notFound": "取り込みソースが見つかりません",
 		"initialImportTriggered": "初期インポートが正常にトリガーされました。",
-		"forceSyncTriggered": "強制同期が正常にトリガーされました。"
+		"forceSyncTriggered": "強制同期が正常にトリガーされました。",
+		"reindexTriggered": "再インデックスを開始しました。",
+		"duplicateCleanupTriggered": "重複のクリーンアップを開始しました。バックグラウンドで実行されます。",
+		"duplicateCleanupUnavailable": "このバージョンでは重複メールのクリーンアップを利用できません。",
+		"deletionDisabled": "このインスタンスでは削除が無効になっています。重複メールを削除するには、ENABLE_DELETION=true を設定してください。",
+		"journalingSourceManagedByJournaling": "SMTP ジャーナリングソースはジャーナリングページで管理されるため、取り込み元 API では変更できません。",
+		"oauthNotOAuthSource": "この取り込み元は OAuth 認証を使用していません。",
+		"oauthAuthorizeFailed": "メールボックスの認証を開始できませんでした。",
+		"oauthPollFailed": "認証状況を確認できませんでした。"
 	},
 	"archivedEmail": {
 		"notFound": "アーカイブされたメールが見つかりません"
 	},
 	"search": {
-		"keywordsRequired": "キーワードは必須です"
+		"keywordsRequired": "キーワードは必須です",
+		"invalidSourceId": "1つ以上の取り込み元 ID が無効です",
+		"invalidDate": "日付は yyyy-mm-dd 形式で指定してください",
+		"invalidDateRange": "開始日は終了日より後にできません",
+		"invalidParam": "1つ以上の検索パラメーターの値が無効です",
+		"invalidWildcard": "ワイルドカードは *@domain または name@* の形式でのみ使用できます"
+	},
+	"index": {
+		"cleanupTriggered": "インデックスのクリーンアップをキューに追加しました。",
+		"verifyTriggered": "インデックスの検証をキューに追加しました。"
 	},
 	"storage": {
 		"filePathRequired": "ファイルパスは必須です",
@@ -80,5 +99,21 @@
 	},
 	"sso": {
 		"requiresSuperAdminRole": "シングルサインオンを管理するには、スーパー管理者ロールが必要です。"
+	},
+	"seats": {
+		"mailboxNotFound": "メールボックスが見つかりません。",
+		"targetNotFound": "紐付け先のメールボックスが見つかりませんでした。",
+		"sentinelNotAMailbox": "これは所有者を特定できなかった場合にアーカイブが作成したプレースホルダーであり、メールボックスではありません。シートとして数えられることはありません。",
+		"sentinelCannotLink": "プレースホルダーのアドレスを個人に紐付けることはできません。",
+		"sentinelCannotBeTarget": "プレースホルダーのアドレスを紐付け先にすることはできません。",
+		"providerClassified": "ディレクトリではこのメールボックスは「{{kind}}」とされています。プロバイダーが分類したメールボックスは、ここで共有として指定できません。代わりにディレクトリで変更してください。",
+		"licensedUser": "ディレクトリではこのメールボックスはライセンスを持つユーザーとされているため、シートとして数えられます。ここで共有として指定することはできません。代わりにディレクトリでライセンスを変更してください。",
+		"selfLink": "メールボックスを自分自身に紐付けることはできません。",
+		"targetAlreadyLinked": "そのメールボックス自体が別のメールボックスに紐付けられています。代わりに、紐付けの末端にあるメールボックスに紐付けてください。",
+		"sameDirectory": "これらは同じディレクトリ内の別々のアカウントであるため、2人として扱われます。1シートにできるのは、異なる取り込み元のメールボックス、またはディレクトリ自体がエイリアスとして登録しているアドレスのみです。",
+		"invalidClassification": "分類が無効です。",
+		"invalidLink": "紐付けが無効です。",
+		"invalidPolicy": "シートポリシーが無効です。",
+		"aliasesRequired": "組織の各ドメイングループには、エイリアスドメインが1つ以上必要です。"
 	}
 }

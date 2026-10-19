@@ -256,6 +256,7 @@
 			"sort_relevance": "Relevance",
 			"clear_filters": "Clear all filters",
 			"add_value_hint": "Type and press Enter to add",
+			"wildcard_hint": "Use *@example.com for every address at a domain, or name@* for that name at any domain.",
 			"remove_value": "Remove {{value}}"
 		},
 		"roles": {
@@ -313,6 +314,12 @@
 			"dark": "Dark",
 			"system": "System",
 			"support_email": "Support Email",
+			"date_format": "Date format",
+			"date_format_language": "Follow the language setting (default)",
+			"date_format_iso": "ISO 8601 (2026-10-14T10:00:00+02:00)",
+			"date_format_eu": "European (DD/MM/YYYY)",
+			"date_format_us": "US (MM/DD/YYYY)",
+			"date_format_preview": "Preview",
 			"saving": "Saving",
 			"save_changes": "Save Changes"
 		},
@@ -370,6 +377,12 @@
 			"ingestion_source_form": {
 				"provider_generic_imap": "Generic IMAP",
 				"provider_oauth_mailbox": "OAuth Mailbox (single mailbox)",
+				"provider_jmap": "JMAP",
+				"jmap_server_url": "Server URL",
+				"jmap_auth_method": "Authentication",
+				"jmap_auth_token": "API token",
+				"jmap_auth_password": "Password or app password",
+				"jmap_token": "API token",
 				"provider_google_workspace": "Google Workspace",
 				"provider_microsoft_365": "Microsoft 365",
 				"provider_pst_import": "PST Import",

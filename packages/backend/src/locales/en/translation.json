@@ -42,7 +42,8 @@
 	"settings": {
 		"failedToRetrieve": "Failed to retrieve settings",
 		"failedToUpdate": "Failed to update settings",
-		"noPermissionToUpdate": "You do not have permission to update system settings."
+		"noPermissionToUpdate": "You do not have permission to update system settings.",
+		"invalidSettings": "Invalid settings."
 	},
 	"dashboard": {
 		"permissionRequired": "You need the dashboard read permission to view dashboard data."
@@ -69,7 +70,8 @@
 		"invalidSourceId": "One or more ingestion source IDs are not valid",
 		"invalidDate": "Dates must use the yyyy-mm-dd format",
 		"invalidDateRange": "The start date must not be after the end date",
-		"invalidParam": "One or more search parameters have an invalid value"
+		"invalidParam": "One or more search parameters have an invalid value",
+		"invalidWildcard": "Wildcards are only supported as *@domain or name@*"
 	},
 	"index": {
 		"cleanupTriggered": "Index cleanup has been queued.",
