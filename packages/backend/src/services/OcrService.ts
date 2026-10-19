@@ -1,5 +1,14 @@
 import crypto from 'crypto';
 import { logger } from '../config/logger';
+import { intFromEnv } from '../helpers/intFromEnv';
+import { parseTikaMajor, tikaRequestShape } from '../helpers/tikaVersion';
+
+/**
+ * A Tika major version to use without asking the server, for a `/version` endpoint a proxy hides.
+ * 0 (the default when unset) means detect. Read once: `intFromEnv` warns about an unusable value,
+ * and once per process is the right number of times to hear that.
+ */
+const FORCED_TIKA_MAJOR = intFromEnv('TIKA_API_VERSION', 0, 3, 4);
 
 // Simple LRU cache for Tika results with statistics
 class TikaCache {
@@ -113,6 +122,97 @@ export class OcrService {
 	private tikaCache = new TikaCache();
 	private tikaSemaphore = new TikaSemaphore();
 
+	/**
+	 * The server's major version per TIKA_URL, or when the last probe failed. Static on purpose:
+	 * the answer belongs to the server, not to any one instance, and textExtractor builds a new
+	 * OcrService per attachment.
+	 */
+	private static readonly majorByUrl = new Map<
+		string,
+		{ major: number } | { failedAt: number }
+	>();
+
+	/** How long a failed version probe is trusted before `/version` is asked again. */
+	private static readonly VERSION_RECHECK_MS = 60_000;
+
+	/** The version assumed while the server cannot be asked: the one docker-compose.yml ships. */
+	private static readonly DEFAULT_MAJOR = 4;
+
+	/**
+	 * The base URLs to try, in order. With the compose hostname `tika`, `localhost` is tried as
+	 * well, for the case where that name does not resolve from where this process runs.
+	 */
+	private tikaBaseUrls(tikaUrl: string): string[] {
+		return [
+			tikaUrl,
+			...(tikaUrl.includes('://tika:') ? [tikaUrl.replace('://tika:', '://localhost:')] : []),
+		];
+	}
+
+	/**
+	 * Which Tika API to speak to the server at `tikaUrl`.
+	 *
+	 * `TIKA_API_VERSION` wins when set. Otherwise `/version` is asked once and the answer kept for
+	 * the process; a server that does not answer is treated as the bundled 4.x and asked again
+	 * after VERSION_RECHECK_MS, so an outage costs one probe a minute rather than one per attachment.
+	 */
+	private async resolveTikaMajor(tikaUrl: string): Promise<number> {
+		if (FORCED_TIKA_MAJOR !== 0) {
+			return FORCED_TIKA_MAJOR;
+		}
+
+		const known = OcrService.majorByUrl.get(tikaUrl);
+		if (known && 'major' in known) {
+			return known.major;
+		}
+		if (known && Date.now() - known.failedAt < OcrService.VERSION_RECHECK_MS) {
+			return OcrService.DEFAULT_MAJOR;
+		}
+
+		for (const baseUrl of this.tikaBaseUrls(tikaUrl)) {
+			try {
+				const response = await fetch(`${baseUrl}/version`, {
+					method: 'GET',
+					signal: AbortSignal.timeout(5000),
+				});
+				if (!response.ok) {
+					continue;
+				}
+				const major = this.rememberTikaVersion(tikaUrl, await response.text());
+				if (major !== undefined) {
+					return major;
+				}
+			} catch (error) {
+				logger.debug({ err: error, baseUrl }, 'Tika version probe failed');
+			}
+		}
+
+		OcrService.majorByUrl.set(tikaUrl, { failedAt: Date.now() });
+		logger.warn(
+			{ tikaUrl, assumedMajor: OcrService.DEFAULT_MAJOR },
+			'Could not read the Tika version, assuming 4.x until the server answers'
+		);
+		return OcrService.DEFAULT_MAJOR;
+	}
+
+	/** Records the major version from a `/version` answer; undefined when it is not one. */
+	private rememberTikaVersion(tikaUrl: string, versionText: string): number | undefined {
+		const major = parseTikaMajor(versionText);
+		if (major === undefined) {
+			logger.warn(
+				{ tikaUrl, versionText: versionText.trim() },
+				'Unrecognised Tika version string'
+			);
+			return undefined;
+		}
+		OcrService.majorByUrl.set(tikaUrl, { major });
+		logger.info(
+			{ tikaUrl, version: versionText.trim(), endpoint: tikaRequestShape(major).endpoint },
+			'Tika server version detected'
+		);
+		return major;
+	}
+
 	// Tika-based text extraction with cache and semaphore
 	async extractTextWithTika(buffer: Buffer, mimeType: string): Promise<string> {
 		const tikaUrl = process.env.TIKA_URL;
@@ -141,18 +241,13 @@ export class OcrService {
 
 			logger.debug(`Executing Tika request for ${mimeType} (${buffer.length} bytes)`);
 
-			// Tika 4.x no longer routes /tika on the Accept header; bare /tika returns
-			// Markdown. /tika/text returns body-only plain text (the 3.x text/plain output).
-			const endpoint = '/tika/text';
-
-			// DNS fallback: If "tika" hostname, also try localhost
-			const urlsToTry = [
-				`${tikaUrl}${endpoint}`,
-				// Fallback in case of DNS problems with the "tika" hostname
-				...(tikaUrl.includes('://tika:')
-					? [`${tikaUrl.replace('://tika:', '://localhost:')}${endpoint}`]
-					: []),
-			];
+			// Tika 4.x no longer routes /tika on the Accept header (bare /tika returns Markdown)
+			// and serves plain text from /tika/text, which on 3.x is the JSON endpoint. The
+			// server's own version decides which request it gets.
+			const shape = tikaRequestShape(await this.resolveTikaMajor(tikaUrl));
+			const urlsToTry = this.tikaBaseUrls(tikaUrl).map(
+				(baseUrl) => `${baseUrl}${shape.endpoint}`
+			);
 
 			// Set when a failure may succeed on a later attempt (server busy, network error),
 			// so the empty result is not cached.
@@ -161,11 +256,17 @@ export class OcrService {
 			for (const url of urlsToTry) {
 				try {
 					logger.debug(`Trying Tika URL: ${url}`);
-					const response = await this.putWithBackpressureRetry(url, buffer, mimeType);
+					const response = await this.putWithBackpressureRetry(
+						url,
+						buffer,
+						mimeType,
+						shape.accept
+					);
 
-					// 422: Tika 4.x returns the partially extracted content when the parser
-					// hit a document-level exception (e.g. a malformed or encrypted file).
-					if (response.status === 422) {
+					// 422: Tika 4.x returns the partially extracted content when the parser hit a
+					// document-level exception (e.g. a malformed or encrypted file). On 3.x the
+					// body is the parser's error, so there it is a failure like any other.
+					if (response.status === 422 && shape.partialContentOn422) {
 						logger.warn(
 							`Tika reported a parse exception for ${mimeType} (${buffer.length} bytes); using partial content`
 						);
@@ -222,11 +323,15 @@ export class OcrService {
 	/**
 	 * PUTs the document to Tika. Tika 4.x parses in a fixed pool of forked JVMs and answers
 	 * 429 with a Retry-After header when no fork is free; those responses are retried here.
+	 *
+	 * @param accept Sent as the `Accept` header when given. Tika 3.x chooses its output by it;
+	 *   4.x ignores it and the path decides, so the caller leaves it out there.
 	 */
 	private async putWithBackpressureRetry(
 		url: string,
 		buffer: Buffer,
-		mimeType: string
+		mimeType: string,
+		accept?: string
 	): Promise<Response> {
 		for (let attempt = 0; ; attempt++) {
 			const response = await fetch(url, {
@@ -234,6 +339,7 @@ export class OcrService {
 				headers: {
 					// Tika 4.x treats this as a soft hint refined by content-based detection
 					'Content-Type': mimeType || 'application/octet-stream',
+					...(accept ? { Accept: accept } : {}),
 					Connection: 'close',
 				},
 				body: buffer,
@@ -286,6 +392,8 @@ export class OcrService {
 			if (response.ok) {
 				const version = await response.text();
 				logger.info(`Tika server available, version: ${version.trim()}`);
+				// The answer is in hand, so the first extraction need not ask again.
+				this.rememberTikaVersion(tikaUrl, version);
 				return true;
 			}
 

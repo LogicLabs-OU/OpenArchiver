@@ -24,8 +24,13 @@ permissions:
 
 jobs:
     text-extraction:
+        name: text-extraction (${{ matrix.tika }})
         runs-on: ubuntu-latest
         timeout-minutes: 20
+        strategy:
+            fail-fast: false
+            matrix:
+                tika: [compose, '3.2.2.0-full']
         env:
             TIKA_URL: http://localhost:9998
             LOG_LEVEL: warn
@@ -35,15 +40,19 @@ jobs:
 
             # Use the exact Tika image that docker-compose.yml deploys, so a version bump there
             # is tested here without editing this workflow.
-            - name: Start Tika (image from docker-compose.yml)
+            - name: Start Tika
               run: |
                   set -euo pipefail
-                  TIKA_IMAGE=$(yq '.services.tika.image' docker-compose.yml)
+                  if [ "${{ matrix.tika }}" = "compose" ]; then
+                      TIKA_IMAGE=$(yq '.services.tika.image' docker-compose.yml)
+                  else
+                      TIKA_IMAGE="apache/tika:${{ matrix.tika }}"
+                  fi
                   echo "Using ${TIKA_IMAGE}"
                   docker run -d --name tika -p 9998:9998 "${TIKA_IMAGE}"
 
             - name: Setup pnpm
-              uses: pnpm/action-setup@v2
+              uses: pnpm/action-setup@v4
               with:
                   version: 10.13.1
 

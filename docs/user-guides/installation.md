@@ -157,9 +157,10 @@ These variables are used by `docker-compose.yml` to configure the services.
 
 #### Apache Tika Integration
 
-| Variable   | Description                                                                                                                                                                          | Default Value      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| `TIKA_URL` | Optional. The URL of an Apache Tika server for advanced text extraction from attachments. If not set, the application falls back to built-in parsers for PDF, Word, and Excel files. | `http://tika:9998` |
+| Variable           | Description                                                                                                                                                                                    | Default Value      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `TIKA_URL`         | Optional. The URL of an Apache Tika server for advanced text extraction from attachments. If not set, the application falls back to built-in parsers for PDF, Word, and Excel files.           | `http://tika:9998` |
+| `TIKA_API_VERSION` | Optional. `3` or `4`. Tika 3.x and 4.x are both supported and the version is normally read from the server's `/version` endpoint on first use; set this only when a proxy hides that endpoint. | detected           |
 
 #### Enterprise Settings
 
