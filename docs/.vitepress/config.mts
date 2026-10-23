@@ -111,6 +111,7 @@ export default defineConfig({
 			{
 				text: 'Enterprise Features',
 				items: [
+					{ text: 'Upgrading to Enterprise', link: '/enterprise/upgrade/guide' },
 					{
 						text: 'Audit Log',
 						link: '/enterprise/audit-log/',
