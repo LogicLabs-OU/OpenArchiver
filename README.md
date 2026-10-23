@@ -77,21 +77,21 @@ Open Archiver is built on a modern, scalable, and maintainable technology stack:
 
 ### Installation
 
-1.  **Clone the repository:**
+1.  **Download the deployment files:**
+
+    Create a directory for your deployment and fetch the Compose file and the example environment file:
 
     ```bash
-    git clone https://github.com/LogicLabs-OU/OpenArchiver.git
-    cd OpenArchiver
+    mkdir open-archiver && cd open-archiver
+    curl -O https://raw.githubusercontent.com/LogicLabs-OU/OpenArchiver/main/compose.yaml
+    curl -L -o .env https://raw.githubusercontent.com/LogicLabs-OU/OpenArchiver/main/.env.example
     ```
+
+    The Open Archiver image is self-contained, so the source repository does not need to be cloned to run the application.
 
 2.  **Configure your environment:**
-    Copy the example environment file and customize it with your settings.
 
-    ```bash
-    cp .env.example .env
-    ```
-
-    You will need to edit the `.env` file to set your admin passwords, secret keys, and other essential configuration. Read the .env.example for how to set up.
+    Open the `.env` file in a text editor and set your admin passwords, secret keys, and other essential configuration. The file is heavily commented; read it for the meaning of each variable.
 
 3.  **Run the application:**
 
