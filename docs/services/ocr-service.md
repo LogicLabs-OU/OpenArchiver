@@ -29,7 +29,7 @@ If `TIKA_URL` is not set, the system will automatically fall back to the legacy 
 
 ### Supported Tika versions
 
-Tika 3.x and 4.x are both supported. The two differ in how plain text is requested: Tika 4 returns Markdown from `/tika` whatever the `Accept` header says and serves plain text from `/tika/text`, while on Tika 3 that path is the JSON endpoint. Open Archiver reads the server's version from `GET /version` the first time it extracts text and keeps the answer for the life of the process, so each server gets the request that yields plain text. The bundled `docker-compose.yml` ships Tika 4.1.0.
+Tika 3.x and 4.x are both supported. The two differ in how plain text is requested: Tika 4 returns Markdown from `/tika` whatever the `Accept` header says and serves plain text from `/tika/text`, while on Tika 3 that path is the JSON endpoint. Open Archiver reads the server's version from `GET /version` the first time it extracts text and keeps the answer for the life of the process, so each server gets the request that yields plain text. The bundled `compose.yaml` ships Tika 4.1.0.
 
 If a proxy in front of your Tika server hides `/version`, set `TIKA_API_VERSION` to `3` or `4` to skip the detection. While the server cannot be reached at all, the 4.x request is assumed and the version is asked for again a minute later.
 

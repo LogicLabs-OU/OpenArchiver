@@ -5,7 +5,7 @@ on:
         paths:
             - 'packages/backend/**'
             - 'packages/types/**'
-            - 'docker-compose.yml'
+            - 'compose.yaml'
             - 'pnpm-lock.yaml'
             - '.github/workflows/tika-integration.yml'
     push:
@@ -14,7 +14,7 @@ on:
         paths:
             - 'packages/backend/**'
             - 'packages/types/**'
-            - 'docker-compose.yml'
+            - 'compose.yaml'
             - 'pnpm-lock.yaml'
             - '.github/workflows/tika-integration.yml'
     workflow_dispatch:
@@ -38,13 +38,13 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
 
-            # Use the exact Tika image that docker-compose.yml deploys, so a version bump there
+            # Use the exact Tika image that compose.yaml deploys, so a version bump there
             # is tested here without editing this workflow.
             - name: Start Tika
               run: |
                   set -euo pipefail
                   if [ "${{ matrix.tika }}" = "compose" ]; then
-                      TIKA_IMAGE=$(yq '.services.tika.image' docker-compose.yml)
+                      TIKA_IMAGE=$(yq '.services.tika.image' compose.yaml)
                   else
                       TIKA_IMAGE="apache/tika:${{ matrix.tika }}"
                   fi
