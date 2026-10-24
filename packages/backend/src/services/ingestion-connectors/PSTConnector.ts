@@ -397,7 +397,31 @@ export class PSTConnector implements IEmailConnector {
 		if (folder.contentCount > 0) {
 			let email: PSTMessage | null = folder.getNextChild();
 			while (email != null) {
-				yield await this.parseMessage(email, newPath, userEmail);
+				// A single unreadable item (e.g. a property with an unknown/empty codepage, see #221) must not abort
+				// the whole mailbox: skip it, log enough to find it, and keep reading the folder.
+				let parsed: EmailObject | null = null;
+				try {
+					parsed = await this.parseMessage(email, newPath, userEmail);
+				} catch (error) {
+					let subject: string | undefined;
+					try {
+						subject = email.subject;
+					} catch {
+						subject = undefined;
+					}
+					logger.warn(
+						{
+							folder: newPath,
+							descriptorNodeId: email.descriptorNodeId,
+							subject,
+							error,
+						},
+						'Skipping unreadable PST item'
+					);
+				}
+				if (parsed) {
+					yield parsed;
+				}
 				try {
 					email = folder.getNextChild();
 				} catch (error) {
