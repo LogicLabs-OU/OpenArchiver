@@ -10,3 +10,11 @@
  * what the message said; the stored .eml is never touched either way.
  */
 export const stripNullBytes = (value: string): string => value.replace(/\0/g, '');
+
+/**
+ * Like stripNullBytes, for fields that are typed as strings but can reach us as another value.
+ * mailparser returns `contentType: false` for an attachment whose Content-Type header has no
+ * media type (#509), and `?? ''` lets `false` through. Any non-string becomes an empty string.
+ */
+export const stripNullBytesOrEmpty = (value: unknown): string =>
+	typeof value === 'string' ? stripNullBytes(value) : '';
