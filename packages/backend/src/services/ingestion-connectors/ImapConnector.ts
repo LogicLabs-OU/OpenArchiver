@@ -14,6 +14,7 @@ import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
+import { MessageFailureTally } from './helpers/retry';
 
 /**
  * Whether a mailbox is the account's Drafts folder.
@@ -94,6 +95,12 @@ export class ImapConnector implements IEmailConnector {
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
 	private options: ConnectorOptions;
+	/**
+	 * Messages and mailboxes this run gave up on. Reported through getFetchFailures(), which makes
+	 * the mailbox job discard this run's sync state, so the next cycle re-attempts them instead of
+	 * starting above a maxUid that was advanced past messages never archived.
+	 */
+	private failures = new MessageFailureTally();
 
 	constructor(
 		private credentials: GenericImapCredentials,
@@ -311,12 +318,12 @@ export class ImapConnector implements IEmailConnector {
 			for (const mailboxInfo of processableMailboxes) {
 				const mailboxPath = mailboxInfo.path;
 				logger.info({ mailboxPath }, 'Processing mailbox');
+				const lastUid = syncState?.imap?.[mailboxPath]?.maxUid;
 
 				try {
 					const mailbox = await this.withRetry(
 						async () => await this.imap.mailboxOpen(mailboxPath)
 					);
-					const lastUid = syncState?.imap?.[mailboxPath]?.maxUid;
 
 					// Initialize with last synced UID, not the maximum UID in mailbox
 					this.newMaxUids[mailboxPath] = lastUid || 0;
@@ -414,6 +421,8 @@ export class ImapConnector implements IEmailConnector {
 									'Fetching full source for message'
 								);
 
+								let fetched: EmailObject | undefined;
+								let failure: unknown;
 								try {
 									const fullMsg = await this.withRetry(
 										async () =>
@@ -432,15 +441,29 @@ export class ImapConnector implements IEmailConnector {
 									);
 
 									if (fullMsg && fullMsg.envelope && fullMsg.source) {
-										yield await this.parseMessage(fullMsg, mailboxPath);
+										fetched = await this.parseMessage(fullMsg, mailboxPath);
 									}
 								} catch (err: any) {
-									logger.error(
-										{ err, mailboxPath, uid },
-										'Failed to fetch or parse message'
-									);
-									throw err;
+									failure = err;
 								}
+
+								// Outside the try, as in the Gmail and JMAP connectors: the
+								// tally's own throw must not be caught and counted a second time.
+								if (failure === undefined) {
+									this.failures.succeeded();
+									if (fetched) {
+										yield fetched;
+									}
+									continue;
+								}
+								if (isCredentialRejected(failure)) {
+									throw failure;
+								}
+								logger.error(
+									{ err: failure, mailboxPath, uid },
+									'Giving up on message after retries, skipping it and continuing with the mailbox.'
+								);
+								this.failures.record(`${mailboxPath} UID ${uid}`, failure);
 							}
 
 							logger.debug(
@@ -451,6 +474,12 @@ export class ImapConnector implements IEmailConnector {
 					}
 				} catch (err: any) {
 					logger.error({ err, mailboxPath }, 'Failed to process mailbox');
+					// Pass 1 advances newMaxUids for a whole batch before pass 2 downloads it, so a
+					// mailbox that fails part-way must not keep that marker: saved, it would skip
+					// every message of the batch that was never fetched, permanently. Recording the
+					// failure also makes the mailbox job discard this run's sync state.
+					this.newMaxUids[mailboxPath] = lastUid || 0;
+					this.failures.record(mailboxPath, err);
 					// Check if the error indicates a persistent failure after retries
 					if (err.message.includes('IMAP operation failed after all retries')) {
 						this.statusMessage =
@@ -510,6 +539,11 @@ export class ImapConnector implements IEmailConnector {
 			path: mailboxPath,
 			isDraft: msg.flags?.has('\\Draft') || undefined,
 		};
+	}
+
+	/** Messages and mailboxes this connector gave up on, for the mailbox job to report. */
+	public getFetchFailures(): { count: number; samples: string[] } {
+		return this.failures.result;
 	}
 
 	public getUpdatedSyncState(): SyncState {
