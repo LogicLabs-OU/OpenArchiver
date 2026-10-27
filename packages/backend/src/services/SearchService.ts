@@ -560,6 +560,9 @@ export class SearchService {
 				'userEmailLocalPart',
 			],
 			sortableAttributes: ['timestamp'],
+			faceting: {
+				maxValuesPerFacet: 10000,
+			},
 		});
 	}
 }
