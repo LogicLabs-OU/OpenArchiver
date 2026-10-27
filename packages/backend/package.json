@@ -13,6 +13,7 @@
 		"build": "tsc && pnpm copy-assets",
 		"dev": "tsc --watch",
 		"copy-assets": "cp -r src/locales dist/locales",
+		"test:unit": "node --test test/stripNullBytes.test.mts",
 		"test:integration:tika": "node --test test/textExtractor.tika.test.mts",
 		"start:ingestion-worker": "node dist/workers/ingestion.worker.js",
 		"start:indexing-worker": "node dist/workers/indexing.worker.js",

@@ -64,7 +64,7 @@ import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { truncateToBytes } from '../helpers/truncateToBytes';
-import { stripNullBytes } from '../helpers/stripNullBytes';
+import { stripNullBytes, stripNullBytesOrEmpty } from '../helpers/stripNullBytes';
 import { describeError } from '../helpers/describeError';
 import { quoteMeiliString } from '../helpers/meiliFilter';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
@@ -1447,8 +1447,8 @@ export class IngestionService {
 			}
 		}
 		for (const attachment of email.attachments) {
-			attachment.filename = stripNullBytes(attachment.filename ?? '');
-			attachment.contentType = stripNullBytes(attachment.contentType ?? '');
+			attachment.filename = stripNullBytesOrEmpty(attachment.filename);
+			attachment.contentType = stripNullBytesOrEmpty(attachment.contentType);
 		}
 	}
 

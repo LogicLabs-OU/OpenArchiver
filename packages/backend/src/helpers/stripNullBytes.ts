@@ -10,3 +10,13 @@
  * what the message said; the stored .eml is never touched either way.
  */
 export const stripNullBytes = (value: string): string => value.replace(/\0/g, '');
+
+/**
+ * `stripNullBytes` for a field a parser only promises to be a string. mailparser yields `false`
+ * rather than a string for the `contentType` of an attachment whose Content-Type header is present
+ * but unparsable (`Content-Type: ;` or an empty value, seen in old newsletter software), and the
+ * resulting `value.replace is not a function` failed the whole message. Anything that is not a
+ * string becomes `''`, the same value a missing field already gets.
+ */
+export const stripNullBytesOrEmpty = (value: unknown): string =>
+	typeof value === 'string' ? stripNullBytes(value) : '';
