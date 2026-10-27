@@ -31,7 +31,7 @@ Enterprise deployments contact the license server at `https://openarchiver.com` 
 
 ## Step 1: Back up
 
-Back up before any upgrade. Run these commands from the directory that contains your `docker-compose.yml`.
+Back up before any upgrade. Run these commands from the directory that contains your `compose.yaml`.
 
 1. **Database:**
 
@@ -80,7 +80,7 @@ services:
 
 ## Step 3: Switch to the Enterprise image
 
-Open `docker-compose.yml` and change the image of the `open-archiver` service:
+Open `compose.yaml` and change the image of the `open-archiver` service:
 
 ```yaml
 services:
