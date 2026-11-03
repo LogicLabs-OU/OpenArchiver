@@ -135,7 +135,7 @@ export class OcrService {
 	/** How long a failed version probe is trusted before `/version` is asked again. */
 	private static readonly VERSION_RECHECK_MS = 60_000;
 
-	/** The version assumed while the server cannot be asked: the one docker-compose.yml ships. */
+	/** The version assumed while the server cannot be asked: the one compose.yaml ships. */
 	private static readonly DEFAULT_MAJOR = 4;
 
 	/**
