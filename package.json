@@ -24,7 +24,8 @@
 		"docs:build": "pnpm docs:gen-spec && vitepress build docs",
 		"docs:preview": "vitepress preview docs",
 		"format": "prettier --write .",
-		"lint": "prettier --check ."
+		"lint": "prettier --check .",
+		"test": "pnpm --filter \"@open-archiver/backend\" test"
 	},
 	"dependencies": {
 		"concurrently": "^9.2.0",
