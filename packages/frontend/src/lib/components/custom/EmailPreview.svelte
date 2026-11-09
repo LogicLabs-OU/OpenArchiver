@@ -106,6 +106,7 @@
 		<iframe
 			title={$t('app.archive.email_preview')}
 			srcdoc={emailHtml()}
+			sandbox="allow-popups allow-popups-to-escape-sandbox"
 			class="h-[600px] w-full border-none"
 		></iframe>
 	{:else if raw}
