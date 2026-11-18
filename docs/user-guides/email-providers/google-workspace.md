@@ -122,3 +122,11 @@ Once the connection is saved and verified, the system will begin the archiving p
 1.  **User Discovery:** The service will first connect to the Admin SDK to get a list of all active users in your Google Workspace.
 2.  **Initial Import:** The system will then start a background job to import the mailboxes of all discovered users. The status will show as **"Importing"**. This can take a significant amount of time depending on the number of users and the size of their mailboxes.
 3.  **Continuous Sync:** After the initial import is complete, the status will change to **"Active"**. The system will then periodically check each user's mailbox for new emails and archive them automatically.
+
+### Troubleshooting
+
+#### `429` Too Many Requests - `RESOURCE_EXHAUSTED`
+
+The Gmail API has strict per-user limits on the number of requests. If you have multiple non-admin users in your Google Workspace, and the `SYNC_FREQUENCY` in your `.env` file for OpenArchiver is left at its default, you may quickly encounter `429` HTTP errors.
+
+You can set the `SYNC_FREQUENCY` when configuring your environment for OpenArchiver to reduce the number of requests. A sensible setting might be once every hour (`SYNC_FREQUENCY=0 * * * *`).
