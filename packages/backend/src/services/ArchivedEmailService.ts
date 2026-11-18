@@ -218,7 +218,7 @@ export class ArchivedEmailService {
 
 		const storage = new StorageService();
 		const rawStream = await storage.get(email.storagePath);
-		const raw = await streamToBuffer(rawStream as Readable);
+		const rawBuffer = await streamToBuffer(rawStream as Readable);
 
 		const mappedEmail = {
 			...email,
@@ -228,7 +228,7 @@ export class ArchivedEmailService {
 				? { id: email.ingestionSource.id, name: email.ingestionSource.name }
 				: null,
 			recipients: this.mapRecipients(email.recipients),
-			raw,
+			raw: rawBuffer.toString('base64'),
 			thread: threadEmails,
 			tags: (email.tags as string[] | null) || null,
 			path: email.path || null,
