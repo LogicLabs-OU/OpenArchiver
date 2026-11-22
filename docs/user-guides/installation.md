@@ -86,6 +86,37 @@ To do so:
 
 This will configure the Open Archiver application to connect to your services instead of starting the default ones.
 
+#### PostgreSQL with TLS Client Certificates (mTLS)
+
+If your PostgreSQL server requires a client certificate (`cert` authentication or `clientcert=verify-full` in `pg_hba.conf`), mount the certificate files into the `open-archiver` container and point Open Archiver at them with the standard libpq variables:
+
+```env
+DATABASE_URL="postgresql://archiver@db.example.com:5432/open_archive?sslmode=verify-full"
+PGSSLCERT=/ssl/client.crt
+PGSSLKEY=/ssl/client.key
+PGSSLROOTCERT=/ssl/ca.crt
+```
+
+```yaml
+services:
+    open-archiver:
+        volumes:
+            - ./ssl:/ssl:ro
+```
+
+The same files can be given as `sslcert`, `sslkey` and `sslrootcert` parameters in `DATABASE_URL` instead; URL parameters take precedence over the environment variables. The private key must be readable by the user the container runs as.
+
+How strictly the server certificate is checked follows `sslmode` (from `DATABASE_URL`, or `PGSSLMODE`):
+
+| `sslmode`                    | Server certificate check                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------------- |
+| `verify-full`                | Certificate chain and host name. This is the default once any of the files above is set. |
+| `verify-ca`                  | Certificate chain only.                                                                  |
+| `require`, `prefer`, `allow` | Certificate chain if `PGSSLROOTCERT` is set, otherwise none.                             |
+| `disable`                    | No TLS; the certificate files are ignored.                                               |
+
+Without `PGSSLROOTCERT` the server certificate is checked against the system CA store. If none of these variables or URL parameters is set, the database connection behaves exactly as before.
+
 ### Environment Variable Reference
 
 Here is a complete list of environment variables available for configuration:
@@ -116,6 +147,10 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `POSTGRES_USER`                    | The username for the PostgreSQL database.                                                                | `admin`                                                  |
 | `POSTGRES_PASSWORD`                | The password for the PostgreSQL database.                                                                | `password`                                               |
 | `DATABASE_URL`                     | The connection URL for the PostgreSQL database.                                                          | `postgresql://admin:password@postgres:5432/open_archive` |
+| `PGSSLCERT`                        | Optional. Path to a TLS client certificate for PostgreSQL (mTLS), see above.                             |                                                          |
+| `PGSSLKEY`                         | Optional. Path to the private key for `PGSSLCERT`.                                                       |                                                          |
+| `PGSSLROOTCERT`                    | Optional. Path to the CA certificate the PostgreSQL server certificate is verified against.              |                                                          |
+| `PGSSLMODE`                        | Optional. `sslmode` to use with the files above when `DATABASE_URL` does not set one.                    | `verify-full`                                            |
 | `MEILI_MASTER_KEY`                 | The master key for Meilisearch.                                                                          | `aSampleMasterKey`                                       |
 | `MEILI_HOST`                       | The host for the Meilisearch service.                                                                    | `http://meilisearch:7700`                                |
 | `MEILI_INDEXING_BATCH`             | The number of email ids per indexing job. Queue granularity, not a memory setting.                       | `500`                                                    |
