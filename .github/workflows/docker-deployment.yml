@@ -7,6 +7,7 @@ on:
         paths-ignore:
             - '**.md'
             - 'docs/**'
+    workflow_dispatch:
 
 jobs:
     docker:
@@ -37,5 +38,6 @@ jobs:
                   context: .
                   file: ./apps/open-archiver/Dockerfile
                   platforms: linux/amd64,linux/arm64
+                  pull: true
                   push: true
                   tags: logiclabshq/open-archiver:${{ steps.sha.outputs.sha }}

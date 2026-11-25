@@ -29,6 +29,8 @@ To upgrade your Open Archiver instance, follow these steps:
 
 This will restart your Open Archiver instance with the latest version of the application.
 
+To move from the Open Source Edition to the Enterprise Edition, see [Upgrading to the Enterprise Edition](../../enterprise/upgrade/guide.md).
+
 ## Migrating Data
 
 When you upgrade to a new version, database migrations are applied automatically when the application starts up. This ensures that your database schema is always up-to-date with the latest version of the application.
