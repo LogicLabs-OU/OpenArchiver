@@ -257,6 +257,9 @@
 			"clear_filters": "Alle Filter zurücksetzen",
 			"add_value_hint": "Eingeben und mit Enter hinzufügen",
 			"wildcard_hint": "Verwenden Sie *@example.com für alle Adressen einer Domain oder name@* für diesen Namen in jeder Domain.",
+			"cc_filter": "Cc",
+			"bcc_filter": "Bcc",
+			"cc_bcc_hint": "Cc und Bcc finden nur exakte Adressen in genau diesem Feld. An (Empfänger) umfasst An, Cc und Bcc zusammen.",
 			"remove_value": "{{value}} entfernen"
 		},
 		"roles": {

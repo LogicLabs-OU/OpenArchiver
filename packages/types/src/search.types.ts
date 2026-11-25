@@ -42,6 +42,10 @@ export interface SearchFilters {
 	dateTo?: string;
 	/** true = only emails with attachments; false = only emails without. */
 	hasAttachments?: boolean;
+	/** Cc addresses to include, matched exactly. Unlike `to`, only the cc field is checked. */
+	cc?: string[];
+	/** Bcc addresses to include, matched exactly. Unlike `to`, only the bcc field is checked. */
+	bcc?: string[];
 }
 
 export interface SearchQuery {

@@ -36,6 +36,8 @@
 		notFromAddresses = $bindable([]),
 		toAddresses = $bindable([]),
 		notToAddresses = $bindable([]),
+		ccAddresses = $bindable([]),
+		bccAddresses = $bindable([]),
 		mailboxes = $bindable([]),
 		dateFrom = $bindable(''),
 		dateTo = $bindable(''),
@@ -51,6 +53,8 @@
 		notFromAddresses?: string[];
 		toAddresses?: string[];
 		notToAddresses?: string[];
+		ccAddresses?: string[];
+		bccAddresses?: string[];
 		mailboxes?: string[];
 		dateFrom?: string;
 		dateTo?: string;
@@ -78,6 +82,8 @@
 			notFromAddresses.length > 0,
 			toAddresses.length > 0,
 			notToAddresses.length > 0,
+			ccAddresses.length > 0,
+			bccAddresses.length > 0,
 			mailboxes.length > 0,
 			!!dateFrom || !!dateTo,
 			searchIn.length > 0,
@@ -119,6 +125,8 @@
 		notFromAddresses = [];
 		toAddresses = [];
 		notToAddresses = [];
+		ccAddresses = [];
+		bccAddresses = [];
 		mailboxes = [];
 		dateFrom = '';
 		dateTo = '';
@@ -295,6 +303,24 @@
 				/>
 			</div>
 			<p class="text-muted-foreground text-xs">{$t('app.search.wildcard_hint')}</p>
+
+			<div class="space-y-1.5">
+				<Label for="filter-cc">{$t('app.search.cc_filter')}</Label>
+				<ChipInput
+					id="filter-cc"
+					bind:values={ccAddresses}
+					placeholder={$t('app.search.add_value_hint')}
+				/>
+			</div>
+			<div class="space-y-1.5">
+				<Label for="filter-bcc">{$t('app.search.bcc_filter')}</Label>
+				<ChipInput
+					id="filter-bcc"
+					bind:values={bccAddresses}
+					placeholder={$t('app.search.add_value_hint')}
+				/>
+			</div>
+			<p class="text-muted-foreground text-xs">{$t('app.search.cc_bcc_hint')}</p>
 
 			<div class="space-y-1.5">
 				<Label>{$t('app.search.search_in')}</Label>

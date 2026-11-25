@@ -257,6 +257,9 @@
 			"clear_filters": "Clear all filters",
 			"add_value_hint": "Type and press Enter to add",
 			"wildcard_hint": "Use *@example.com for every address at a domain, or name@* for that name at any domain.",
+			"cc_filter": "Cc",
+			"bcc_filter": "Bcc",
+			"cc_bcc_hint": "Cc and Bcc match exact addresses in that field only. To (recipient) covers To, Cc and Bcc together.",
 			"remove_value": "Remove {{value}}"
 		},
 		"roles": {

@@ -257,6 +257,9 @@
 			"clear_filters": "Cancella tutti i filtri",
 			"add_value_hint": "Digita e premi Invio per aggiungere",
 			"wildcard_hint": "Usa *@example.com per tutti gli indirizzi di un dominio, oppure nome@* per quel nome su qualsiasi dominio.",
+			"cc_filter": "Cc",
+			"bcc_filter": "Ccn",
+			"cc_bcc_hint": "Cc e Ccn trovano solo indirizzi esatti in quel campo. A (destinatario) copre insieme A, Cc e Ccn.",
 			"remove_value": "Rimuovi {{value}}"
 		},
 		"roles": {

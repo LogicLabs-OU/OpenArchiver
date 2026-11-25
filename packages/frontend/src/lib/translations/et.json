@@ -257,6 +257,9 @@
 			"clear_filters": "Tühjenda kõik filtrid",
 			"add_value_hint": "Lisamiseks tippige ja vajutage Enter",
 			"wildcard_hint": "Kasutage *@example.com kõigi domeeni aadresside jaoks või nimi@* selle nime jaoks mis tahes domeenis.",
+			"cc_filter": "Koopia",
+			"bcc_filter": "Pimekoopia",
+			"cc_bcc_hint": "Koopia ja pimekoopia leiavad ainult täpseid aadresse just sellel väljal. Kellele (saaja) hõlmab korraga välju Kellele, Koopia ja Pimekoopia.",
 			"remove_value": "Eemalda {{value}}"
 		},
 		"roles": {
