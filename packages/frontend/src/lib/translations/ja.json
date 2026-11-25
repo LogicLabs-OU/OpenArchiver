@@ -235,6 +235,7 @@
 			"to_filter": "宛先（受信者）",
 			"exclude_to": "除外する受信者",
 			"mailboxes": "メールボックス",
+			"tags_filter": "タグ",
 			"date_range": "期間",
 			"date_from": "開始日",
 			"date_to": "終了日",

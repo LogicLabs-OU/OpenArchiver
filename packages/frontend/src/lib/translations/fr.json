@@ -235,6 +235,7 @@
 			"to_filter": "À (destinataire)",
 			"exclude_to": "Exclure le destinataire",
 			"mailboxes": "Boîtes aux lettres",
+			"tags_filter": "Étiquettes",
 			"date_range": "Période",
 			"date_from": "Du",
 			"date_to": "Au",

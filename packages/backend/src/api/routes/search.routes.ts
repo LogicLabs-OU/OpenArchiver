@@ -105,6 +105,13 @@ export const createSearchRouter = (
 	 *         description: Filter by attachment presence. Emails indexed before this field existed count as attachment-less until reindexed.
 	 *         schema:
 	 *           type: boolean
+	 *       - name: tags
+	 *         in: query
+	 *         required: false
+	 *         description: Comma-separated tags to include, such as Gmail labels or the extra mailboxes of a JMAP email, each matched against the whole tag, ignoring case. Any listed tag may match. Emails indexed before this field existed have no tags until reindexed.
+	 *         schema:
+	 *           type: string
+	 *           example: "Invoices,Travel"
 	 *       - name: sort
 	 *         in: query
 	 *         required: false
@@ -173,10 +180,10 @@ export const createSearchRouter = (
 	 *       - name: field
 	 *         in: query
 	 *         required: true
-	 *         description: The facet field to suggest values for.
+	 *         description: The facet field to suggest values for. `tags` suggests the tags emails carry, matching the start of the tag.
 	 *         schema:
 	 *           type: string
-	 *           enum: [mailboxes, from]
+	 *           enum: [mailboxes, from, tags]
 	 *       - name: query
 	 *         in: query
 	 *         required: false

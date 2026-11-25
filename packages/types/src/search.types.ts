@@ -42,6 +42,9 @@ export interface SearchFilters {
 	dateTo?: string;
 	/** true = only emails with attachments; false = only emails without. */
 	hasAttachments?: boolean;
+	/** Tags (Gmail labels, extra JMAP mailboxes) to include, each matched against the whole tag,
+	 * ignoring case. Any listed tag may match. */
+	tags?: string[];
 }
 
 export interface SearchQuery {
