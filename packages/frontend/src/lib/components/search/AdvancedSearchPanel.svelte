@@ -27,6 +27,7 @@
 		}
 	};
 	const loadMailboxSuggestions = loadFacet('mailboxes');
+	const loadFolderSuggestions = loadFacet('folders');
 
 	let {
 		availableSources = null,
@@ -41,6 +42,7 @@
 		dateTo = $bindable(''),
 		searchIn = $bindable([]),
 		hasAttachments = $bindable('any'),
+		folders = $bindable([]),
 		sort = $bindable('date_desc'),
 	}: {
 		/** null = the user cannot list ingestion sources (no read:ingestion permission). */
@@ -56,6 +58,7 @@
 		dateTo?: string;
 		searchIn?: string[];
 		hasAttachments?: string;
+		folders?: string[];
 		sort?: string;
 	} = $props();
 
@@ -82,6 +85,7 @@
 			!!dateFrom || !!dateTo,
 			searchIn.length > 0,
 			hasAttachments !== 'any',
+			folders.length > 0,
 			sort !== 'date_desc',
 		].filter(Boolean).length
 	);
@@ -124,6 +128,7 @@
 		dateTo = '';
 		searchIn = [];
 		hasAttachments = 'any';
+		folders = [];
 		sort = 'date_desc';
 	};
 
@@ -295,6 +300,16 @@
 				/>
 			</div>
 			<p class="text-muted-foreground text-xs">{$t('app.search.wildcard_hint')}</p>
+
+			<div class="space-y-1.5">
+				<Label for="filter-folders">{$t('app.search.folders_filter')}</Label>
+				<ChipInput
+					id="filter-folders"
+					bind:values={folders}
+					placeholder={$t('app.search.add_value_hint')}
+					loadSuggestions={loadFolderSuggestions}
+				/>
+			</div>
 
 			<div class="space-y-1.5">
 				<Label>{$t('app.search.search_in')}</Label>

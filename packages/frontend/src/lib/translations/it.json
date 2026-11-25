@@ -235,6 +235,7 @@
 			"to_filter": "A (destinatario)",
 			"exclude_to": "Escludi destinatario",
 			"mailboxes": "Caselle di posta",
+			"folders_filter": "Cartelle",
 			"date_range": "Intervallo di date",
 			"date_from": "Dal",
 			"date_to": "Al",

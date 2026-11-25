@@ -42,6 +42,8 @@ export interface SearchFilters {
 	dateTo?: string;
 	/** true = only emails with attachments; false = only emails without. */
 	hasAttachments?: boolean;
+	/** Folders the email was archived from, each matched against the whole name, ignoring case. */
+	folders?: string[];
 }
 
 export interface SearchQuery {

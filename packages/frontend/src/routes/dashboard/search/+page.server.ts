@@ -17,6 +17,7 @@ const FILTER_PARAMS = [
 	'dateTo',
 	'searchIn',
 	'hasAttachments',
+	'folders',
 	'sort',
 ] as const;
 

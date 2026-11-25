@@ -105,6 +105,13 @@ export const createSearchRouter = (
 	 *         description: Filter by attachment presence. Emails indexed before this field existed count as attachment-less until reindexed.
 	 *         schema:
 	 *           type: boolean
+	 *       - name: folders
+	 *         in: query
+	 *         required: false
+	 *         description: Comma-separated folders to include, each matched against the whole name of the folder an email was archived from, ignoring case (e.g. `INBOX`, `Sent Items`). Emails indexed before this field existed have no folder until reindexed.
+	 *         schema:
+	 *           type: string
+	 *           example: "INBOX,Sent Items"
 	 *       - name: sort
 	 *         in: query
 	 *         required: false
@@ -173,10 +180,10 @@ export const createSearchRouter = (
 	 *       - name: field
 	 *         in: query
 	 *         required: true
-	 *         description: The facet field to suggest values for.
+	 *         description: The facet field to suggest values for. `folders` suggests the folders emails were archived from, matching the start of the folder name.
 	 *         schema:
 	 *           type: string
-	 *           enum: [mailboxes, from]
+	 *           enum: [mailboxes, from, folders]
 	 *       - name: query
 	 *         in: query
 	 *         required: false
