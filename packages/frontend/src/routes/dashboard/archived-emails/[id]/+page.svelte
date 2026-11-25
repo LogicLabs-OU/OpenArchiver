@@ -294,7 +294,7 @@
 							? `${email.senderName} <${email.senderEmail}>`
 							: email.senderName || email.senderEmail} | {$t('app.archive.sent')}: {$formatDateTimeStore(
 							email.sentAt
-						)}
+						)} | {$t('app.archive.archived')}: {$formatDateTimeStore(email.archivedAt)}
 					</Card.Description>
 				</Card.Header>
 				<Card.Content>

@@ -34,6 +34,7 @@
 			"mailbox": "Buzón",
 			"ingestion_source": "Fuente de ingesta",
 			"sent": "Enviado",
+			"archived": "Archivado",
 			"recipients": "Destinatarios",
 			"to": "Para",
 			"meta_data": "Metadatos",

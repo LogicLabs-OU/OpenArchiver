@@ -34,6 +34,7 @@
 			"mailbox": "Postfach",
 			"ingestion_source": "Erfassungsquelle",
 			"sent": "Gesendet",
+			"archived": "Archiviert",
 			"recipients": "Empfänger",
 			"to": "An",
 			"meta_data": "Metadaten",

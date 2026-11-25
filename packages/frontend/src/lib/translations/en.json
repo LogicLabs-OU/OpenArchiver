@@ -34,6 +34,7 @@
 			"mailbox": "Mailbox",
 			"ingestion_source": "Ingestion source",
 			"sent": "Sent",
+			"archived": "Archived",
 			"recipients": "Recipients",
 			"to": "To",
 			"meta_data": "Meta Data",
