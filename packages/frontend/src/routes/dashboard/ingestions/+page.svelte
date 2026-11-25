@@ -879,9 +879,9 @@
 															)}</span
 														>
 														<span class="tabular-nums"
-															>{new Date(
+															>{$formatDateStore(
 																st.firstEmailAt
-															).toLocaleDateString()}</span
+															)}</span
 														>
 													</div>
 												{/if}
@@ -893,9 +893,9 @@
 															)}</span
 														>
 														<span class="tabular-nums"
-															>{new Date(
+															>{$formatDateStore(
 																st.lastEmailAt
-															).toLocaleDateString()}</span
+															)}</span
 														>
 													</div>
 												{/if}
