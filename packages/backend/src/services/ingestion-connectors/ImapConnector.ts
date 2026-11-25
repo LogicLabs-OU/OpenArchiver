@@ -14,6 +14,7 @@ import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
+import { MessageFailureTally } from './helpers/retry';
 
 /**
  * Whether a mailbox is the account's Drafts folder.
@@ -93,6 +94,8 @@ export class ImapConnector implements IEmailConnector {
 	private client: ImapFlow | null = null;
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
+	/** Folders that failed part-way, for the mailbox job to report. See getFetchFailures. */
+	private failures = new MessageFailureTally();
 	private options: ConnectorOptions;
 
 	constructor(
@@ -349,8 +352,26 @@ export class ImapConnector implements IEmailConnector {
 						for (let i = 0; i < uids.length; i += BATCH_SIZE) {
 							const batch = uids.slice(i, i + BATCH_SIZE);
 
+							// The checkpoint only ever covers an unbroken run of UIDs from the start of
+							// the batch that have been dealt with: handed to the job for archiving, or
+							// deliberately skipped (duplicate, draft, gone from the server). It used to
+							// jump to the highest UID whose envelope had been READ, before any body was
+							// fetched. A folder that then failed part-way, on a socket timeout, say, was
+							// logged and swallowed below, and that checkpoint was saved, so the
+							// messages between the failure and the highest UID were never fetched again
+							// and silently missing from the archive.
+							const settled = new Set<number>();
+							let watermark = 0;
+							const advanceCheckpoint = () => {
+								while (watermark < batch.length && settled.has(batch[watermark])) {
+									this.newMaxUids[mailboxPath] = batch[watermark];
+									watermark++;
+								}
+							};
+
 							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
 							const uidsToFetch: number[] = [];
+							const listed = new Set<number>();
 
 							// `{ uid: true }` makes imapflow read the array as UIDs; without it the
 							// numbers would be taken as sequence numbers.
@@ -363,12 +384,11 @@ export class ImapConnector implements IEmailConnector {
 								},
 								{ uid: true }
 							)) {
-								if (lastUid && msg.uid <= lastUid) {
-									continue;
-								}
+								listed.add(msg.uid);
 
-								if (msg.uid > this.newMaxUids[mailboxPath]) {
-									this.newMaxUids[mailboxPath] = msg.uid;
+								if (lastUid && msg.uid <= lastUid) {
+									settled.add(msg.uid);
+									continue;
 								}
 
 								// A draft filed outside the Drafts folder — the folder filter above
@@ -379,6 +399,7 @@ export class ImapConnector implements IEmailConnector {
 										{ mailboxPath, uid: msg.uid },
 										'Skipping message flagged as a draft'
 									);
+									settled.add(msg.uid);
 									continue;
 								}
 
@@ -398,14 +419,30 @@ export class ImapConnector implements IEmailConnector {
 											},
 											'Skipping duplicate email (pre-check)'
 										);
+										settled.add(msg.uid);
 										continue;
 									}
 								}
 
 								if (msg.envelope) {
 									uidsToFetch.push(msg.uid);
+								} else {
+									settled.add(msg.uid);
 								}
 							}
+
+							// A UID the search returned but the fetch did not was expunged in between.
+							// There is nothing left to archive, so it must not hold the checkpoint back.
+							for (const uid of batch) {
+								if (!listed.has(uid)) {
+									settled.add(uid);
+								}
+							}
+							advanceCheckpoint();
+
+							// The server may answer a FETCH in any order; the checkpoint is contiguous,
+							// so bodies are fetched lowest UID first to let it advance as they arrive.
+							uidsToFetch.sort((a, b) => a - b);
 
 							// --- Pass 2: fetch full source one message at a time for non-duplicate UIDs.
 							for (const uid of uidsToFetch) {
@@ -432,8 +469,18 @@ export class ImapConnector implements IEmailConnector {
 									);
 
 									if (fullMsg && fullMsg.envelope && fullMsg.source) {
+										// Execution resumes after this yield only once the job has taken
+										// the email. If archiving it then fails, the job discards this
+										// run's sync state, so marking it settled here cannot skip it.
 										yield await this.parseMessage(fullMsg, mailboxPath);
+									} else {
+										logger.warn(
+											{ mailboxPath, uid },
+											'Message had no source when fetched; it was probably deleted'
+										);
 									}
+									settled.add(uid);
+									advanceCheckpoint();
 								} catch (err: any) {
 									logger.error(
 										{ err, mailboxPath, uid },
@@ -449,13 +496,18 @@ export class ImapConnector implements IEmailConnector {
 							);
 						}
 					}
+					this.failures.succeeded();
 				} catch (err: any) {
 					logger.error({ err, mailboxPath }, 'Failed to process mailbox');
 					// Check if the error indicates a persistent failure after retries
-					if (err.message.includes('IMAP operation failed after all retries')) {
+					if (err?.message?.includes('IMAP operation failed after all retries')) {
 						this.statusMessage =
 							'Sync paused due to reaching the mail server rate limit. The process will automatically resume later.';
 					}
+					// The remaining folders still run, but the failure is reported instead of the
+					// account showing as up to date with a folder missing. Throws once enough
+					// folders fail in a row to point at the connection rather than one folder.
+					this.failures.record(`Folder ${mailboxPath}`, err);
 				}
 			}
 		} finally {
@@ -526,5 +578,10 @@ export class ImapConnector implements IEmailConnector {
 		}
 
 		return syncState;
+	}
+
+	/** Folders this connector could not finish, for the mailbox job to report. */
+	public getFetchFailures(): { count: number; samples: string[] } {
+		return this.failures.result;
 	}
 }
