@@ -27,7 +27,11 @@ import {
 } from 'drizzle-orm';
 import { CryptoService } from './CryptoService';
 import { EmailProviderFactory } from './EmailProviderFactory';
-import { mergeOAuthCredentials, validateOAuthMailboxConfig } from './oauth/oauthHelpers';
+import {
+	dropDeviceCodeClientSecret,
+	mergeOAuthCredentials,
+	validateOAuthMailboxConfig,
+} from './oauth/oauthHelpers';
 import { validateJmapConfig } from './ingestion-connectors/JmapConnector';
 import { mergeProviderCredentials } from './credentialMerge';
 import { ingestionQueue, indexingQueue } from '../jobs/queues';
@@ -203,6 +207,7 @@ export class IngestionService {
 			// its own tokens would otherwise skip authorization entirely.
 			delete providerConfig.tokens;
 			delete providerConfig.pendingAuth;
+			dropDeviceCodeClientSecret(providerConfig);
 		}
 		if (dto.provider === 'jmap') {
 			const validation = validateJmapConfig(providerConfig);

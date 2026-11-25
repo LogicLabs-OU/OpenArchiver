@@ -231,6 +231,18 @@ const CONNECTION_FIELDS = [
 ] as const;
 
 /**
+ * The device code flow is for public clients, and the form shows no client secret for it.
+ * A secret kept from an earlier browser sign-in setup would still be sent with every token
+ * request, and the provider then rejects the refresh. Clearing it also counts as a
+ * connection change in `mergeOAuthCredentials`, so the source asks for a new sign-in.
+ */
+export const dropDeviceCodeClientSecret = (cfg: { flow?: string; clientSecret?: string }) => {
+	if (cfg.flow === 'device_code') {
+		delete cfg.clientSecret;
+	}
+};
+
+/**
  * Merges an edit's provider config over the stored credentials.
  *
  * The edit dialog cannot show stored credentials (SafeIngestionSource omits them), so what
@@ -240,7 +252,8 @@ const CONNECTION_FIELDS = [
  * - `tokens`, `pendingAuth` and `authorizedEmail` are server-managed: whatever the client
  *   sent for them is discarded and the stored values carried over.
  * - A blank or absent `clientSecret` keeps the stored secret, because a password field can
- *   never be pre-filled.
+ *   never be pre-filled. The device code flow drops the secret instead (see
+ *   `dropDeviceCodeClientSecret`).
  * - Changing who or where to authenticate (email, client, endpoints, scopes) invalidates
  *   the tokens — they were granted for the old identity — and the caller must send the
  *   source back to `pending_auth`. Changing only where to fetch mail (imapHost/imapPort)
@@ -262,6 +275,7 @@ export const mergeOAuthCredentials = (
 	if (typeof incoming.clientSecret !== 'string' || incoming.clientSecret === '') {
 		merged.clientSecret = original.clientSecret;
 	}
+	dropDeviceCodeClientSecret(merged);
 
 	const connectionChanged = CONNECTION_FIELDS.some((field) => {
 		const next = merged[field] ?? '';
