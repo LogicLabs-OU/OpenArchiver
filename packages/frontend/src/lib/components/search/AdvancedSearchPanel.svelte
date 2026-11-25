@@ -139,6 +139,10 @@
 		{ value: 'date_desc', label: $t('app.search.sort_newest') },
 		{ value: 'date_asc', label: $t('app.search.sort_oldest') },
 		{ value: 'relevance', label: $t('app.search.sort_relevance') },
+		{ value: 'sender_asc', label: $t('app.search.sort_sender_asc') },
+		{ value: 'sender_desc', label: $t('app.search.sort_sender_desc') },
+		{ value: 'subject_asc', label: $t('app.search.sort_subject_asc') },
+		{ value: 'subject_desc', label: $t('app.search.sort_subject_desc') },
 	]);
 	const attachmentTrigger = $derived(
 		attachmentOptions.find((o) => o.value === hasAttachments)?.label ??

@@ -5,6 +5,7 @@ import type {
 	SearchResult,
 	SearchFilters,
 	SearchScope,
+	SearchSortOption,
 	EmailDocument,
 	TopSender,
 	User,
@@ -283,6 +284,21 @@ export class SearchService {
 		return index.deleteDocuments({ filter });
 	}
 
+	/**
+	 * Meilisearch sort rules for each sort option; undefined leaves ranking to relevance. The
+	 * sender and subject orders fall back to newest-first, so a sender's or a thread's emails
+	 * come out in date order rather than in index order.
+	 */
+	private static readonly SORT_RULES: Record<SearchSortOption, string[] | undefined> = {
+		relevance: undefined,
+		date_desc: ['timestamp:desc'],
+		date_asc: ['timestamp:asc'],
+		sender_asc: ['from:asc', 'timestamp:desc'],
+		sender_desc: ['from:desc', 'timestamp:desc'],
+		subject_asc: ['subject:asc', 'timestamp:desc'],
+		subject_desc: ['subject:desc', 'timestamp:desc'],
+	};
+
 	/** Maps a SearchScope to the index attributes it covers. */
 	private static readonly SEARCH_SCOPE_ATTRIBUTES: Record<SearchScope, string[]> = {
 		subject: ['subject'],
@@ -337,10 +353,9 @@ export class SearchService {
 		};
 
 		// Sorting: default stays newest-first; 'relevance' omits sort so Meilisearch ranking applies.
-		if (sort === 'date_asc') {
-			searchParams.sort = ['timestamp:asc'];
-		} else if (sort !== 'relevance') {
-			searchParams.sort = ['timestamp:desc'];
+		const sortRules = SearchService.SORT_RULES[sort ?? 'date_desc'];
+		if (sortRules) {
+			searchParams.sort = sortRules;
 		}
 
 		// Field-scoped keyword search (e.g. only subject, or only attachments).
@@ -559,7 +574,7 @@ export class SearchService {
 				'userEmailDomain',
 				'userEmailLocalPart',
 			],
-			sortableAttributes: ['timestamp'],
+			sortableAttributes: ['timestamp', 'from', 'subject'],
 		});
 	}
 }
