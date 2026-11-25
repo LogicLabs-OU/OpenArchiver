@@ -235,6 +235,7 @@
 			"to_filter": "Para (destinatario)",
 			"exclude_to": "Excluir destinatario",
 			"mailboxes": "Buzones",
+			"folders_filter": "Carpetas",
 			"date_range": "Intervalo de fechas",
 			"date_from": "Desde",
 			"date_to": "Hasta",

@@ -13,7 +13,7 @@ const SEARCH_SCOPES: SearchScope[] = [
 	'from',
 	'to',
 ];
-const FACET_FIELDS = ['mailboxes', 'from'];
+const FACET_FIELDS = ['mailboxes', 'from', 'folders'];
 const SORT_OPTIONS: SearchSortOption[] = ['relevance', 'date_desc', 'date_asc'];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -113,6 +113,9 @@ export class SearchController {
 				}
 				filters.hasAttachments = hasAttachmentsParam === 'true';
 			}
+
+			const folders = csv(req.query.folders);
+			if (folders) filters.folders = folders;
 
 			const searchIn = csv(req.query.searchIn) as SearchScope[] | undefined;
 			if (searchIn && searchIn.some((scope) => !SEARCH_SCOPES.includes(scope))) {

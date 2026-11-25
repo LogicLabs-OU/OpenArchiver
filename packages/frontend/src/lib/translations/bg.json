@@ -235,6 +235,7 @@
 			"to_filter": "До (получател)",
 			"exclude_to": "Изключване на получател",
 			"mailboxes": "Пощенски кутии",
+			"folders_filter": "Папки",
 			"date_range": "Период",
 			"date_from": "От",
 			"date_to": "До",

@@ -235,6 +235,7 @@
 			"to_filter": "An (Empfänger)",
 			"exclude_to": "Empfänger ausschließen",
 			"mailboxes": "Postfächer",
+			"folders_filter": "Ordner",
 			"date_range": "Zeitraum",
 			"date_from": "Von",
 			"date_to": "Bis",

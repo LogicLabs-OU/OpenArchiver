@@ -235,6 +235,7 @@
 			"to_filter": "Προς (παραλήπτης)",
 			"exclude_to": "Εξαίρεση παραλήπτη",
 			"mailboxes": "Γραμματοκιβώτια",
+			"folders_filter": "Φάκελοι",
 			"date_range": "Εύρος ημερομηνιών",
 			"date_from": "Από",
 			"date_to": "Έως",

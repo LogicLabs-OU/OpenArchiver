@@ -467,6 +467,15 @@ export class SearchService {
 	};
 
 	/**
+	 * Facet fields suggested through Meilisearch facet search rather than a field-scoped search,
+	 * because they are filterable but deliberately not searchable: making the folder searchable
+	 * would let a keyword match the name of the folder an email sits in.
+	 */
+	private static readonly FACET_SEARCH_FIELDS: Record<string, string> = {
+		folders: 'path',
+	};
+
+	/**
 	 * Typo-tolerant suggestions for a facet field, used for typeahead inputs (e.g. the
 	 * Mailboxes filter). Scoped to the caller's permission filter so a user never sees
 	 * values they aren't allowed to search. Returns distinct field values ranked by
@@ -483,7 +492,8 @@ export class SearchService {
 		userId: string
 	): Promise<string[]> {
 		const facetName = SearchService.FACET_FIELDS[field];
-		if (!facetName) {
+		const facetSearchName = SearchService.FACET_SEARCH_FIELDS[field];
+		if (!facetName && !facetSearchName) {
 			return [];
 		}
 		const index = await this.getIndex<EmailDocument>('emails');
@@ -491,6 +501,19 @@ export class SearchService {
 		const { searchFilter } = await FilterBuilder.create(userId, 'archive', ['read', 'search']);
 		// undefined = full access; '' = a permission query that compiled to nothing → deny.
 		const accessFilter = searchFilter === '' ? 'ingestionSourceId = "-1"' : searchFilter;
+
+		if (facetSearchName) {
+			const facets = await index.searchForFacetValues({
+				facetName: facetSearchName,
+				facetQuery: query,
+				...(accessFilter ? { filter: accessFilter } : {}),
+			});
+			return facets.facetHits
+				.sort((a, b) => b.count - a.count)
+				.slice(0, 10)
+				.map((hit) => hit.value);
+		}
+
 		const result = await index.search(query || '', {
 			attributesToSearchOn: [facetName],
 			facets: [facetName],
@@ -558,6 +581,7 @@ export class SearchService {
 				'recipientLocalParts',
 				'userEmailDomain',
 				'userEmailLocalPart',
+				'path',
 			],
 			sortableAttributes: ['timestamp'],
 		});

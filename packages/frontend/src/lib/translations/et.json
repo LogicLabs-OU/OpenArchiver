@@ -235,6 +235,7 @@
 			"to_filter": "Kellele (saaja)",
 			"exclude_to": "Välista saaja",
 			"mailboxes": "Postkastid",
+			"folders_filter": "Kaustad",
 			"date_range": "Ajavahemik",
 			"date_from": "Alates",
 			"date_to": "Kuni",

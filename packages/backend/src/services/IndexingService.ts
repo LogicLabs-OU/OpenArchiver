@@ -518,6 +518,7 @@ export class IndexingService {
 			timestamp: new Date(email.sentAt).getTime(),
 			ingestionSourceId: email.ingestionSourceId,
 			hasAttachments: !!email.hasAttachments,
+			path: email.path || undefined,
 		};
 	}
 
@@ -710,6 +711,7 @@ export class IndexingService {
 			timestamp: typeof doc.timestamp === 'number' ? doc.timestamp : Date.now(),
 			ingestionSourceId: doc.ingestionSourceId || 'unknown',
 			hasAttachments: doc.hasAttachments ?? (doc.attachments?.length ?? 0) > 0,
+			path: doc.path ? sanitizeText(doc.path) : undefined,
 		};
 	}
 

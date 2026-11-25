@@ -235,6 +235,7 @@
 			"to_filter": "To (recipient)",
 			"exclude_to": "Exclude recipient",
 			"mailboxes": "Mailboxes",
+			"folders_filter": "Folders",
 			"date_range": "Date range",
 			"date_from": "From",
 			"date_to": "To",
