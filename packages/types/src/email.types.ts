@@ -99,6 +99,9 @@ export interface EmailDocument {
 	/** Whether the email carries attachments. Optional because documents indexed before
 	 * this field existed lack it until a reindex backfills them. */
 	hasAttachments?: boolean;
+	/** Size of the stored email in bytes. Optional: documents indexed before this field existed
+	 * lack it until a reindex. */
+	sizeBytes?: number;
 	/** Lower-cased halves of the sender address, for the `*@domain` and `name@*` filters. Optional:
 	 * documents indexed before these fields existed lack them until a full rebuild. */
 	fromDomain?: string;

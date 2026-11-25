@@ -11,8 +11,11 @@ export type SearchScope =
 	| 'from'
 	| 'to';
 
-/** Result ordering. `relevance` uses Meilisearch ranking; the date options sort by sentAt. */
-export type SearchSortOption = 'relevance' | 'date_desc' | 'date_asc';
+/**
+ * Result ordering. `relevance` uses Meilisearch ranking; the date options sort by sentAt; the size
+ * options sort by the size of the stored email, newest first within equal sizes.
+ */
+export type SearchSortOption = 'relevance' | 'date_desc' | 'date_asc' | 'size_desc' | 'size_asc';
 
 /**
  * Structured advanced-search filters. List fields are OR within the field
@@ -42,6 +45,10 @@ export interface SearchFilters {
 	dateTo?: string;
 	/** true = only emails with attachments; false = only emails without. */
 	hasAttachments?: boolean;
+	/** Inclusive lower bound on the size of the stored email, in bytes. */
+	minSize?: number;
+	/** Inclusive upper bound on the size of the stored email, in bytes. */
+	maxSize?: number;
 }
 
 export interface SearchQuery {

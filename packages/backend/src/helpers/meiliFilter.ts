@@ -170,6 +170,12 @@ export function buildEmailSearchFilter(filters: SearchFilters): string | undefin
 		// hasAttachments field existed still count as attachment-less until reindexed.
 		clauses.push('NOT hasAttachments = true');
 	}
+	if (filters.minSize !== undefined) {
+		clauses.push(`sizeBytes >= ${filters.minSize}`);
+	}
+	if (filters.maxSize !== undefined) {
+		clauses.push(`sizeBytes <= ${filters.maxSize}`);
+	}
 
 	return clauses.length > 0 ? clauses.join(' AND ') : undefined;
 }
