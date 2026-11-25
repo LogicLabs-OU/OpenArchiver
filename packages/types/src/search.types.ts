@@ -42,6 +42,8 @@ export interface SearchFilters {
 	dateTo?: string;
 	/** true = only emails with attachments; false = only emails without. */
 	hasAttachments?: boolean;
+	/** Only emails in this conversation thread (the `threadId` of an archived email). */
+	threadId?: string;
 }
 
 export interface SearchQuery {

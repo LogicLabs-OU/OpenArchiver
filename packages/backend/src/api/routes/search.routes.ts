@@ -105,6 +105,12 @@ export const createSearchRouter = (
 	 *         description: Filter by attachment presence. Emails indexed before this field existed count as attachment-less until reindexed.
 	 *         schema:
 	 *           type: boolean
+	 *       - name: threadId
+	 *         in: query
+	 *         required: false
+	 *         description: Only emails in this conversation thread, given as the `threadId` of an archived email. Combine with an empty `keywords` and `sort=date_asc` to list a thread in order. Emails indexed before this field existed have no thread until reindexed.
+	 *         schema:
+	 *           type: string
 	 *       - name: sort
 	 *         in: query
 	 *         required: false
