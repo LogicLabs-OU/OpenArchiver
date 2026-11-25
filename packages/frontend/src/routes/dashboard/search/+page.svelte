@@ -56,6 +56,7 @@
 	let dateTo = $state(initial.dateTo ?? '');
 	let searchIn = $state(csvToList(initial.searchIn));
 	let hasAttachments = $state(initial.hasAttachments ?? 'any');
+	let tags = $state(csvToList(initial.tags));
 	let sort = $state(initial.sort ?? 'date_desc');
 
 	/** Serializes the full search state (keywords, options, filters) into URL params. */
@@ -80,6 +81,7 @@
 		if (hasAttachments === 'true' || hasAttachments === 'false') {
 			params.set('hasAttachments', hasAttachments);
 		}
+		setCsv('tags', tags);
 		if (sort !== 'date_desc') params.set('sort', sort);
 		return params;
 	}
@@ -155,6 +157,7 @@
 		dateTo = '';
 		searchIn = [];
 		hasAttachments = 'any';
+		tags = [];
 		sort = 'date_desc';
 		goto('/dashboard/search');
 	}
@@ -275,6 +278,7 @@
 					bind:dateTo
 					bind:searchIn
 					bind:hasAttachments
+					bind:tags
 					bind:sort
 				/>
 				<!-- Second search trigger so users don't have to scroll back up after

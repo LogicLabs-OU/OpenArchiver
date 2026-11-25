@@ -99,6 +99,9 @@ export interface EmailDocument {
 	/** Whether the email carries attachments. Optional because documents indexed before
 	 * this field existed lack it until a reindex backfills them. */
 	hasAttachments?: boolean;
+	/** Tags the email carried when archived, such as Gmail labels. Optional: documents indexed
+	 * before this field existed lack it until a reindex. */
+	tags?: string[];
 	/** Lower-cased halves of the sender address, for the `*@domain` and `name@*` filters. Optional:
 	 * documents indexed before these fields existed lack them until a full rebuild. */
 	fromDomain?: string;

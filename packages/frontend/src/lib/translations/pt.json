@@ -235,6 +235,7 @@
 			"to_filter": "Para (destinatário)",
 			"exclude_to": "Excluir destinatário",
 			"mailboxes": "Caixas de correio",
+			"tags_filter": "Etiquetas",
 			"date_range": "Período",
 			"date_from": "De",
 			"date_to": "Até",

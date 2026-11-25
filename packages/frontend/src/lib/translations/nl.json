@@ -235,6 +235,7 @@
 			"to_filter": "Aan (ontvanger)",
 			"exclude_to": "Ontvanger uitsluiten",
 			"mailboxes": "Mailboxen",
+			"tags_filter": "Labels",
 			"date_range": "Periode",
 			"date_from": "Van",
 			"date_to": "Tot",
