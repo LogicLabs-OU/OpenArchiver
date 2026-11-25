@@ -11,8 +11,19 @@ export type SearchScope =
 	| 'from'
 	| 'to';
 
-/** Result ordering. `relevance` uses Meilisearch ranking; the date options sort by sentAt. */
-export type SearchSortOption = 'relevance' | 'date_desc' | 'date_asc';
+/**
+ * Result ordering. `relevance` uses Meilisearch ranking; the date options sort by sentAt; the
+ * sender options sort by the sender's address and the subject options by subject, newest first
+ * within equal values.
+ */
+export type SearchSortOption =
+	| 'relevance'
+	| 'date_desc'
+	| 'date_asc'
+	| 'sender_asc'
+	| 'sender_desc'
+	| 'subject_asc'
+	| 'subject_desc';
 
 /**
  * Structured advanced-search filters. List fields are OR within the field

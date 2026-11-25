@@ -108,10 +108,10 @@ export const createSearchRouter = (
 	 *       - name: sort
 	 *         in: query
 	 *         required: false
-	 *         description: Result ordering. `date_desc` (default) and `date_asc` sort by sent date; `relevance` uses Meilisearch ranking.
+	 *         description: Result ordering. `date_desc` (default) and `date_asc` sort by sent date; `relevance` uses Meilisearch ranking; `sender_asc`/`sender_desc` sort by the sender's address and `subject_asc`/`subject_desc` by subject, newest first within equal values.
 	 *         schema:
 	 *           type: string
-	 *           enum: [relevance, date_desc, date_asc]
+	 *           enum: [relevance, date_desc, date_asc, sender_asc, sender_desc, subject_asc, subject_desc]
 	 *           default: date_desc
 	 *       - name: page
 	 *         in: query
