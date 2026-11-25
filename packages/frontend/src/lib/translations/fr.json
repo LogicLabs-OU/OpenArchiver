@@ -257,6 +257,9 @@
 			"clear_filters": "Effacer tous les filtres",
 			"add_value_hint": "Saisissez une valeur et appuyez sur Entrée pour l'ajouter",
 			"wildcard_hint": "Utilisez *@exemple.com pour toutes les adresses d'un domaine, ou nom@* pour ce nom sur n'importe quel domaine.",
+			"cc_filter": "Cc",
+			"bcc_filter": "Cci",
+			"cc_bcc_hint": "Cc et Cci ne trouvent que des adresses exactes dans ce champ. À (destinataire) couvre À, Cc et Cci ensemble.",
 			"remove_value": "Retirer {{value}}"
 		},
 		"roles": {

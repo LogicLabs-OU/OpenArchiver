@@ -170,6 +170,14 @@ export function buildEmailSearchFilter(filters: SearchFilters): string | undefin
 		// hasAttachments field existed still count as attachment-less until reindexed.
 		clauses.push('NOT hasAttachments = true');
 	}
+	// Exact addresses only: the address halves behind `*@domain` are indexed across to, cc and bcc
+	// together, so they cannot tell the three fields apart. The controller rejects wildcards here.
+	if (filters.cc?.length) {
+		clauses.push(inClause('cc', filters.cc));
+	}
+	if (filters.bcc?.length) {
+		clauses.push(inClause('bcc', filters.bcc));
+	}
 
 	return clauses.length > 0 ? clauses.join(' AND ') : undefined;
 }

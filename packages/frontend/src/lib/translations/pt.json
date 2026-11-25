@@ -257,6 +257,9 @@
 			"clear_filters": "Limpar todos os filtros",
 			"add_value_hint": "Digite e pressione Enter para adicionar",
 			"wildcard_hint": "Use *@example.com para todos os endereços de um domínio ou nome@* para esse nome em qualquer domínio.",
+			"cc_filter": "Cc",
+			"bcc_filter": "Cco",
+			"cc_bcc_hint": "Cc e Cco correspondem apenas a endereços exatos nesse campo. Para (destinatário) abrange Para, Cc e Cco em conjunto.",
 			"remove_value": "Remover {{value}}"
 		},
 		"roles": {

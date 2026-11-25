@@ -257,6 +257,9 @@
 			"clear_filters": "すべてのフィルターをクリア",
 			"add_value_hint": "入力して Enter キーで追加",
 			"wildcard_hint": "ドメイン内のすべてのアドレスには *@example.com、任意のドメインの特定の名前には name@* を使用します。",
+			"cc_filter": "CC",
+			"bcc_filter": "BCC",
+			"cc_bcc_hint": "CC と BCC は、その欄の完全一致のアドレスのみを検索します。宛先（受信者）は 宛先・CC・BCC をまとめて対象にします。",
 			"remove_value": "{{value}} を削除"
 		},
 		"roles": {

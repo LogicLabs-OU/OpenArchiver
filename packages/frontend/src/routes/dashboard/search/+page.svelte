@@ -51,6 +51,8 @@
 	let notFromAddresses = $state(csvToList(initial.notFrom));
 	let toAddresses = $state(csvToList(initial.to));
 	let notToAddresses = $state(csvToList(initial.notTo));
+	let ccAddresses = $state(csvToList(initial.cc));
+	let bccAddresses = $state(csvToList(initial.bcc));
 	let mailboxes = $state(csvToList(initial.mailboxes));
 	let dateFrom = $state(initial.dateFrom ?? '');
 	let dateTo = $state(initial.dateTo ?? '');
@@ -73,6 +75,8 @@
 		setCsv('notFrom', notFromAddresses);
 		setCsv('to', toAddresses);
 		setCsv('notTo', notToAddresses);
+		setCsv('cc', ccAddresses);
+		setCsv('bcc', bccAddresses);
 		setCsv('mailboxes', mailboxes);
 		if (dateFrom) params.set('dateFrom', dateFrom);
 		if (dateTo) params.set('dateTo', dateTo);
@@ -150,6 +154,8 @@
 		notFromAddresses = [];
 		toAddresses = [];
 		notToAddresses = [];
+		ccAddresses = [];
+		bccAddresses = [];
 		mailboxes = [];
 		dateFrom = '';
 		dateTo = '';
@@ -270,6 +276,8 @@
 					bind:notFromAddresses
 					bind:toAddresses
 					bind:notToAddresses
+					bind:ccAddresses
+					bind:bccAddresses
 					bind:mailboxes
 					bind:dateFrom
 					bind:dateTo

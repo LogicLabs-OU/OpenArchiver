@@ -257,6 +257,9 @@
 			"clear_filters": "Alle filters wissen",
 			"add_value_hint": "Typ en druk op Enter om toe te voegen",
 			"wildcard_hint": "Gebruik *@example.com voor elk adres binnen een domein, of naam@* voor die naam binnen elk domein.",
+			"cc_filter": "Cc",
+			"bcc_filter": "Bcc",
+			"cc_bcc_hint": "Cc en Bcc zoeken alleen exacte adressen in dat veld. Aan (ontvanger) omvat Aan, Cc en Bcc samen.",
 			"remove_value": "{{value}} verwijderen"
 		},
 		"roles": {

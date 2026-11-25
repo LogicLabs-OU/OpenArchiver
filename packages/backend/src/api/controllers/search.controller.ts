@@ -114,6 +114,17 @@ export class SearchController {
 				filters.hasAttachments = hasAttachmentsParam === 'true';
 			}
 
+			const cc = addressCsv(req.query.cc);
+			const bcc = addressCsv(req.query.bcc);
+			for (const values of [cc, bcc]) {
+				if (values?.some((value) => value.includes('*'))) {
+					res.status(400).json({ message: req.t('search.invalidParam') });
+					return;
+				}
+			}
+			if (cc) filters.cc = cc;
+			if (bcc) filters.bcc = bcc;
+
 			const searchIn = csv(req.query.searchIn) as SearchScope[] | undefined;
 			if (searchIn && searchIn.some((scope) => !SEARCH_SCOPES.includes(scope))) {
 				res.status(400).json({ message: req.t('search.invalidParam') });

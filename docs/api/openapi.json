@@ -4025,6 +4025,25 @@
             }
           },
           {
+            "name": "cc",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated addresses that must appear in Cc. Unlike `to`, which spans To, Cc and Bcc, only Cc is checked. Exact addresses only; `*` is rejected.",
+            "schema": {
+              "type": "string",
+              "example": "alice@example.com"
+            }
+          },
+          {
+            "name": "bcc",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated addresses that must appear in Bcc. Only Bcc is checked. Exact addresses only; `*` is rejected.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "sort",
             "in": "query",
             "required": false,
