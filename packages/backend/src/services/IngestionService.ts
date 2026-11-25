@@ -64,7 +64,7 @@ import { checkDeletionEnabled } from '../helpers/deletionGuard';
 import { normalizeEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
 import { truncateToBytes } from '../helpers/truncateToBytes';
-import { stripNullBytes } from '../helpers/stripNullBytes';
+import { stripNullBytes, toStorableText } from '../helpers/stripNullBytes';
 import { describeError } from '../helpers/describeError';
 import { quoteMeiliString } from '../helpers/meiliFilter';
 import { isIndexingWorkerAlive } from '../jobs/helpers/workerLiveness';
@@ -1418,37 +1418,39 @@ export class IngestionService {
 	}
 
 	/**
-	 * Strips NUL characters from every text field of an email before any of them is written.
+	 * Strips NUL characters and unpaired surrogates from every text field of an email before any of
+	 * them is written.
 	 *
 	 * Postgres rejects a NUL in any text column, and some old automated messages carry one at the
 	 * end of the Subject or a display name (#479); one such email failed its insert, and the
 	 * report of that failure then failed on the same byte. In place rather than a copy: the
 	 * journaling fan-out calls processEmail several times with one EmailObject, and the mailbox
-	 * job logs email.id after the call, so every reader should see the same values. The Message-ID
+	 * job logs email.id after the call, so every reader should see the same values. Unpaired
+	 * surrogates matter for the fields stored as jsonb (recipients, tags); see toStorableText. The Message-ID
 	 * header is left alone here — it reaches the database only through boundMessageKey, which
 	 * strips it too — and the stored .eml keeps the original bytes either way.
 	 */
 	private static stripNullBytesFromEmail(email: EmailObject): void {
-		email.id = stripNullBytes(email.id);
-		email.subject = stripNullBytes(email.subject);
+		email.id = toStorableText(email.id);
+		email.subject = toStorableText(email.subject);
 		if (email.threadId !== undefined) {
-			email.threadId = stripNullBytes(email.threadId);
+			email.threadId = toStorableText(email.threadId);
 		}
 		if (email.path !== undefined) {
-			email.path = stripNullBytes(email.path);
+			email.path = toStorableText(email.path);
 		}
 		if (email.tags) {
-			email.tags = email.tags.map(stripNullBytes);
+			email.tags = email.tags.map(toStorableText);
 		}
 		for (const list of [email.from, email.to, email.cc, email.bcc]) {
 			for (const entry of list ?? []) {
-				entry.name = stripNullBytes(entry.name ?? '');
-				entry.address = stripNullBytes(entry.address ?? '');
+				entry.name = toStorableText(entry.name ?? '');
+				entry.address = toStorableText(entry.address ?? '');
 			}
 		}
 		for (const attachment of email.attachments) {
-			attachment.filename = stripNullBytes(attachment.filename ?? '');
-			attachment.contentType = stripNullBytes(attachment.contentType ?? '');
+			attachment.filename = toStorableText(attachment.filename ?? '');
+			attachment.contentType = toStorableText(attachment.contentType ?? '');
 		}
 	}
 
