@@ -5,6 +5,7 @@ import type {
 	SearchResult,
 	SearchFilters,
 	SearchScope,
+	SearchSortOption,
 	EmailDocument,
 	TopSender,
 	User,
@@ -283,6 +284,18 @@ export class SearchService {
 		return index.deleteDocuments({ filter });
 	}
 
+	/**
+	 * Meilisearch sort rules for each sort option; undefined leaves ranking to relevance. The size
+	 * orders fall back to newest-first among equal sizes.
+	 */
+	private static readonly SORT_RULES: Record<SearchSortOption, string[] | undefined> = {
+		relevance: undefined,
+		date_desc: ['timestamp:desc'],
+		date_asc: ['timestamp:asc'],
+		size_desc: ['sizeBytes:desc', 'timestamp:desc'],
+		size_asc: ['sizeBytes:asc', 'timestamp:desc'],
+	};
+
 	/** Maps a SearchScope to the index attributes it covers. */
 	private static readonly SEARCH_SCOPE_ATTRIBUTES: Record<SearchScope, string[]> = {
 		subject: ['subject'],
@@ -337,10 +350,9 @@ export class SearchService {
 		};
 
 		// Sorting: default stays newest-first; 'relevance' omits sort so Meilisearch ranking applies.
-		if (sort === 'date_asc') {
-			searchParams.sort = ['timestamp:asc'];
-		} else if (sort !== 'relevance') {
-			searchParams.sort = ['timestamp:desc'];
+		const sortRules = SearchService.SORT_RULES[sort ?? 'date_desc'];
+		if (sortRules) {
+			searchParams.sort = sortRules;
 		}
 
 		// Field-scoped keyword search (e.g. only subject, or only attachments).
@@ -558,8 +570,9 @@ export class SearchService {
 				'recipientLocalParts',
 				'userEmailDomain',
 				'userEmailLocalPart',
+				'sizeBytes',
 			],
-			sortableAttributes: ['timestamp'],
+			sortableAttributes: ['timestamp', 'sizeBytes'],
 		});
 	}
 }

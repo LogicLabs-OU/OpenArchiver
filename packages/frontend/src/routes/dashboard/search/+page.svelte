@@ -56,6 +56,12 @@
 	let dateTo = $state(initial.dateTo ?? '');
 	let searchIn = $state(csvToList(initial.searchIn));
 	let hasAttachments = $state(initial.hasAttachments ?? 'any');
+	// The API takes bytes; the panel shows megabytes.
+	const MB = 1024 * 1024;
+	const bytesToMb = (value?: string) =>
+		value && /^\d+$/.test(value) ? Math.round((Number(value) / MB) * 100) / 100 : undefined;
+	let minSizeMb = $state<number | undefined>(bytesToMb(initial.minSize));
+	let maxSizeMb = $state<number | undefined>(bytesToMb(initial.maxSize));
 	let sort = $state(initial.sort ?? 'date_desc');
 
 	/** Serializes the full search state (keywords, options, filters) into URL params. */
@@ -80,6 +86,13 @@
 		if (hasAttachments === 'true' || hasAttachments === 'false') {
 			params.set('hasAttachments', hasAttachments);
 		}
+		const setBytes = (key: string, mb: number | undefined | null) => {
+			if (typeof mb === 'number' && Number.isFinite(mb) && mb >= 0) {
+				params.set(key, String(Math.round(mb * MB)));
+			}
+		};
+		setBytes('minSize', minSizeMb);
+		setBytes('maxSize', maxSizeMb);
 		if (sort !== 'date_desc') params.set('sort', sort);
 		return params;
 	}
@@ -155,6 +168,8 @@
 		dateTo = '';
 		searchIn = [];
 		hasAttachments = 'any';
+		minSizeMb = undefined;
+		maxSizeMb = undefined;
 		sort = 'date_desc';
 		goto('/dashboard/search');
 	}
@@ -275,6 +290,8 @@
 					bind:dateTo
 					bind:searchIn
 					bind:hasAttachments
+					bind:minSizeMb
+					bind:maxSizeMb
 					bind:sort
 				/>
 				<!-- Second search trigger so users don't have to scroll back up after

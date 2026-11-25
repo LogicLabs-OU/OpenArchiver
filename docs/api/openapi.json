@@ -4025,16 +4025,39 @@
             }
           },
           {
+            "name": "minSize",
+            "in": "query",
+            "required": false,
+            "description": "Only emails whose stored size is at least this many bytes. Emails indexed before this field existed have no size until reindexed and are left out by either size bound.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "example": 10485760
+            }
+          },
+          {
+            "name": "maxSize",
+            "in": "query",
+            "required": false,
+            "description": "Only emails whose stored size is at most this many bytes.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "Result ordering. `date_desc` (default) and `date_asc` sort by sent date; `relevance` uses Meilisearch ranking.",
+            "description": "Result ordering. `date_desc` (default) and `date_asc` sort by sent date; `relevance` uses Meilisearch ranking; `size_desc` and `size_asc` sort by the size of the stored email, newest first among equal sizes.",
             "schema": {
               "type": "string",
               "enum": [
                 "relevance",
                 "date_desc",
-                "date_asc"
+                "date_asc",
+                "size_desc",
+                "size_asc"
               ],
               "default": "date_desc"
             }

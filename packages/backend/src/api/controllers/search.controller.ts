@@ -14,7 +14,14 @@ const SEARCH_SCOPES: SearchScope[] = [
 	'to',
 ];
 const FACET_FIELDS = ['mailboxes', 'from'];
-const SORT_OPTIONS: SearchSortOption[] = ['relevance', 'date_desc', 'date_asc'];
+const SORT_OPTIONS: SearchSortOption[] = [
+	'relevance',
+	'date_desc',
+	'date_asc',
+	'size_desc',
+	'size_asc',
+];
+const BYTES_PATTERN = /^\d{1,15}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -113,6 +120,26 @@ export class SearchController {
 				}
 				filters.hasAttachments = hasAttachmentsParam === 'true';
 			}
+
+			const minSizeParam = req.query.minSize;
+			const maxSizeParam = req.query.maxSize;
+			for (const value of [minSizeParam, maxSizeParam]) {
+				if (
+					value !== undefined &&
+					(typeof value !== 'string' || !BYTES_PATTERN.test(value))
+				) {
+					res.status(400).json({ message: req.t('search.invalidParam') });
+					return;
+				}
+			}
+			const minSize = minSizeParam === undefined ? undefined : Number(minSizeParam);
+			const maxSize = maxSizeParam === undefined ? undefined : Number(maxSizeParam);
+			if (minSize !== undefined && maxSize !== undefined && minSize > maxSize) {
+				res.status(400).json({ message: req.t('search.invalidParam') });
+				return;
+			}
+			if (minSize !== undefined) filters.minSize = minSize;
+			if (maxSize !== undefined) filters.maxSize = maxSize;
 
 			const searchIn = csv(req.query.searchIn) as SearchScope[] | undefined;
 			if (searchIn && searchIn.some((scope) => !SEARCH_SCOPES.includes(scope))) {

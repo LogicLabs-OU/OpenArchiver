@@ -41,6 +41,8 @@
 		dateTo = $bindable(''),
 		searchIn = $bindable([]),
 		hasAttachments = $bindable('any'),
+		minSizeMb = $bindable(undefined),
+		maxSizeMb = $bindable(undefined),
 		sort = $bindable('date_desc'),
 	}: {
 		/** null = the user cannot list ingestion sources (no read:ingestion permission). */
@@ -56,6 +58,9 @@
 		dateTo?: string;
 		searchIn?: string[];
 		hasAttachments?: string;
+		/** Size bounds in megabytes; the page converts them to bytes for the API. */
+		minSizeMb?: number;
+		maxSizeMb?: number;
 		sort?: string;
 	} = $props();
 
@@ -82,6 +87,7 @@
 			!!dateFrom || !!dateTo,
 			searchIn.length > 0,
 			hasAttachments !== 'any',
+			typeof minSizeMb === 'number' || typeof maxSizeMb === 'number',
 			sort !== 'date_desc',
 		].filter(Boolean).length
 	);
@@ -124,6 +130,8 @@
 		dateTo = '';
 		searchIn = [];
 		hasAttachments = 'any';
+		minSizeMb = undefined;
+		maxSizeMb = undefined;
 		sort = 'date_desc';
 	};
 
@@ -139,6 +147,8 @@
 		{ value: 'date_desc', label: $t('app.search.sort_newest') },
 		{ value: 'date_asc', label: $t('app.search.sort_oldest') },
 		{ value: 'relevance', label: $t('app.search.sort_relevance') },
+		{ value: 'size_desc', label: $t('app.search.sort_largest') },
+		{ value: 'size_asc', label: $t('app.search.sort_smallest') },
 	]);
 	const attachmentTrigger = $derived(
 		attachmentOptions.find((o) => o.value === hasAttachments)?.label ??
@@ -251,6 +261,38 @@
 						{$t('app.search.clear_dates')}
 					</Button>
 				{/if}
+			</div>
+
+			<div class="space-y-1.5">
+				<Label>{$t('app.search.size_range')}</Label>
+				<div class="grid grid-cols-2 gap-2">
+					<div class="space-y-1">
+						<Label for="size-min" class="text-muted-foreground text-xs font-normal">
+							{$t('app.search.size_min')}
+						</Label>
+						<Input
+							id="size-min"
+							type="number"
+							min="0"
+							step="any"
+							inputmode="decimal"
+							bind:value={minSizeMb}
+						/>
+					</div>
+					<div class="space-y-1">
+						<Label for="size-max" class="text-muted-foreground text-xs font-normal">
+							{$t('app.search.size_max')}
+						</Label>
+						<Input
+							id="size-max"
+							type="number"
+							min="0"
+							step="any"
+							inputmode="decimal"
+							bind:value={maxSizeMb}
+						/>
+					</div>
+				</div>
 			</div>
 
 			<div class="space-y-1.5">
