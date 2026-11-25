@@ -114,6 +114,10 @@ export class SearchController {
 				filters.hasAttachments = hasAttachmentsParam === 'true';
 			}
 
+			const threadId =
+				typeof req.query.threadId === 'string' ? req.query.threadId.trim() : undefined;
+			if (threadId) filters.threadId = threadId;
+
 			const searchIn = csv(req.query.searchIn) as SearchScope[] | undefined;
 			if (searchIn && searchIn.some((scope) => !SEARCH_SCOPES.includes(scope))) {
 				res.status(400).json({ message: req.t('search.invalidParam') });

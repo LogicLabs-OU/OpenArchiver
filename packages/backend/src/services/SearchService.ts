@@ -558,6 +558,7 @@ export class SearchService {
 				'recipientLocalParts',
 				'userEmailDomain',
 				'userEmailLocalPart',
+				'threadId',
 			],
 			sortableAttributes: ['timestamp'],
 		});
