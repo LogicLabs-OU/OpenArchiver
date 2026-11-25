@@ -34,6 +34,7 @@
 			"mailbox": "Mailbox",
 			"ingestion_source": "Innamebron",
 			"sent": "Verzonden",
+			"archived": "Gearchiveerd",
 			"recipients": "Ontvangers",
 			"to": "Aan",
 			"meta_data": "Metadata",

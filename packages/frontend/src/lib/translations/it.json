@@ -34,6 +34,7 @@
 			"mailbox": "Casella di posta",
 			"ingestion_source": "Fonte di acquisizione",
 			"sent": "Inviato",
+			"archived": "Archiviato",
 			"recipients": "Destinatari",
 			"to": "A",
 			"meta_data": "Metadati",

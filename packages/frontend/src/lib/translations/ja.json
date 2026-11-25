@@ -34,6 +34,7 @@
 			"mailbox": "メールボックス",
 			"ingestion_source": "取り込み元",
 			"sent": "送信日時",
+			"archived": "アーカイブ日時",
 			"recipients": "受信者",
 			"to": "宛先",
 			"meta_data": "メタデータ",

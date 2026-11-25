@@ -34,6 +34,7 @@
 			"mailbox": "Boîte aux lettres",
 			"ingestion_source": "Source d'ingestion",
 			"sent": "Envoyé",
+			"archived": "Archivé",
 			"recipients": "Destinataires",
 			"to": "À",
 			"meta_data": "Métadonnées",
