@@ -14,6 +14,7 @@ import { logger } from '../../config/logger';
 import { getThreadId } from './helpers/utils';
 import { sentDateOf } from './helpers/sentDate';
 import { writeEmailToTempFile } from './helpers/tempFile';
+import { MessageFailureTally } from './helpers/retry';
 
 /**
  * Whether a mailbox is the account's Drafts folder.
@@ -94,6 +95,14 @@ export class ImapConnector implements IEmailConnector {
 	private newMaxUids: { [mailboxPath: string]: number } = {};
 	private statusMessage: string | undefined;
 	private options: ConnectorOptions;
+	/**
+	 * Messages and folders this run gave up on. Pass 1 moves `newMaxUids` past a whole batch before
+	 * pass 2 downloads it, so anything skipped here must reach the mailbox job as a failure: that is
+	 * what discards this run's sync state and makes the next cycle fetch it again (#511).
+	 */
+	private failures = new MessageFailureTally();
+	/** The tally's own abort, kept so the per-folder catch can let it through rather than count it. */
+	private failureAbort: unknown;
 
 	constructor(
 		private credentials: GenericImapCredentials,
@@ -267,6 +276,35 @@ export class ImapConnector implements IEmailConnector {
 		throw new Error('IMAP operation failed after all retries.');
 	}
 
+	/**
+	 * Selects `path` unless it is already the selected mailbox.
+	 *
+	 * Needed inside every withRetry action that works on a folder: a retry after a dropped
+	 * connection runs on a fresh client with nothing selected, and imapflow's search, fetch and
+	 * fetchOne then return nothing instead of throwing. The retry looked like a success, and every
+	 * remaining message of the batch was skipped with no error at all (#511).
+	 */
+	private async ensureMailboxOpen(path: string): Promise<void> {
+		const selected = this.imap.mailbox;
+		if (selected === false || selected.path !== path) {
+			await this.imap.mailboxOpen(path);
+		}
+	}
+
+	/**
+	 * Records a message or folder this run gave up on. The tally throws once the failures look
+	 * mailbox-wide; that error is remembered so the per-folder catch passes it on instead of
+	 * counting it as one more folder failure.
+	 */
+	private recordFailure(subject: string, error: unknown): void {
+		try {
+			this.failures.record(subject, error);
+		} catch (abort) {
+			this.failureAbort = abort;
+			throw abort;
+		}
+	}
+
 	public async *fetchEmails(
 		userEmail: string,
 		syncState?: SyncState | null,
@@ -331,10 +369,10 @@ export class ImapConnector implements IEmailConnector {
 						// first message can sit tens of millions of UIDs above 1, and two messages in
 						// one folder can be millions apart. Walking those ranges sent one empty FETCH
 						// per 250 UIDs: about an hour per folder before the first message (#483).
-						const found = await this.withRetry(
-							async () =>
-								await this.imap.search({ uid: `${fromUid}:*` }, { uid: true })
-						);
+						const found = await this.withRetry(async () => {
+							await this.ensureMailboxOpen(mailboxPath);
+							return await this.imap.search({ uid: `${fromUid}:*` }, { uid: true });
+						});
 						// `n:*` returns the highest message even when n is past it (RFC 3501), and a
 						// server is free to return UIDs in any order, so both are normalised here.
 						const uids = (found || [])
@@ -351,6 +389,9 @@ export class ImapConnector implements IEmailConnector {
 
 							// --- Pass 1: fetch only envelope + uid (no source) for the entire batch.
 							const uidsToFetch: number[] = [];
+
+							// A pass-2 retry in the previous batch may have replaced the client.
+							await this.withRetry(() => this.ensureMailboxOpen(mailboxPath));
 
 							// `{ uid: true }` makes imapflow read the array as UIDs; without it the
 							// numbers would be taken as sequence numbers.
@@ -414,32 +455,53 @@ export class ImapConnector implements IEmailConnector {
 									'Fetching full source for message'
 								);
 
+								// The tally is touched outside the try, as in the other connectors: its
+								// own abort must not be caught here and counted a second time.
+								let message: EmailObject | null = null;
+								let failure: unknown;
 								try {
-									const fullMsg = await this.withRetry(
-										async () =>
-											await this.imap.fetchOne(
-												String(uid),
-												{
-													envelope: true,
-													source: true,
-													bodyStructure: true,
-													uid: true,
-													flags: true,
-													internalDate: true,
-												},
-												{ uid: true }
-											)
-									);
+									const fullMsg = await this.withRetry(async () => {
+										await this.ensureMailboxOpen(mailboxPath);
+										return await this.imap.fetchOne(
+											String(uid),
+											{
+												envelope: true,
+												source: true,
+												bodyStructure: true,
+												uid: true,
+												flags: true,
+												internalDate: true,
+											},
+											{ uid: true }
+										);
+									});
 
 									if (fullMsg && fullMsg.envelope && fullMsg.source) {
-										yield await this.parseMessage(fullMsg, mailboxPath);
+										message = await this.parseMessage(fullMsg, mailboxPath);
+									} else {
+										// The folder is selected, so the message was expunged after
+										// pass 1 listed it. Nothing to archive.
+										logger.debug(
+											{ mailboxPath, uid },
+											'Message no longer exists, skipping'
+										);
 									}
-								} catch (err: any) {
+								} catch (err) {
+									failure = err;
+								}
+
+								if (failure !== undefined) {
 									logger.error(
-										{ err, mailboxPath, uid },
-										'Failed to fetch or parse message'
+										{ err: failure, mailboxPath, uid },
+										'Failed to fetch or parse message, skipping it and continuing with the folder'
 									);
-									throw err;
+									this.recordFailure(`${mailboxPath} UID ${uid}`, failure);
+									continue;
+								}
+
+								this.failures.succeeded();
+								if (message) {
+									yield message;
 								}
 							}
 
@@ -450,12 +512,19 @@ export class ImapConnector implements IEmailConnector {
 						}
 					}
 				} catch (err: any) {
+					if (err === this.failureAbort) {
+						throw err;
+					}
 					logger.error({ err, mailboxPath }, 'Failed to process mailbox');
 					// Check if the error indicates a persistent failure after retries
-					if (err.message.includes('IMAP operation failed after all retries')) {
+					if (err?.message?.includes('IMAP operation failed after all retries')) {
 						this.statusMessage =
 							'Sync paused due to reaching the mail server rate limit. The process will automatically resume later.';
 					}
+					// Counted, not only logged: pass 1 may already have moved this folder's
+					// maxUid past messages that were never downloaded, and a run that reports
+					// success saves it (#511).
+					this.recordFailure(mailboxPath, err);
 				}
 			}
 		} finally {
@@ -526,5 +595,10 @@ export class ImapConnector implements IEmailConnector {
 		}
 
 		return syncState;
+	}
+
+	/** Messages and folders this run gave up on, for the mailbox job to report. */
+	public getFetchFailures(): { count: number; samples: string[] } {
+		return this.failures.result;
 	}
 }
