@@ -121,6 +121,7 @@ These variables are used by `docker-compose.yml` to configure the services.
 | `MEILI_INDEXING_BATCH`             | The number of email ids per indexing job. Queue granularity, not a memory setting.                       | `500`                                                    |
 | `MEILI_INDEXING_CHUNK`             | Documents built and sent to Meilisearch at a time. Lower this if the indexing worker runs out of memory. | `25`                                                     |
 | `INDEXING_MAX_TEXT_BYTES`          | Maximum extracted text kept per attachment and per email body, in bytes.                                 | `1000000`                                                |
+| `INDEXING_PARSE_TIMEOUT_MS`        | Base time to parse one email for indexing, plus 2 s per MB. A longer parse counts as a failed attempt.   | `60000`                                                  |
 | `INDEXING_WORKER_MAX_OLD_SPACE_MB` | Heap ceiling for the indexing worker, in MB.                                                             | `2048`                                                   |
 | `REDIS_HOST`                       | The host for the Valkey (Redis) service.                                                                 | `valkey`                                                 |
 | `REDIS_PORT`                       | The port for the Valkey (Redis) service.                                                                 | `6379`                                                   |

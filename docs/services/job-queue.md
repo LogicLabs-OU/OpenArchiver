@@ -69,6 +69,7 @@ Already-ingested emails from the partial sync are preserved. The next sync skips
 | `MEILI_INDEXING_BATCH`         | `500`       | Number of emails per `index-email-batch` job          |
 | `MEILI_INDEXING_CHUNK`         | `25`        | Documents built and sent to Meilisearch at a time     |
 | `INDEXING_MAX_TEXT_BYTES`      | `1000000`   | Extracted text kept per attachment and per body       |
+| `INDEXING_PARSE_TIMEOUT_MS`    | `60000`     | Base parse time per email, plus 2 s per MB            |
 | `MAX_INDEX_ATTEMPTS`           | `8`         | Failed attempts before an email is left out of search |
 
 ### Tuning ingestion concurrency

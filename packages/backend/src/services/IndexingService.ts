@@ -15,7 +15,10 @@ import { streamToBuffer } from '../helpers/streamToBuffer';
 import { truncateToBytes } from '../helpers/truncateToBytes';
 import { splitEmailAddress } from '../helpers/emailAddress';
 import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
-import { simpleParser, type Attachment as ParsedAttachment } from 'mailparser';
+import {
+	parseEmailForIndexing,
+	type ParsedEmailAttachment,
+} from '../helpers/parseEmailForIndexing';
 import { logger } from '../config/logger';
 import { config } from '../config';
 import { MeiliSearchApiError } from 'meilisearch';
@@ -477,7 +480,16 @@ export class IndexingService {
 	): Promise<EmailDocument> {
 		const emailBodyStream = await this.storageService.get(email.storagePath);
 		const emailBodyBuffer = await streamToBuffer(emailBodyStream);
-		const parsedEmail = await simpleParser(emailBodyBuffer);
+		// Names the email before the parse, so with LOG_LEVEL=debug a build that never finishes
+		// can be traced to its message.
+		logger.debug(
+			{ emailId: email.id, storagePath: email.storagePath },
+			'Building search document'
+		);
+		const parsedEmail = await parseEmailForIndexing(
+			emailBodyBuffer,
+			!!email.hasAttachments && attachments.length === 0
+		);
 		// Capped here rather than only at normalization so the oversized string is released now,
 		// instead of being retained for as long as the chunk is in flight.
 		const emailBodyText = truncateToBytes(
@@ -493,9 +505,10 @@ export class IndexingService {
 		// extract attachment text directly from the parsed EML body.
 		let attachmentContents: { filename: string; content: string }[];
 		if (attachments.length > 0) {
-			attachmentContents = await this.extractAttachmentContents(attachments);
+			attachmentContents = await this.extractAttachmentContents(email.id, attachments);
 		} else if (email.hasAttachments && parsedEmail.attachments.length > 0) {
 			attachmentContents = await this.extractInlineAttachmentContents(
+				email.id,
 				parsedEmail.attachments
 			);
 		} else {
@@ -528,18 +541,31 @@ export class IndexingService {
 	 * attachments directly from the in-memory parsed email.
 	 */
 	private async extractInlineAttachmentContents(
-		parsedAttachments: ParsedAttachment[]
+		emailId: string,
+		parsedAttachments: ParsedEmailAttachment[]
 	): Promise<{ filename: string; content: string }[]> {
 		const results = await mapWithConcurrency(
 			parsedAttachments,
 			IndexingService.ATTACHMENT_READ_CONCURRENCY,
-			async (attachment) => ({
-				filename: attachment.filename || 'untitled',
-				content: truncateToBytes(
-					await extractText(attachment.content, attachment.contentType || ''),
-					config.indexing.maxTextBytes
-				),
-			})
+			async (attachment) => {
+				logger.debug(
+					{ emailId, filename: attachment.filename, mimeType: attachment.contentType },
+					'Extracting attachment text'
+				);
+				// The bytes come back from the parse thread as a plain Uint8Array.
+				const content = Buffer.from(
+					attachment.content.buffer,
+					attachment.content.byteOffset,
+					attachment.content.byteLength
+				);
+				return {
+					filename: attachment.filename || 'untitled',
+					content: truncateToBytes(
+						await extractText(content, attachment.contentType || ''),
+						config.indexing.maxTextBytes
+					),
+				};
+			}
 		);
 
 		const extracted: { filename: string; content: string }[] = [];
@@ -573,12 +599,17 @@ export class IndexingService {
 	private static readonly ATTACHMENT_READ_CONCURRENCY = 3;
 
 	private async extractAttachmentContents(
+		emailId: string,
 		attachments: Attachment[]
 	): Promise<{ filename: string; content: string }[]> {
 		const results = await mapWithConcurrency(
 			attachments,
 			IndexingService.ATTACHMENT_READ_CONCURRENCY,
 			async (attachment) => {
+				logger.debug(
+					{ emailId, filename: attachment.filename, mimeType: attachment.mimeType },
+					'Extracting attachment text'
+				);
 				const fileStream = await this.storageService.get(attachment.storagePath);
 				const fileBuffer = await streamToBuffer(fileStream);
 				const textContent = await extractText(fileBuffer, attachment.mimeType || '');

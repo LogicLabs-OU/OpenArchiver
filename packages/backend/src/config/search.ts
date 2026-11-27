@@ -55,6 +55,12 @@ export const indexingConfig = {
 	 */
 	maxTextBytes: intFromEnv('INDEXING_MAX_TEXT_BYTES', 1_000_000, 10_000),
 	/**
+	 * Base time allowed for parsing one stored .eml before the parse is aborted and the email counts
+	 * as failed; 2 seconds per MB of .eml are added on top. A normal message parses in milliseconds
+	 * and a 68 MB one in about 11 s, so this only ends parses that would otherwise run for hours.
+	 */
+	parseTimeoutMs: intFromEnv('INDEXING_PARSE_TIMEOUT_MS', 60_000, 1_000),
+	/**
 	 * How many index-email-batch jobs the indexing worker runs at once.
 	 *
 	 * Most of a job's wall clock is waiting, not computing: a storage read per email, then a
