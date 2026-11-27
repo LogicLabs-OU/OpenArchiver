@@ -7,8 +7,13 @@ import { pipeline } from 'stream/promises';
 import { logger } from '../../config/logger';
 import { StorageObjectExistsError } from './errors';
 
-/** Errors from link(2) that mean "this filesystem has no usable hard links". */
-const LINK_UNSUPPORTED = new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EXDEV', 'ENOSYS']);
+/**
+ * Errors from link(2) that mean hard links cannot publish the file here. ENOENT is on the list
+ * because a CIFS/SMB mount with mapposix answers it for names containing < or >, which every
+ * Message-ID based .eml name does (#505). If the path is really missing, the rename fallback
+ * fails with the same ENOENT.
+ */
+const LINK_UNSUPPORTED = new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EXDEV', 'ENOSYS', 'ENOENT']);
 
 export class LocalFileSystemProvider implements IStorageProvider {
 	private readonly rootPath: string;
